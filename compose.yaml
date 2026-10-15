@@ -1,0 +1,24 @@
+name: fixt-assistant
+services:
+  assistant:
+    build: .
+    container_name: fixt-assistant
+    restart: unless-stopped
+    network_mode: host
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      ASSISTANT_CODEX_HOME: /codex
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./data:/app/data
+      - ${ASSISTANT_CODEX_HOME:-/home/fixt/.codex}:/codex
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

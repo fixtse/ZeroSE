@@ -1,0 +1,68 @@
+import type { Config } from '../../domain/config.js';
+import type { Job, ToolContext } from '../../domain/models.js';
+import type { AgentPort, GooglePort, HomeAssistantPort, ConversationStore } from '../ports.js';
+import { dayRange } from '../../domain/time.js';
+import { renderPrompt } from '../prompts.js';
+import type { JobResult } from './contracts.js';
+
+export class PrepareNotification {
+  constructor(
+    private config: Config,
+    private store: ConversationStore,
+    private agent: AgentPort,
+    private google: GooglePort,
+    private homeAssistant: HomeAssistantPort,
+    private prompts: Record<string, string>,
+  ) {}
+  private eventKey(event: any) {
+    return `event:${event.id}:${event.start?.dateTime || event.start?.date}`;
+  }
+  private async forecast(signal: AbortSignal): Promise<unknown> {
+    if (!this.config.homeAssistant.token || !this.config.homeAssistant.weatherEntity)
+      return 'Weather is not configured';
+    try {
+      return await this.homeAssistant.forecast(signal);
+    } catch {
+      return 'Weather could not be retrieved; mention this to the user';
+    }
+  }
+  async execute(job: Job, context: ToolContext): Promise<JobResult> {
+    const morning = job.payload.kind === 'morning';
+    const range = dayRange(new Date(), this.config.timezone);
+    const events = await this.google.events(
+      morning ? range.start : new Date().toISOString(),
+      morning ? range.end : new Date(Date.now() + 15 * 60_000).toISOString(),
+      context.signal,
+    );
+    const selected = morning
+      ? events
+      : events.filter((event) => !this.store.scheduled(this.eventKey(event)));
+    if (!morning && !selected.length) return { output: 'No upcoming events', deliver: false };
+    const tasks = morning ? await this.google.tasks(false, context.signal) : [];
+    const weather = morning ? await this.forecast(context.signal) : undefined;
+    const instructions = renderPrompt(
+      this.prompts[morning ? 'morning' : 'reminder'] ||
+        'Eres Zero. Resume la agenda y tareas en español con horarios de 12 horas. No hagas preguntas ni inventes datos.',
+      {
+        now: new Date().toISOString(),
+        context: this.google.enabled ? await this.google.context(context.signal) : '',
+      },
+    );
+    const output = await this.agent.run(
+      `system:notification:${job.id}`,
+      JSON.stringify({ events: selected, tasks, weather }),
+      instructions,
+      context,
+      [],
+      undefined,
+      false,
+    );
+    if (!output.trim()) throw new Error('Codex returned no notification text');
+    return {
+      output,
+      afterDelivery: () => {
+        if (!morning) for (const event of selected) this.store.markScheduled(this.eventKey(event));
+      },
+    };
+  }
+}
