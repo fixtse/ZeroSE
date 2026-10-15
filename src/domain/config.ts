@@ -50,7 +50,7 @@ export interface Config {
     categories: string[];
     sharedProfile: string;
   };
-  media: { asrUrl: string; voice: string; maxBytes: number };
+  media: { asrUrl: string; audioExtractionUrl: string; voice: string; maxBytes: number };
   braveApiKey: string;
   schedules: {
     enabled: boolean;

@@ -59,6 +59,7 @@
   },
   "media": {
     "asrUrl": "",
+    "audioExtractionUrl": "",
     "voice": "es-ES-AlvaroNeural",
     "maxBytes": 20000000
   },

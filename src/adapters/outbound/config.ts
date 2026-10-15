@@ -147,10 +147,16 @@ export const ConfigSchema = z.object({
   media: z
     .object({
       asrUrl: secret,
+      audioExtractionUrl: secret,
       voice: z.string().default('es-ES-AlvaroNeural'),
       maxBytes: z.number().int().positive().default(20_000_000),
     })
-    .default({ asrUrl: '', voice: 'es-ES-AlvaroNeural', maxBytes: 20_000_000 }),
+    .default({
+      asrUrl: '',
+      audioExtractionUrl: '',
+      voice: 'es-ES-AlvaroNeural',
+      maxBytes: 20_000_000,
+    }),
   braveApiKey: secret,
   schedules: z
     .object({

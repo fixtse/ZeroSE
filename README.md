@@ -67,6 +67,11 @@ Telegram videos (including video notes) and forwarded audio/voice messages retur
 transcript from the configured `media.asrUrl` speech-to-text service as a text reply.
 Direct audio/voice messages remain spoken requests to Zero. Replying to an audio or
 video message also returns its transcript. Transcripts are never executed as commands.
+Set `media.audioExtractionUrl` to the FFmpeg service's `/video/extract/audio` endpoint
+to extract video audio remotely before sending the returned WAV to `media.asrUrl`.
+The extraction service receives a multipart `file` upload. If no extraction URL is
+configured, video extraction uses local `ffmpeg`. Direct audio goes straight to STT.
+Tests use local HTTP fixtures and do not require the FFmpeg binary or live services.
 
 ## Private images and deployment
 

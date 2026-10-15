@@ -6,7 +6,7 @@ import ExcelJS from 'exceljs';
 import mammoth from 'mammoth';
 import { EdgeTTS } from 'node-edge-tts';
 import { Config } from '../../domain/config.js';
-import { jsonRequest, boundedBody } from './http.js';
+import { jsonRequest, boundedBody, RemoteError } from './http.js';
 
 const exec = promisify(execFile);
 export class Media {
@@ -54,6 +54,20 @@ export class Media {
     if (mime.startsWith('audio/'))
       return { text: await this.transcribe(buffer, mime, signal), images: [] };
     if (mime.startsWith('video/')) {
+      if (this.config.media.audioExtractionUrl) {
+        const form = new FormData();
+        form.set('file', new Blob([new Uint8Array(buffer)], { type: mime }), filename);
+        const response = await fetch(this.config.media.audioExtractionUrl, {
+          method: 'POST',
+          body: form,
+          redirect: 'error',
+          signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
+        });
+        if (!response.ok) throw new RemoteError('Audio extraction', response.status);
+        const audio = await boundedBody(response, this.config.media.maxBytes);
+        if (!audio.length) throw new Error('Audio extraction service returned no audio');
+        return { text: await this.transcribe(audio, 'audio/wav', signal), images: [] };
+      }
       const source = join(dir, 'video'),
         audio = join(dir, 'audio.wav');
       await writeFile(source, buffer, { mode: 0o600 });

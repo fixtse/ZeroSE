@@ -2,9 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConfigSchema } from '../src/adapters/outbound/config.js';
@@ -86,17 +84,32 @@ test('Telegram returns transcripts for videos and forwarded audio while direct a
   }
 });
 
-test('video audio is extracted as WAV and audio is sent to the configured STT endpoint', async () => {
+test('video uses the configured extraction service before STT and direct audio bypasses extraction', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'zero-media-test-'));
+  const requests: string[] = [];
+  const video = Buffer.from('video bytes sent unchanged');
+  const wav = Buffer.from('RIFF test WAV bytes');
+  let extractionStatus = 200;
+  let extractedAudio = wav;
   const received: { mime: string; buffer: Buffer }[] = [];
   const server = createServer(async (req, res) => {
-    assert.equal(req.url, '/configured-stt');
+    requests.push(req.url!);
     assert.equal(req.method, 'POST');
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const body = await new Response(Buffer.concat(chunks), {
       headers: { 'Content-Type': req.headers['content-type']! },
     }).formData();
+    if (req.url === '/video/extract/audio') {
+      const file = body.get('file') as File;
+      assert.equal(file.name, 'clip.mp4');
+      assert.equal(file.type, 'video/mp4');
+      assert.deepEqual(Buffer.from(await file.arrayBuffer()), video);
+      res.writeHead(extractionStatus, { 'Content-Type': 'audio/wav' });
+      res.end(extractedAudio);
+      return;
+    }
+    assert.equal(req.url, '/configured-stt?output=json');
     const file = body.get('audio_file') as File;
     received.push({ mime: file.type, buffer: Buffer.from(await file.arrayBuffer()) });
     res.setHeader('Content-Type', 'application/json');
@@ -104,50 +117,46 @@ test('video audio is extracted as WAV and audio is sent to the configured STT en
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
+  const base = `http://127.0.0.1:${(server.address() as any).port}`;
   const config = ConfigSchema.parse({
     dataDir: dir,
-    media: { asrUrl: `http://127.0.0.1:${(server.address() as any).port}/configured-stt` },
+    media: {
+      asrUrl: base + '/configured-stt?output=json',
+      audioExtractionUrl: base + '/video/extract/audio',
+      maxBytes: 100,
+    },
   });
   const media = new Media(config);
+  const signal = new AbortController().signal;
+  const extractVideo = () => media.extract(video, 'clip.mp4', 'video/mp4', 'video', signal);
   try {
-    const video = join(dir, 'clip.mp4');
-    await promisify(execFile)('ffmpeg', [
-      '-nostdin',
-      '-y',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=black:s=16x16:d=0.2',
-      '-f',
-      'lavfi',
-      '-i',
-      'sine=frequency=440:duration=0.2',
-      '-c:v',
-      'mpeg4',
-      '-c:a',
-      'aac',
-      '-shortest',
-      video,
+    assert.deepEqual(await extractVideo(), { text: 'Verbatim STT result.', images: [] });
+    assert.deepEqual(requests, ['/video/extract/audio', '/configured-stt?output=json']);
+    assert.deepEqual(received, [{ mime: 'audio/wav', buffer: wav }]);
+    assert.deepEqual(await media.extract(wav, 'audio.wav', 'audio/wav', 'audio', signal), {
+      text: 'Verbatim STT result.',
+      images: [],
+    });
+    assert.deepEqual(requests, [
+      '/video/extract/audio',
+      '/configured-stt?output=json',
+      '/configured-stt?output=json',
     ]);
-    const signal = new AbortController().signal;
-    assert.deepEqual(
-      await media.extract(await readFile(video), 'clip.mp4', 'video/mp4', 'video', signal),
-      {
-        text: 'Verbatim STT result.',
-        images: [],
-      },
+    assert.deepEqual(received[1], received[0]);
+
+    extractionStatus = 503;
+    await assert.rejects(extractVideo, /Audio extraction returned HTTP 503/);
+    extractionStatus = 200;
+    extractedAudio = Buffer.alloc(0);
+    await assert.rejects(extractVideo, /returned no audio/);
+    extractedAudio = Buffer.alloc(101);
+    await assert.rejects(extractVideo, /size limit/);
+    assert.equal(received.length, 2, 'Failed extraction must not call STT');
+    assert.equal(
+      requests.filter((path) => path === '/video/extract/audio').length,
+      4,
+      'Failed extraction must not be retried',
     );
-    assert.equal(received[0].mime, 'audio/wav');
-    assert.equal(received[0].buffer.subarray(0, 4).toString(), 'RIFF');
-    assert.deepEqual(
-      await media.extract(received[0].buffer, 'audio.wav', 'audio/wav', 'audio', signal),
-      {
-        text: 'Verbatim STT result.',
-        images: [],
-      },
-    );
-    assert.equal(received.length, 2);
-    assert.deepEqual(received[1].buffer, received[0].buffer);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
