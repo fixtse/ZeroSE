@@ -36,7 +36,9 @@
     "token": "",
     "shoppingListEntity": "todo.shopping_list",
     "sensorEntities": [],
-    "weatherEntity": ""
+    "weatherEntity": "",
+    "locationEntity": "device_tracker.galaxy_s26",
+    "geocodedLocationEntity": "sensor.galaxy_s26_geocoded_location"
   },
   "memory": {
     "geminiApiKey": "",

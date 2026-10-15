@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { Config } from '../../domain/config.js';
 import type { ConversationStore } from '../../application/ports.js';
+import { localClock } from '../../domain/time.js';
 
 export function equalSecret(value: unknown, expected: string) {
   if (typeof value !== 'string' || !expected) return false;
@@ -73,6 +74,16 @@ export function createHttpServer(config: Config, store: ConversationStore, icon?
       }
       if (!equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`))
         return send(401, { error: 'Unauthorized' });
+      if (req.method === 'POST' && path === '/v1/triggers/morning') {
+        const chat = config.telegram.notificationChatId;
+        if (!config.schedules.enabled || !chat)
+          return send(503, { error: 'Morning notifications are disabled or have no recipient' });
+        const { day } = localClock(new Date(), config.timezone);
+        const key = 'morning:' + day;
+        const job = await store.enqueue('telegram:' + chat, { kind: 'morning', chatId: chat }, key);
+        await store.markScheduled(key);
+        return send(202, { jobId: job.id, status: job.status });
+      }
       if (req.method === 'POST' && path === '/v1/chat') {
         const value = chatSchema.parse(await body(req));
         const key = req.headers['idempotency-key'];

@@ -109,6 +109,13 @@ export function registerHomeAssistantTools(
   config: Config['homeAssistant'],
 ) {
   if (!config.token) return;
+  if (config.locationEntity || config.geocodedLocationEntity)
+    tools.add(
+      'location_get',
+      'Read the user’s home/away presence, known zone, GPS coordinates/accuracy and geocoded address from Home Assistant, with source timestamps. Use when location improves an answer or suggestion.',
+      z.object({}),
+      (_a, c) => ha.location(c.signal),
+    );
   tools.add(
     'sensors_list',
     'Find Home Assistant sensor and binary-sensor readings by name.',

@@ -40,6 +40,8 @@ export interface Config {
     shoppingListEntity: string;
     sensorEntities: string[];
     weatherEntity: string;
+    locationEntity: string;
+    geocodedLocationEntity: string;
   };
   memory: {
     geminiApiKey: string;

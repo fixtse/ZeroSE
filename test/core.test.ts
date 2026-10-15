@@ -112,6 +112,10 @@ test('daily date ranges respect Madrid DST and schedules enqueue once', async ()
     const job = await f.store.claim([]);
     assert.equal(job?.payload.kind, 'morning');
     assert.equal(await f.store.claim([]), undefined);
+    await f.store.finish(job!.id, 'sent');
+    f.config.schedules.morning = '';
+    await scheduler.tick(new Date('2026-10-16T06:30:00Z'));
+    assert.equal(await f.store.claim([]), undefined);
   } finally {
     await f.close();
   }

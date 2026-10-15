@@ -97,6 +97,7 @@ export interface HomeAssistantPort {
   forecast(signal?: AbortSignal): Promise<unknown>;
 }
 export interface HomeAssistantToolsPort extends HomeAssistantPort {
+  location(signal?: AbortSignal): Promise<unknown>;
   sensors(search?: string, signal?: AbortSignal): Promise<unknown>;
   sensor(entity: string, signal?: AbortSignal): Promise<unknown>;
   history(entity: string, start: string, end: string, signal?: AbortSignal): Promise<unknown>;

@@ -3,6 +3,73 @@ import type { Config } from '../../domain/config.js';
 
 export class HomeAssistant {
   constructor(private config: Config['homeAssistant']) {}
+  async location(signal?: AbortSignal) {
+    const entities = [this.config.locationEntity, this.config.geocodedLocationEntity];
+    if (!entities.some(Boolean)) throw new Error('Location entities are not configured');
+    const results = await Promise.allSettled(
+      entities.map((entity) =>
+        entity ? this.request('states/' + encodeURIComponent(entity), undefined, signal) : null,
+      ),
+    );
+    signal?.throwIfAborted();
+    const observedAt = new Date().toISOString();
+    const source = (index: number) => {
+      const result = results[index]!;
+      if (!entities[index]) return null;
+      if (result.status === 'rejected')
+        return {
+          entity_id: entities[index],
+          available: false,
+          error: 'Location source could not be retrieved',
+        };
+      const value = result.value;
+      const state = typeof value?.state === 'string' ? value.state.trim() : '';
+      const available = !!state && !['unknown', 'unavailable'].includes(state.toLowerCase());
+      const timestamp = value?.last_reported || value?.last_updated;
+      const age = Date.parse(observedAt) - Date.parse(timestamp);
+      const attributes = value?.attributes || {};
+      const placemark = attributes.location ?? attributes.Location;
+      const latitude = attributes.latitude ?? (Array.isArray(placemark) ? placemark[0] : undefined),
+        longitude = attributes.longitude ?? (Array.isArray(placemark) ? placemark[1] : undefined);
+      const coordinates =
+        available &&
+        typeof latitude === 'number' &&
+        Number.isFinite(latitude) &&
+        Math.abs(latitude) <= 90 &&
+        typeof longitude === 'number' &&
+        Number.isFinite(longitude) &&
+        Math.abs(longitude) <= 180
+          ? {
+              latitude,
+              longitude,
+              ...(typeof attributes.gps_accuracy === 'number' &&
+              Number.isFinite(attributes.gps_accuracy) &&
+              attributes.gps_accuracy >= 0
+                ? { accuracy_m: attributes.gps_accuracy }
+                : {}),
+            }
+          : null;
+      return {
+        entity_id: entities[index],
+        available,
+        state: available ? state : null,
+        last_changed: value?.last_changed ?? null,
+        last_updated: value?.last_updated ?? null,
+        last_reported: value?.last_reported ?? null,
+        age_seconds: Number.isFinite(age) && age >= 0 ? Math.floor(age / 1000) : null,
+        coordinates,
+      };
+    };
+    const tracker = source(0),
+      geocoded = source(1);
+    return {
+      observed_at: observedAt,
+      presence: !tracker?.available ? 'unknown' : tracker.state === 'home' ? 'home' : 'away',
+      zone: !tracker?.available || tracker.state === 'not_home' ? null : tracker.state,
+      tracker,
+      geocoded,
+    };
+  }
   private request(endpoint: string, body?: unknown, signal?: AbortSignal) {
     if (!this.config.token) throw new Error('Home Assistant token is not configured');
     return jsonRequest(

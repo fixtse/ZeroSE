@@ -89,6 +89,14 @@ export const ConfigSchema = z.object({
       shoppingListEntity: z.string().default('todo.shopping_list'),
       sensorEntities: z.array(z.string()).default([]),
       weatherEntity: secret,
+      locationEntity: z
+        .string()
+        .regex(/^(?:(?:person|device_tracker)\.[a-z0-9_]+)?$/)
+        .default('device_tracker.galaxy_s26'),
+      geocodedLocationEntity: z
+        .string()
+        .regex(/^(?:sensor\.[a-z0-9_]+)?$/)
+        .default('sensor.galaxy_s26_geocoded_location'),
     })
     .default({
       url: 'http://127.0.0.1:8123',
@@ -96,6 +104,8 @@ export const ConfigSchema = z.object({
       shoppingListEntity: 'todo.shopping_list',
       sensorEntities: [],
       weatherEntity: '',
+      locationEntity: 'device_tracker.galaxy_s26',
+      geocodedLocationEntity: 'sensor.galaxy_s26_geocoded_location',
     }),
   memory: z
     .object({
@@ -147,7 +157,7 @@ export const ConfigSchema = z.object({
       enabled: z.boolean().default(false),
       morning: z
         .string()
-        .regex(/^\d{2}:\d{2}$/)
+        .regex(/^(?:\d{2}:\d{2})?$/)
         .default('08:30'),
       reset: z
         .string()

@@ -110,3 +110,40 @@ test('Telegram chunking preserves every code point within message limits', () =>
   assert.equal(result.join(''), text);
   assert(result.every((chunk) => Array.from(chunk).length <= 3900));
 });
+
+test('morning webhook authenticates and deduplicates wake-ups with the scheduled briefing', async () => {
+  const f = await fixture();
+  f.config.schedules.enabled = true;
+  f.config.schedules.morning = '';
+  f.config.telegram.notificationChatId = '123';
+  const server = createHttpServer(f.config, f.store);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const url = `http://127.0.0.1:${(server.address() as any).port}/v1/triggers/morning`;
+  const request = { method: 'POST', headers: { Authorization: `Bearer ${f.config.apiKey}` } };
+  try {
+    assert.equal((await fetch(url, { method: 'POST' })).status, 401);
+    const responses = await Promise.all([fetch(url, request), fetch(url, request)]);
+    assert(responses.every((response) => response.status === 202));
+    const [first, duplicate] = (await Promise.all(
+      responses.map((response) => response.json()),
+    )) as any[];
+    assert.equal(first.jobId, duplicate.jobId);
+    const job = await f.store.job(first.jobId);
+    assert.equal(job?.session, 'telegram:123');
+    assert.deepEqual(job?.payload, { kind: 'morning', chatId: '123' });
+    await f.store.fail(first.jobId, 'uncertain delivery');
+    const failed = (await (await fetch(url, request)).json()) as any;
+    assert.equal(failed.jobId, first.jobId);
+    assert.equal(failed.status, 'failed');
+    f.config.schedules.enabled = false;
+    assert.equal((await fetch(url, request)).status, 503);
+    f.config.schedules.enabled = true;
+    f.config.telegram.notificationChatId = '';
+    assert.equal((await fetch(url, request)).status, 503);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await f.close();
+  }
+});

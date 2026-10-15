@@ -143,6 +143,19 @@ public ingress and refuses to start if a webhook already exists. Webhook mode us
 `POST /telegram/webhook` and validates `X-Telegram-Bot-Api-Secret-Token` plus the
 configured user allowlist. Neither transport registers or removes a webhook on startup.
 
+## Wake-up briefing
+
+Set `schedules.morning` to `""` to disable the fixed morning time while keeping
+reset and memory-consolidation schedules enabled. Home Assistant can call
+`POST /v1/triggers/morning` with `Authorization: Bearer <config.apiKey>` when
+`input_boolean.dormir` changes from `on` to `off`. No body is required. This
+queues the usual morning briefing for `telegram.notificationChatId`, using the
+same session ordering and daily deduplication key as the timed schedule. Repeated
+calls return the existing job, including failed jobs, without replaying delivery.
+The endpoint requires `schedules.enabled` and a configured notification recipient.
+Keep the bearer value in a private Home Assistant secret or credentials file, and
+use an authenticated HTTP action with no automatic retries. Reloading the automation does not send a briefing.
+
 ## Capabilities
 
 - Telegram text/media/document input, replies to text, and transcription of replied-to voice/video notes.
@@ -153,9 +166,19 @@ configured user allowlist. Neither transport registers or removes a webhook on s
 - Codex web search, public URL reading, and Brave image search when configured.
 - Home Assistant shopping-list reads/additions/completion/removal, sensor discovery/current values,
   and up to seven days of recorded sensor history. Sensor access can be restricted to named entities.
+- On-demand home/away and known-zone awareness, with GPS accuracy, geocoded address and source timestamps for location-aware suggestions.
 - Gemini semantic memory retrieval with category/date filters, stored and searched using pgvector.
 - Native memory consolidation, daily short-term reset, morning agenda, and optional event reminders.
   The original disabled 15-minute reminder routine remains disabled by default.
+
+Location-aware answers use the read-only `location_get` tool when relevant. Configure
+`homeAssistant.locationEntity` with your `person.*` or `device_tracker.*` entity
+(default `device_tracker.galaxy_s26`) and `homeAssistant.geocodedLocationEntity`
+(default `sensor.galaxy_s26_geocoded_location`). Set either to an empty string to
+disable that source, or both to disable the tool. These explicitly configured location
+entities are separate from the sensor allowlist; general sensor access stays restricted.
+Each source includes its own timestamps and age so the assistant can qualify old or
+conflicting observations. Location is read on demand, without forcing phone updates.
 
 Google services use separate OAuth grants for their required scopes. Home Assistant list writes are followed by a read-back verification. Uncertain
 mutating operations are not retried automatically. Interrupted jobs become failed jobs
