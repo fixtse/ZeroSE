@@ -87,7 +87,7 @@ export class Telegram {
     signal: AbortSignal,
   ): Promise<{ text: string; images: string[]; transcriptionOnly: boolean }> {
     const reply = message.reply_to_message || message.external_reply;
-    const repliedMedia = reply && (reply.voice || reply.video_note);
+    const repliedMedia = reply && (reply.voice || reply.audio || reply.video_note || reply.video);
     const source = repliedMedia ? reply : message;
     const media =
       source.voice ||
@@ -116,11 +116,22 @@ export class Telegram {
       media.mime_type ||
       (source.photo
         ? 'image/jpeg'
-        : source.video_note
+        : source.video_note || source.video
           ? 'video/mp4'
           : source.voice
             ? 'audio/ogg'
-            : 'application/octet-stream');
+            : source.audio
+              ? 'audio/mpeg'
+              : 'application/octet-stream');
+    const forwarded = !!(
+      source.forward_origin ||
+      source.forward_date ||
+      source.forward_from ||
+      source.forward_from_chat ||
+      source.forward_sender_name
+    );
+    const transcriptionOnly =
+      !!repliedMedia || mime.startsWith('video/') || (forwarded && mime.startsWith('audio/'));
     const result = await this.media.extract(
       buffer,
       media.file_name || info.file_path,
@@ -132,8 +143,8 @@ export class Telegram {
       throw new Error('Extracted content is too large for one message');
     return {
       ...result,
-      text: [repliedMedia ? '' : ownText, result.text].filter(Boolean).join('\n\n'),
-      transcriptionOnly: !!repliedMedia,
+      text: [transcriptionOnly ? '' : ownText, result.text].filter(Boolean).join('\n\n'),
+      transcriptionOnly,
     };
   }
 }

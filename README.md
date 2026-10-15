@@ -63,6 +63,11 @@ audio, video notes, and video attachments have native handling. Audio transcript
 uses the existing ASR service; image interpretation uses Codex local-image input.
 Scanned PDFs without a text layer currently require sending their pages as images.
 
+Telegram videos (including video notes) and forwarded audio/voice messages return the
+transcript from the configured `media.asrUrl` speech-to-text service as a text reply.
+Direct audio/voice messages remain spoken requests to Zero. Replying to an audio or
+video message also returns its transcript. Transcripts are never executed as commands.
+
 ## Private images and deployment
 
 GitHub Actions runs formatting, type checks, tests, and compilation before building images.

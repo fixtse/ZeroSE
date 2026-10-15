@@ -1,0 +1,199 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ConfigSchema } from '../src/adapters/outbound/config.js';
+import { Media } from '../src/adapters/outbound/media.js';
+import { Telegram } from '../src/adapters/outbound/telegram.js';
+import { ProcessMessage } from '../src/application/use-cases/process-message.js';
+import type {
+  AgentPort,
+  ConversationStore,
+  GooglePort,
+  MemoryPort,
+  TelegramPort,
+} from '../src/application/ports.js';
+
+test('Telegram returns transcripts for videos and forwarded audio while direct audio remains a request', async () => {
+  const config = ConfigSchema.parse({ telegram: { token: 'test-only' } });
+  let extractedMime = '';
+  class TestMedia extends Media {
+    async download() {
+      return Buffer.from('test media');
+    }
+    async extract(_buffer: Buffer, _filename: string, mime: string) {
+      extractedMime = mime;
+      return { text: 'Exact transcript', images: [] };
+    }
+  }
+  class TestTelegram extends Telegram {
+    async call(method: string, body: any) {
+      assert.equal(method, 'getFile');
+      assert.equal(body.file_id, 'file');
+      return { file_path: 'media/file' };
+    }
+  }
+  const telegram = new TestTelegram(config, new TestMedia(config));
+  const file = { file_id: 'file' };
+  const cases = [
+    { message: { video: file }, only: true, mime: 'video/mp4' },
+    {
+      message: { video: file, forward_origin: { type: 'channel' } },
+      only: true,
+      mime: 'video/mp4',
+    },
+    { message: { video_note: file }, only: true, mime: 'video/mp4' },
+    { message: { voice: file }, only: false, mime: 'audio/ogg' },
+    { message: { audio: file }, only: false, mime: 'audio/mpeg' },
+    {
+      message: { voice: file, forward_origin: { type: 'hidden_user' } },
+      only: true,
+      mime: 'audio/ogg',
+    },
+    { message: { audio: file, forward_origin: { type: 'user' } }, only: true, mime: 'audio/mpeg' },
+    { message: { audio: file, forward_date: 123 }, only: true, mime: 'audio/mpeg' },
+    { message: { reply_to_message: { audio: file } }, only: true, mime: 'audio/mpeg' },
+    { message: { external_reply: { video: file } }, only: true, mime: 'video/mp4' },
+    {
+      message: { document: { ...file, mime_type: 'video/quicktime' } },
+      only: true,
+      mime: 'video/quicktime',
+    },
+    {
+      message: { document: { ...file, mime_type: 'audio/flac' }, forward_origin: { type: 'user' } },
+      only: true,
+      mime: 'audio/flac',
+    },
+  ];
+  for (const { message, only, mime } of cases) {
+    const result = await telegram.input(
+      { ...message, caption: 'Caption is not spoken audio' },
+      'media-test',
+      new AbortController().signal,
+    );
+    assert.equal(result.transcriptionOnly, only, JSON.stringify(message));
+    assert.equal(extractedMime, mime);
+    assert.equal(
+      result.text,
+      only ? 'Exact transcript' : 'Caption is not spoken audio\n\nExact transcript',
+    );
+    assert.deepEqual(result.images, []);
+  }
+});
+
+test('video audio is extracted as WAV and audio is sent to the configured STT endpoint', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'zero-media-test-'));
+  const received: { mime: string; buffer: Buffer }[] = [];
+  const server = createServer(async (req, res) => {
+    assert.equal(req.url, '/configured-stt');
+    assert.equal(req.method, 'POST');
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = await new Response(Buffer.concat(chunks), {
+      headers: { 'Content-Type': req.headers['content-type']! },
+    }).formData();
+    const file = body.get('audio_file') as File;
+    received.push({ mime: file.type, buffer: Buffer.from(await file.arrayBuffer()) });
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ text: 'Verbatim STT result.' }));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const config = ConfigSchema.parse({
+    dataDir: dir,
+    media: { asrUrl: `http://127.0.0.1:${(server.address() as any).port}/configured-stt` },
+  });
+  const media = new Media(config);
+  try {
+    const video = join(dir, 'clip.mp4');
+    await promisify(execFile)('ffmpeg', [
+      '-nostdin',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=black:s=16x16:d=0.2',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=0.2',
+      '-c:v',
+      'mpeg4',
+      '-c:a',
+      'aac',
+      '-shortest',
+      video,
+    ]);
+    const signal = new AbortController().signal;
+    assert.deepEqual(
+      await media.extract(await readFile(video), 'clip.mp4', 'video/mp4', 'video', signal),
+      {
+        text: 'Verbatim STT result.',
+        images: [],
+      },
+    );
+    assert.equal(received[0].mime, 'audio/wav');
+    assert.equal(received[0].buffer.subarray(0, 4).toString(), 'RIFF');
+    assert.deepEqual(
+      await media.extract(received[0].buffer, 'audio.wav', 'audio/wav', 'audio', signal),
+      {
+        text: 'Verbatim STT result.',
+        images: [],
+      },
+    );
+    assert.equal(received.length, 2);
+    assert.deepEqual(received[1].buffer, received[0].buffer);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('transcription replies bypass commands, the agent, conversation storage and voice synthesis', async () => {
+  function unused<T extends object>(): T {
+    return new Proxy({} as T, {
+      get(_target, key) {
+        throw new Error(`Transcription must not access ${String(key)}`);
+      },
+    });
+  }
+  for (const text of ['Exact transcript', '/clean', '/nuevo']) {
+    const telegram: TelegramPort = {
+      async input() {
+        return { text, images: [], transcriptionOnly: true };
+      },
+      async send() {},
+      async sendVoice() {
+        throw new Error('Must not synthesize a transcription');
+      },
+      async typing() {},
+    };
+    const process = new ProcessMessage(
+      ConfigSchema.parse({}),
+      unused<ConversationStore>(),
+      unused<AgentPort>(),
+      unused<GooglePort>(),
+      unused<MemoryPort>(),
+      telegram,
+      '',
+    );
+    assert.deepEqual(
+      await process.execute(
+        {
+          id: 'media',
+          session: 'test',
+          status: 'running',
+          payload: { kind: 'telegram', message: {} },
+        },
+        { session: 'test', jobId: 'media', signal: new AbortController().signal },
+      ),
+      { output: text, voice: false },
+    );
+  }
+});
