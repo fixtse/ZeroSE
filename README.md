@@ -57,8 +57,11 @@ that every external integration is available. `doctor` checks the real integrati
 without sending Telegram messages or mutating calendar, task, or shopping data.
 Configuration changes take effect after restarting this service.
 
-For development outside Docker, install `ffmpeg`, `poppler-utils`, and `catdoc`.
-The container includes them. PDF text, DOC/DOCX, XLS/XLSX, images, text, JSON/XML,
+For development outside Docker, install `ffmpeg`, `poppler-utils`, `catdoc`, and
+`edge-tts==7.3.0` (for example, `pipx install edge-tts==7.3.0`). The container includes
+them. Voice synthesis uses this pinned client because Microsoft now requires the
+Sec-MS-GEC v2 handshake; the former Node client still generated v1 tokens.
+PDF text, DOC/DOCX, XLS/XLSX, images, text, JSON/XML,
 audio, video notes, and video attachments have native handling. Audio transcription
 uses the existing ASR service; image interpretation uses Codex local-image input.
 Scanned PDFs without a text layer currently require sending their pages as images.

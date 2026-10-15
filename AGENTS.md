@@ -7,7 +7,12 @@
 - Storage uses PostgreSQL with pgvector; keep ports asynchronous and preserve queue/session ordering.
   Use a dedicated `TEST_DATABASE_URL` for tests. Never clear production state or volumes.
 - Run `pnpm format:check`, `pnpm check`, `pnpm test`, and `pnpm build` before pushing.
-  Validate deployment changes with `docker compose config --quiet` and a local image build.
+  Validate deployment definitions locally with `docker compose config --quiet`.
+  Let GitHub Actions build and validate Docker images; do not build images locally unless
+  explicitly requested.
+- After completing a requested change and passing the required checks, automatically commit
+  the task's changes and push the current branch to its configured remote. Do not include
+  unrelated local changes or private runtime files.
 - Never commit or bake `config.json`, `data/`, `.codex`, tokens, or local `.env` files into images.
   Keep the Docker build context restricted to source, required static assets, and manifests.
 - Production Compose pulls private GHCR images. Use `compose.build.yaml` for local builds.

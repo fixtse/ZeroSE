@@ -59,6 +59,7 @@ export class Assistant {
     try {
       await this.telegram.sendVoice(chat, result.output, job.id, signal);
     } catch {
+      console.error(JSON.stringify({ event: 'voice_reply_failed', job: job.id }));
       await this.telegram.send(
         chat,
         'No se pudo generar la respuesta de voz; la respuesta de texto está arriba.',

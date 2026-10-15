@@ -92,3 +92,52 @@ test('delivery errors fail a job without replaying the completed action', async 
     await f.close();
   }
 });
+
+test('a voice failure preserves text delivery and finishes without retrying the action', async () => {
+  const f = await fixture();
+  const sent: string[] = [];
+  let actions = 0;
+  let voices = 0;
+  const job = await f.store.enqueue('telegram:1', {
+    kind: 'telegram',
+    message: { chat: { id: 1 } },
+  });
+  const worker = new Assistant(
+    f.config,
+    f.store,
+    {
+      telegram: async () => {
+        actions++;
+        return { output: 'Completed action' };
+      },
+    },
+    { async cleanup() {} },
+    {
+      async send(_chat, text) {
+        sent.push(text);
+      },
+      async sendVoice() {
+        voices++;
+        throw new Error('Speech synthesis failed');
+      },
+      async typing() {},
+      async input() {
+        throw new Error('unused');
+      },
+    },
+  );
+  try {
+    worker.start();
+    await until(async () => (await f.store.job(job.id))?.status === 'done');
+    assert.equal(actions, 1);
+    assert.equal(voices, 1);
+    assert.deepEqual(sent, [
+      'Completed action',
+      'No se pudo generar la respuesta de voz; la respuesta de texto está arriba.',
+    ]);
+    assert.equal(await f.store.claim([]), undefined);
+  } finally {
+    await worker.close();
+    await f.close();
+  }
+});

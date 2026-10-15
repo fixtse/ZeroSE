@@ -4,7 +4,6 @@ import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import ExcelJS from 'exceljs';
 import mammoth from 'mammoth';
-import { EdgeTTS } from 'node-edge-tts';
 import { Config } from '../../domain/config.js';
 import { jsonRequest, boundedBody, RemoteError } from './http.js';
 
@@ -125,6 +124,7 @@ export class Media {
     throw new Error(`Unsupported document type: ${extension || mime}`);
   }
   async voice(text: string, job: string, signal: AbortSignal): Promise<Buffer> {
+    signal.throwIfAborted();
     const dir = this.directory(job);
     await mkdir(dir, { recursive: true, mode: 0o700 });
     const mp3 = join(dir, 'speech.mp3'),
@@ -135,11 +135,35 @@ export class Media {
       .replace(/[*_~#`]/g, '')
       .replace(/\p{Extended_Pictographic}/gu, '')
       .trim();
-    await new EdgeTTS({
-      voice: this.config.media.voice,
-      lang: 'es-ES',
-      timeout: 30_000,
-    }).ttsPromise(clean, mp3);
+    if (!clean) throw new Error('Speech synthesis requires readable text');
+    // edge-tts 7.3.0 supports the Sec-MS-GEC v2 handshake required by Microsoft.
+    // Run it as a child so cancellation/deadlines also stop synthesis and file writes.
+    try {
+      await exec(
+        'edge-tts',
+        ['--voice', this.config.media.voice, '--text', clean, '--write-media', mp3],
+        { timeout: 30_000, signal, maxBuffer: 1_000_000 },
+      );
+      if (!(await readFile(mp3)).length) throw new Error('No audio');
+    } catch (error) {
+      // execFile errors include command arguments (the private reply text).
+      // Report only a safe classification; never log the raw error or stderr.
+      const code = (error as NodeJS.ErrnoException)?.code;
+      console.error(
+        JSON.stringify({
+          event: 'speech_synthesis_failed',
+          job,
+          reason: signal.aborted
+            ? 'aborted'
+            : code === 'ENOENT'
+              ? 'executable_missing'
+              : typeof code === 'number'
+                ? `exit_${code}`
+                : 'timeout_or_invalid_audio',
+        }),
+      );
+      throw new Error('Speech synthesis failed', { cause: error });
+    }
     signal.throwIfAborted();
     await exec('ffmpeg', ['-nostdin', '-y', '-i', mp3, '-c:a', 'libopus', ogg], {
       timeout: 30_000,
