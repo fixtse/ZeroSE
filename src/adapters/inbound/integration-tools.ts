@@ -165,7 +165,7 @@ export function registerMemoryTools(tools: Tools, memory: MemoryPort) {
     .optional();
   tools.add(
     'memories_get',
-    'Search personal long-term memory by meaning, categories and date range. Do not invent missing personal facts.',
+    'Search long-term conversation memory, including user facts and prior assistant advice, recommendations and plans, by meaning, categories and date range. Preserve who said what. Do not invent missing memories.',
     z.object({
       search_query: text,
       categories: z.array(z.string()).default([]),
@@ -177,7 +177,7 @@ export function registerMemoryTools(tools: Tools, memory: MemoryPort) {
   );
   tools.add(
     'memory_save',
-    'Save a self-contained personal fact, activity or idea with category and tags.',
+    'Save a self-contained user fact, activity or idea, or relevant assistant advice, recommendation or plan, with category and tags. Explicitly attribute assistant suggestions; do not present them as user decisions or completed actions.',
     z.object({ text, category: text, tags: z.array(z.string()).default([]) }),
     (a, c) => memory.save(c.session, a, undefined, c.signal),
   );

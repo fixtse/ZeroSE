@@ -285,11 +285,12 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
   async pendingMemoryMessages(session: string): Promise<PendingMemoryMessage[]> {
     return (
       await this.pool.query(
-        "SELECT id,text,created FROM messages WHERE role='user' AND consolidated=0 AND session=$1 ORDER BY id LIMIT 200",
+        "SELECT id,role,text,created FROM messages WHERE role IN ('user','assistant') AND consolidated=0 AND session=$1 ORDER BY id LIMIT 200",
         [session],
       )
     ).rows.map((row) => ({
       id: Number(row.id),
+      role: row.role,
       text: row.text,
       created: row.created.toISOString(),
     }));
@@ -297,7 +298,7 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
   async pendingMemorySessions(): Promise<string[]> {
     return (
       await this.pool.query(
-        "SELECT DISTINCT session FROM messages WHERE role='user' AND consolidated=0",
+        "SELECT DISTINCT session FROM messages WHERE role IN ('user','assistant') AND consolidated=0",
       )
     ).rows.map((row) => row.session);
   }

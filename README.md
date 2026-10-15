@@ -170,6 +170,7 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 - Gemini semantic memory retrieval with category/date filters, stored and searched using pgvector.
 - Native memory consolidation, daily short-term reset, morning agenda, and optional event reminders.
   The original disabled 15-minute reminder routine remains disabled by default.
+- Memory consolidation considers both user messages and assistant replies, retaining relevant advice and plans with explicit attribution. Prior suggestions remain distinct from user decisions or completed actions, and can be recalled through `memories_get`. Consolidation runs on the existing schedule; important context can also be saved immediately with `memory_save`.
 
 Location-aware answers use the read-only `location_get` tool when relevant. Configure
 `homeAssistant.locationEntity` with your `person.*` or `device_tracker.*` entity

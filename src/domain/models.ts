@@ -23,6 +23,7 @@ export interface MemoryMatch {
 }
 export interface PendingMemoryMessage {
   id: number;
+  role: 'user' | 'assistant';
   text: string;
   created: string;
 }
