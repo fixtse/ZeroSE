@@ -6,16 +6,22 @@ import { HomeAssistant } from '../src/adapters/outbound/home-assistant.js';
 import { createHttpServer } from '../src/adapters/inbound/http-server.js';
 import { chunks } from '../src/adapters/outbound/telegram.js';
 import { fixture } from './helpers.js';
-
+import { readFileSync } from 'node:fs';
 test('HTTP ingress authenticates, restricts Telegram users and deduplicates deliveries', async () => {
-  const f = fixture();
+  const f = await fixture();
   f.config.telegram.webhookSecret = 'secret';
+  f.config.telegram.transport = 'webhook';
   f.config.telegram.allowedUsers = ['1'];
-  const server = createHttpServer(f.config, f.store);
+  const icon = readFileSync('assets/icon.png');
+  const server = createHttpServer(f.config, f.store, icon);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
   try {
+    const favicon = await fetch(base + '/favicon.ico');
+    assert.equal(favicon.status, 200);
+    assert.equal(favicon.headers.get('Content-Type'), 'image/png');
+    assert.deepEqual(Buffer.from(await favicon.arrayBuffer()), icon);
     assert.equal((await fetch(base + '/v1/chat', { method: 'POST' })).status, 401);
     const headers = {
       Authorization: `Bearer ${f.config.apiKey}`,
@@ -47,7 +53,7 @@ test('HTTP ingress authenticates, restricts Telegram users and deduplicates deli
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    f.close();
+    await f.close();
   }
 });
 test('Home Assistant verifies shopping writes and rejects other domains and ambiguous names', async () => {
@@ -77,7 +83,7 @@ test('Home Assistant verifies shopping writes and rejects other domains and ambi
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  const f = fixture();
+  const f = await fixture();
   f.config.homeAssistant.token = 'local-test-token';
   f.config.homeAssistant.url = `http://127.0.0.1:${(server.address() as any).port}`;
   try {
@@ -95,7 +101,7 @@ test('Home Assistant verifies shopping writes and rejects other domains and ambi
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    f.close();
+    await f.close();
   }
 });
 test('Telegram chunking preserves every code point within message limits', () => {

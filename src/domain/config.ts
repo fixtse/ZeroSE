@@ -8,6 +8,7 @@ export interface Config {
   port: number;
   apiKey: string;
   dataDir: string;
+  database: { url: string };
   timezone: string;
   concurrency: number;
   codex: {
@@ -19,6 +20,7 @@ export interface Config {
     timeoutMs: number;
   };
   telegram: {
+    transport: 'disabled' | 'webhook' | 'polling';
     token: string;
     webhookSecret: string;
     allowedUsers: string[];
@@ -40,7 +42,6 @@ export interface Config {
     weatherEntity: string;
   };
   memory: {
-    postgresUrl: string;
     geminiApiKey: string;
     embeddingModel: string;
     embeddingDimensions: number;

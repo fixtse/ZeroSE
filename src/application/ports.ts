@@ -1,30 +1,30 @@
-import type { Config } from '../domain/config.js';
 import type {
   Job,
   ToolContext,
   MemoryFragment,
-  StoredMemory,
   MemoryMatch,
   PendingMemoryMessage,
 } from '../domain/models.js';
 
 export interface ConversationStore {
-  enqueue(session: string, payload: unknown, dedupe?: string): Job;
-  job(id: string): Job | undefined;
-  claim(excluded: string[]): Job | undefined;
-  finish(id: string, output: string): void;
-  fail(id: string, error: string): void;
-  thread(session: string): string | undefined;
-  setThread(session: string, thread: string): void;
-  reset(session?: string): void;
-  addMessage(session: string, role: string, text: string): void;
-  history(session: string): unknown[];
-  sessions(): string[];
-  scheduled(key: string): boolean;
-  markScheduled(key: string): void;
+  cursor(name: string): Promise<number>;
+  setCursor(name: string, value: number): Promise<void>;
+  enqueue(session: string, payload: unknown, dedupe?: string): Promise<Job>;
+  job(id: string): Promise<Job | undefined>;
+  claim(excluded: string[]): Promise<Job | undefined>;
+  finish(id: string, output: string): Promise<void>;
+  fail(id: string, error: string): Promise<void>;
+  thread(session: string): Promise<string | undefined>;
+  setThread(session: string, thread: string): Promise<void>;
+  reset(session?: string): Promise<void>;
+  addMessage(session: string, role: string, text: string): Promise<void>;
+  history(session: string): Promise<unknown[]>;
+  sessions(): Promise<string[]>;
+  scheduled(key: string): Promise<boolean>;
+  markScheduled(key: string): Promise<void>;
 }
 export interface AuditPort {
-  audit(job: string, tool: string, success: boolean, duration: number): void;
+  audit(job: string, tool: string, success: boolean, duration: number): Promise<void>;
 }
 export interface MemoryRepository {
   insertMemory(
@@ -32,25 +32,23 @@ export interface MemoryRepository {
     value: MemoryFragment,
     embedding: number[] | null,
     source?: string,
-  ): void;
-  memories(session: string): StoredMemory[];
-  pendingMemoryMessages(session: string): PendingMemoryMessage[];
-  pendingMemorySessions(): string[];
-  markConsolidated(session: string, ids: number[]): void;
+  ): Promise<void>;
+  searchMemory(
+    session: string,
+    query: string,
+    vector: number[] | undefined,
+    categories: string[],
+    start?: string,
+    end?: string,
+  ): Promise<MemoryMatch[]>;
+  memoryCatalog(session: string): Promise<{ categories: string[]; tags: string[] }>;
+  pendingMemoryMessages(session: string): Promise<PendingMemoryMessage[]>;
+  pendingMemorySessions(): Promise<string[]>;
+  markConsolidated(session: string, ids: number[]): Promise<void>;
 }
 export interface EmbeddingsPort {
   readonly enabled: boolean;
   embed(text: string, taskType: string, signal?: AbortSignal): Promise<number[]>;
-}
-export interface LegacyMemoryPort {
-  search(
-    vector: number[],
-    categories: string[],
-    start?: string,
-    end?: string,
-    signal?: AbortSignal,
-  ): Promise<MemoryMatch[]>;
-  close(): Promise<void>;
 }
 export interface MemoryPort {
   save(
@@ -67,9 +65,9 @@ export interface MemoryPort {
     end?: string,
     signal?: AbortSignal,
   ): Promise<MemoryMatch[]>;
-  catalog(session: string): { categories: string[]; tags: string[] };
-  pending(session: string): PendingMemoryMessage[];
-  pendingSessions(): string[];
+  catalog(session: string): Promise<{ categories: string[]; tags: string[] }>;
+  pending(session: string): Promise<PendingMemoryMessage[]>;
+  pendingSessions(): Promise<string[]>;
   consolidate(
     session: string,
     fragments: MemoryFragment[],
@@ -135,4 +133,3 @@ export interface TelegramPort {
   sendVoice(chat: string, text: string, job: string, signal: AbortSignal): Promise<void>;
   typing(chat: string, signal?: AbortSignal): Promise<unknown>;
 }
-export type RuntimeConfig = Config;

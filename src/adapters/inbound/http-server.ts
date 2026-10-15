@@ -25,7 +25,7 @@ async function body(request: IncomingMessage) {
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
-export function createHttpServer(config: Config, store: ConversationStore) {
+export function createHttpServer(config: Config, store: ConversationStore, icon?: Buffer) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -33,6 +33,19 @@ export function createHttpServer(config: Config, store: ConversationStore) {
     };
     const path = new URL(req.url || '/', 'http://localhost').pathname;
     try {
+      if (
+        req.method === 'GET' &&
+        icon &&
+        ['/icon.png', '/favicon.png', '/favicon.ico'].includes(path)
+      ) {
+        res.writeHead(200, {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=86400',
+          'X-Content-Type-Options': 'nosniff',
+        });
+        res.end(icon);
+        return;
+      }
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
       if (req.method === 'POST' && path === '/telegram/webhook') {
         if (
@@ -42,6 +55,8 @@ export function createHttpServer(config: Config, store: ConversationStore) {
           )
         )
           return send(401, { error: 'Unauthorized' });
+        if (config.telegram.transport !== 'webhook')
+          return send(503, { error: 'Webhook transport is disabled' });
         const update = await body(req),
           message = update.message;
         if (!Number.isSafeInteger(update.update_id)) return send(400, { error: 'Invalid update' });
@@ -49,7 +64,7 @@ export function createHttpServer(config: Config, store: ConversationStore) {
         if (!config.telegram.allowedUsers.includes(String(message.from?.id)))
           return send(403, { error: 'User not permitted' });
         if (!Number.isSafeInteger(message.chat?.id)) return send(400, { error: 'Invalid chat' });
-        const job = store.enqueue(
+        const job = await store.enqueue(
           'telegram:' + message.chat.id,
           { kind: 'telegram', message },
           'telegram:' + update.update_id,
@@ -63,7 +78,7 @@ export function createHttpServer(config: Config, store: ConversationStore) {
         const key = req.headers['idempotency-key'];
         if (Array.isArray(key) || (typeof key === 'string' && key.length > 200))
           return send(400, { error: 'Invalid idempotency key' });
-        const job = store.enqueue(
+        const job = await store.enqueue(
           'api:' + value.session,
           { kind: 'chat', ...value },
           key ? `api:${value.session}:${key}` : undefined,
@@ -71,7 +86,7 @@ export function createHttpServer(config: Config, store: ConversationStore) {
         return send(202, { jobId: job.id, status: job.status });
       }
       if (req.method === 'GET' && path.startsWith('/v1/jobs/')) {
-        const job = store.job(path.slice('/v1/jobs/'.length));
+        const job = await store.job(path.slice('/v1/jobs/'.length));
         return job
           ? send(200, { id: job.id, status: job.status, output: job.output, error: job.error })
           : send(404, { error: 'Job not found' });

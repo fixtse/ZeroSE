@@ -1,0 +1,74 @@
+{
+  "host": "127.0.0.1",
+  "port": 8788,
+  "apiKey": "replace-with-a-random-value-of-at-least-24-characters",
+  "dataDir": "./data",
+  "timezone": "Europe/Madrid",
+  "concurrency": 4,
+  "codex": {
+    "command": "./node_modules/.bin/codex",
+    "args": [],
+    "model": "gpt-6-luna",
+    "effort": "medium",
+    "home": "./data/codex",
+    "timeoutMs": 300000
+  },
+  "telegram": {
+    "transport": "disabled",
+    "token": "",
+    "webhookSecret": "",
+    "allowedUsers": [],
+    "notificationChatId": "",
+    "voiceReplies": true
+  },
+  "google": {
+    "clientId": "",
+    "clientSecret": "",
+    "refreshToken": "",
+    "calendarId": "primary",
+    "taskListId": "@default",
+    "contextDocumentId": "",
+    "documentFolderId": "",
+    "credentials": {}
+  },
+  "homeAssistant": {
+    "url": "http://127.0.0.1:8123",
+    "token": "",
+    "shoppingListEntity": "todo.shopping_list",
+    "sensorEntities": [],
+    "weatherEntity": ""
+  },
+  "memory": {
+    "geminiApiKey": "",
+    "sharedProfile": "",
+    "embeddingModel": "gemini-embedding-001",
+    "embeddingDimensions": 3072,
+    "categories": [
+      "Salud física",
+      "Salud mental",
+      "Carrera profesional",
+      "Ejercicio",
+      "Estado de ánimo",
+      "Social",
+      "Intereses especiales",
+      "Trading",
+      "Ideas"
+    ]
+  },
+  "media": {
+    "asrUrl": "",
+    "voice": "es-ES-AlvaroNeural",
+    "maxBytes": 20000000
+  },
+  "braveApiKey": "",
+  "schedules": {
+    "enabled": false,
+    "morning": "08:30",
+    "reset": "04:00",
+    "consolidate": "23:59",
+    "eventReminders": false
+  },
+  "database": {
+    "url": "postgresql://assistant:password@127.0.0.1:55432/assistant"
+  }
+}

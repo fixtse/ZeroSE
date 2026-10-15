@@ -16,11 +16,6 @@ export interface MemoryFragment {
   category: string;
   tags: string[];
 }
-export interface StoredMemory extends MemoryFragment {
-  id: number;
-  embedding: number[] | null;
-  created: string;
-}
 export interface MemoryMatch {
   text: string;
   metadata: { category: string; tags: string[]; created_at: string };

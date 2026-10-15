@@ -30,13 +30,12 @@ export class Tools {
       start = Date.now();
     try {
       const result = await tool.invoke(input, context);
-      this.store.audit(context.jobId, name, true, Date.now() - start);
+      await this.store.audit(context.jobId, name, true, Date.now() - start);
       return result;
     } catch (error) {
-      this.store.audit(context.jobId, name, false, Date.now() - start);
+      await this.store.audit(context.jobId, name, false, Date.now() - start);
       throw error;
     }
   }
 }
 export const text = z.string().min(1).max(100_000);
-export const optionalText = z.string().optional();

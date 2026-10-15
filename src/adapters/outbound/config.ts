@@ -9,6 +9,7 @@ export const ConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(8788),
   apiKey: secret,
   dataDir: z.string().default('./data'),
+  database: z.object({ url: z.string().default('') }).default({ url: '' }),
   timezone: z.string().default('Europe/Madrid'),
   concurrency: z.number().int().min(1).max(16).default(4),
   codex: z
@@ -30,6 +31,7 @@ export const ConfigSchema = z.object({
     }),
   telegram: z
     .object({
+      transport: z.enum(['disabled', 'webhook', 'polling']).default('disabled'),
       token: secret,
       webhookSecret: secret,
       allowedUsers: z.array(z.string()).default([]),
@@ -37,6 +39,7 @@ export const ConfigSchema = z.object({
       voiceReplies: z.boolean().default(true),
     })
     .default({
+      transport: 'disabled',
       token: '',
       webhookSecret: '',
       allowedUsers: [],
@@ -96,7 +99,6 @@ export const ConfigSchema = z.object({
     }),
   memory: z
     .object({
-      postgresUrl: secret,
       geminiApiKey: secret,
       sharedProfile: secret,
       embeddingModel: z.string().default('gemini-embedding-001'),
@@ -116,7 +118,6 @@ export const ConfigSchema = z.object({
         ]),
     })
     .default({
-      postgresUrl: '',
       geminiApiKey: '',
       sharedProfile: '',
       embeddingModel: 'gemini-embedding-001',
@@ -170,6 +171,9 @@ export function loadConfig(file = process.env.ASSISTANT_CONFIG || './config.json
   const config = ConfigSchema.parse(JSON.parse(readFileSync(file, 'utf8')));
   if (config.apiKey.length < 24)
     throw new Error('Set apiKey to a random value of at least 24 characters.');
+  config.database.url = process.env.ASSISTANT_DATABASE_URL || config.database.url;
+  if (!/^postgres(?:ql)?:\/\//.test(config.database.url))
+    throw new Error('Set database.url or ASSISTANT_DATABASE_URL to a PostgreSQL connection URL');
   new Intl.DateTimeFormat('en', { timeZone: config.timezone });
   config.dataDir = resolve(config.dataDir);
   config.codex.home = resolve(process.env.ASSISTANT_CODEX_HOME || config.codex.home);

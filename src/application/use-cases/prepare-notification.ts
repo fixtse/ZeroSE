@@ -34,9 +34,9 @@ export class PrepareNotification {
       morning ? range.end : new Date(Date.now() + 15 * 60_000).toISOString(),
       context.signal,
     );
-    const selected = morning
-      ? events
-      : events.filter((event) => !this.store.scheduled(this.eventKey(event)));
+    const selected: any[] = [];
+    for (const event of events)
+      if (morning || !(await this.store.scheduled(this.eventKey(event)))) selected.push(event);
     if (!morning && !selected.length) return { output: 'No upcoming events', deliver: false };
     const tasks = morning ? await this.google.tasks(false, context.signal) : [];
     const weather = morning ? await this.forecast(context.signal) : undefined;
@@ -60,8 +60,9 @@ export class PrepareNotification {
     if (!output.trim()) throw new Error('Codex returned no notification text');
     return {
       output,
-      afterDelivery: () => {
-        if (!morning) for (const event of selected) this.store.markScheduled(this.eventKey(event));
+      afterDelivery: async () => {
+        if (!morning)
+          for (const event of selected) await this.store.markScheduled(this.eventKey(event));
       },
     };
   }

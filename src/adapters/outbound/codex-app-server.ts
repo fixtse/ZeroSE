@@ -21,7 +21,6 @@ export class Codex {
   private sequence = 0;
   private pending = new Map<string, Pending>();
   private active = new Map<string, Active>();
-  private loaded = new Set<string>();
   constructor(
     private config: Config,
     private store: ConversationStore,
@@ -57,7 +56,6 @@ export class Codex {
     this.pending.clear();
     for (const a of this.active.values()) a.reject(error);
     this.active.clear();
-    this.loaded.clear();
     this.child = undefined;
   }
   private async start() {
@@ -210,7 +208,7 @@ export class Codex {
     context.signal.throwIfAborted();
     const cwd = join(this.config.dataDir, 'workspace');
     mkdirSync(cwd, { recursive: true, mode: 0o700 });
-    let thread = this.store.thread(session);
+    let thread = await this.store.thread(session);
     const settings = {
       model: this.config.codex.model,
       cwd,
@@ -227,11 +225,9 @@ export class Codex {
       const response = await this.request('thread/start', settings);
       thread = response.thread?.id;
       if (!thread) throw new Error('Codex returned no thread ID');
-      this.store.setThread(session, thread);
-      this.loaded.add(thread);
+      await this.store.setThread(session, thread);
     } else {
       await this.request('thread/resume', { threadId: thread, ...settings });
-      this.loaded.add(thread);
     }
     if (this.active.has(thread)) throw new Error('Concurrent turn on the same conversation');
     let resolve!: (v: string) => void, reject!: (e: Error) => void;
@@ -268,7 +264,7 @@ export class Codex {
       return await finished;
     } catch (error) {
       // An interrupted thread may still be completing cancellation. Never steer the next job into it.
-      if (context.signal.aborted) this.store.setThread(session, '');
+      if (context.signal.aborted) await this.store.setThread(session, '');
       throw error;
     } finally {
       context.signal.removeEventListener('abort', onAbort);
