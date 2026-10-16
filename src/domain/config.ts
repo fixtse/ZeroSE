@@ -1,3 +1,4 @@
+import type { SpeechSettings } from './speech.js';
 import type { MemoryMode } from './memory.js';
 export interface GoogleCredential {
   clientId: string;
@@ -52,7 +53,13 @@ export interface Config {
     categories: string[];
     sharedProfile: string;
   };
-  media: { asrUrl: string; audioExtractionUrl: string; voice: string; maxBytes: number };
+  media: {
+    asrUrl: string;
+    audioExtractionUrl: string;
+    voice: string;
+    maxBytes: number;
+    speech?: SpeechSettings;
+  };
   braveApiKey: string;
   schedules: {
     enabled: boolean;

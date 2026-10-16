@@ -135,6 +135,7 @@ export function scopedConfig(base: Config, profile: AccessProfile): Config {
   return {
     ...base,
     timezone: profile.timezone || base.timezone,
+    media: { ...base.media, speech: profile.speech },
     google: profile.capabilities.some((c) => ['calendar', 'tasks', 'documents'].includes(c))
       ? google
       : blankGoogle,

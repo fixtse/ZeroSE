@@ -1,3 +1,4 @@
+import type { SpeechQuery, SpeechPage, SpeechEngine, SpeechVoice } from '../domain/speech.js';
 import type {
   Job,
   GeneratedImage,
@@ -144,4 +145,25 @@ export interface TelegramPort {
   ): Promise<void>;
   sendVoice(chat: string, text: string, job: string, signal: AbortSignal): Promise<void>;
   typing(chat: string, signal?: AbortSignal): Promise<unknown>;
+}
+
+export interface SpeechPort {
+  engines(
+    kind: 'stt' | 'tts',
+    query: SpeechQuery,
+    signal: AbortSignal,
+  ): Promise<SpeechPage<SpeechEngine>>;
+  voices(
+    engine: string,
+    language: string,
+    query: SpeechQuery,
+    signal: AbortSignal,
+  ): Promise<SpeechPage<SpeechVoice>>;
+  synthesize(
+    text: string,
+    engine: string,
+    language: string,
+    voice: string,
+    signal: AbortSignal,
+  ): Promise<Buffer>;
 }

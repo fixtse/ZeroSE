@@ -1,3 +1,4 @@
+import type { SpeechSettings } from './speech.js';
 import type { MemoryMode } from './memory.js';
 import type { Config } from './config.js';
 
@@ -22,6 +23,7 @@ export interface AccessProfile {
   memoryMode?: MemoryMode;
   timezone?: string;
   voiceReplies?: boolean;
+  speech?: SpeechSettings;
   promptPreset?: 'salem' | 'standard';
   google?: Config['google'];
   homeAssistant?: Config['homeAssistant'];

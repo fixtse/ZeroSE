@@ -109,7 +109,7 @@ export class PostgresAccess implements AccessRepository {
   }
   async saveProfile(profile: AccessProfile) {
     const credentials = this.encrypt(
-      { google: profile.google, homeAssistant: profile.homeAssistant },
+      { google: profile.google, homeAssistant: profile.homeAssistant, speech: profile.speech },
       `${profile.bot}:${profile.chatId}`,
     );
     await this.pool.query(
@@ -151,7 +151,7 @@ export class PostgresAccess implements AccessRepository {
     const source = await this.profile(bot, from);
     if (!source || source.kind !== 'group') return;
     const credentials = this.encrypt(
-      { google: source.google, homeAssistant: source.homeAssistant },
+      { google: source.google, homeAssistant: source.homeAssistant, speech: source.speech },
       `${bot}:${to}`,
     );
     // Preserve existing destination decisions and keep the old chat's history intact.

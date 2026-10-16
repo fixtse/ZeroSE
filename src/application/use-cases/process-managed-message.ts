@@ -23,14 +23,14 @@ export class ProcessManagedMessage {
     private store: ConversationStore,
     private agent: AgentPort,
     private scope: (context: ToolContext) => Promise<ProfileScope>,
-    private telegram: (bot: BotId) => Promise<TelegramPort>,
+    private telegram: (bot: BotId, session?: string) => Promise<TelegramPort>,
     private permitted: (job: Job) => Promise<boolean>,
     private ownerPrompt: string,
   ) {}
   async execute(job: Job, context: ToolContext): Promise<JobResult> {
     const address = sessionAddress(job.session);
     const identity = address?.bot === 'salem' ? 'Salem' : 'Zero';
-    const telegram = await this.telegram(address?.bot || 'zero');
+    const telegram = await this.telegram(address?.bot || 'zero', job.session);
     if (job.payload.kind === 'telegram' && membershipEvent(job.payload.message)) {
       const input = await telegram.input(job.payload.message, job.id, context.signal);
       return { output: input.serviceReply || '', deliver: !!input.serviceReply, voice: false };

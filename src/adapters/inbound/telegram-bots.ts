@@ -1,7 +1,7 @@
 import type { Config } from '../../domain/config.js';
 import type { BotId } from '../../domain/access.js';
 import type { ConversationStore } from '../../application/ports.js';
-import type { Access } from '../../application/access.js';
+import { scopedConfig, type Access } from '../../application/access.js';
 import { Telegram } from '../outbound/telegram.js';
 import { Media } from '../outbound/media.js';
 import { TelegramPoller } from './telegram-poller.js';
@@ -21,13 +21,16 @@ export class TelegramBots {
       access.receive('zero', update),
     );
   }
-  async get(bot: BotId) {
-    if (bot === 'zero') return this.zero;
+  async get(bot: BotId, session?: string) {
+    if (bot === 'zero' && !session) return this.zero;
+    const profile = session ? await this.access.forSession(session) : undefined;
+    const config = profile ? scopedConfig(this.config, profile) : this.config;
+    if (bot === 'zero') return new Telegram(config, new Media(config));
     const settings = (await this.access.repository.bots()).find((b) => b.id === 'salem');
     if (!settings?.enabled || !settings.token) throw new Error('Salem is disabled');
     return new Telegram(
-      { ...this.config, telegram: { ...this.config.telegram, token: settings.token } },
-      this.media,
+      { ...config, telegram: { ...config.telegram, token: settings.token } },
+      session ? new Media(config) : this.media,
       'Salem',
     );
   }

@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { HomeAssistantSpeech } from './home-assistant-speech.js';
 import { join, extname } from 'node:path';
 import ExcelJS from 'exceljs';
 import mammoth from 'mammoth';
@@ -17,6 +19,42 @@ export class Media {
     await rm(this.directory(job), { recursive: true, force: true });
   }
   async transcribe(buffer: Buffer, mime: string, signal: AbortSignal): Promise<string> {
+    const speech = this.config.media.speech;
+    if (speech?.stt && speech.stt !== 'default') {
+      const dir = await mkdtemp(join(tmpdir(), 'assistant-stt-'));
+      try {
+        const source = join(dir, 'source'),
+          audio = join(dir, 'audio.pcm');
+        await writeFile(source, buffer, { mode: 0o600 });
+        await exec(
+          'ffmpeg',
+          [
+            '-nostdin',
+            '-y',
+            '-i',
+            source,
+            '-vn',
+            '-ac',
+            '1',
+            '-ar',
+            '16000',
+            '-c:a',
+            'pcm_s16le',
+            '-f',
+            's16le',
+            audio,
+          ],
+          { timeout: 60_000, signal, maxBuffer: 1_000_000 },
+        );
+        // HA speech engines consume raw PCM chunks, including Wyoming providers.
+        return await new HomeAssistantSpeech(
+          this.config.homeAssistant,
+          this.config.media.maxBytes,
+        ).transcribe(await readFile(audio), speech.stt, speech.sttLanguage, signal);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
     if (!this.config.media.asrUrl)
       throw new Error('Speech transcription endpoint is not configured');
     const form = new FormData();
@@ -139,11 +177,19 @@ export class Media {
     // edge-tts 7.3.0 supports the Sec-MS-GEC v2 handshake required by Microsoft.
     // Run it as a child so cancellation/deadlines also stop synthesis and file writes.
     try {
-      await exec(
-        'edge-tts',
-        ['--voice', this.config.media.voice, '--text', clean, '--write-media', mp3],
-        { timeout: 30_000, signal, maxBuffer: 1_000_000 },
-      );
+      const speech = this.config.media.speech;
+      if (speech?.tts && speech.tts !== 'default') {
+        const audio = await new HomeAssistantSpeech(
+          this.config.homeAssistant,
+          this.config.media.maxBytes,
+        ).synthesize(clean, speech.tts, speech.ttsLanguage, speech.voice, signal);
+        await writeFile(mp3, audio, { mode: 0o600 });
+      } else
+        await exec(
+          'edge-tts',
+          ['--voice', this.config.media.voice, '--text', clean, '--write-media', mp3],
+          { timeout: 30_000, signal, maxBuffer: 1_000_000 },
+        );
       if (!(await readFile(mp3)).length) throw new Error('No audio');
     } catch (error) {
       // execFile errors include command arguments (the private reply text).

@@ -7,6 +7,8 @@ import { Codex } from './adapters/outbound/codex-app-server.js';
 import { Google } from './adapters/outbound/google.js';
 import { HomeAssistant } from './adapters/outbound/home-assistant.js';
 import { Memory } from './application/memory.js';
+import { HomeAssistantSpeech } from './adapters/outbound/home-assistant-speech.js';
+import { randomUUID } from 'node:crypto';
 import { Media } from './adapters/outbound/media.js';
 import { Telegram } from './adapters/outbound/telegram.js';
 import { Assistant } from './application/assistant.js';
@@ -172,7 +174,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     store,
     codex,
     services,
-    (bot) => bots.get(bot),
+    (bot, session) => bots.get(bot, session),
     canRespond,
     prompts.main,
   ),
@@ -212,7 +214,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     },
     media,
     telegram,
-    (job) => bots.get(sessionAddress(job.session)?.bot || 'zero'),
+    (job) => bots.get(sessionAddress(job.session)?.bot || 'zero', job.session),
     canRespond,
     async (job) => (await access.forSession(job.session))?.voiceReplies !== false,
   ),
@@ -245,6 +247,16 @@ const codex = new Codex(config, store, tools, async (context) => (await services
         ),
     ),
     new TelegramCommands((bot) => bots.get(bot)),
+    (scoped) => new HomeAssistantSpeech(scoped.homeAssistant, scoped.media.maxBytes),
+    async (scoped, text, signal) => {
+      const media = new Media(scoped),
+        job = 'preview-' + randomUUID();
+      try {
+        return await media.voice(text, job, signal);
+      } finally {
+        await media.cleanup(job);
+      }
+    },
   ),
   server = createHttpServer(
     config,

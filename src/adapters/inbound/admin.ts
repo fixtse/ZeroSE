@@ -15,14 +15,30 @@ import type {
   ChatCommandsControl,
   WebhookControl,
 } from '../../application/access.js';
+import { scopedConfig } from '../../application/access.js';
+import type { SpeechPort } from '../../application/ports.js';
 import { ConfigSchema } from '../outbound/config.js';
 import { adminPage } from './admin-page.js';
 
+const speechSchema = z.object({
+  stt: z
+    .string()
+    .regex(/^(default|[a-z0-9_.]+)$/)
+    .max(200),
+  sttLanguage: z.string().regex(/^[a-zA-Z0-9_-]{1,50}$/),
+  tts: z
+    .string()
+    .regex(/^(default|[a-z0-9_.]+)$/)
+    .max(200),
+  ttsLanguage: z.string().regex(/^[a-zA-Z0-9_-]{1,50}$/),
+  voice: z.string().max(200),
+});
 const profileSchema = z.object({
   kind: z.enum(['user', 'group']),
   label: z.string().trim().min(1).max(100),
   enabled: z.boolean(),
   voiceReplies: z.boolean().optional(),
+  speech: speechSchema.optional(),
   promptPreset: z.enum(['salem', 'standard']).optional(),
   capabilities: z.array(z.enum(capabilities)).max(capabilities.length),
   memoryMode: z.enum(memoryModes).optional(),
@@ -52,6 +68,13 @@ function publicProfile(p: AccessProfile, timezone: string) {
     label: p.label,
     enabled: p.enabled,
     voiceReplies: p.voiceReplies !== false,
+    speech: p.speech || {
+      stt: 'default',
+      sttLanguage: 'es-ES',
+      tts: 'default',
+      ttsLanguage: 'es-ES',
+      voice: '',
+    },
     promptPreset: p.promptPreset || (p.bot === 'salem' ? 'salem' : 'standard'),
     owner: p.owner,
     memoryMode: p.memoryMode || 'advanced',
@@ -81,6 +104,8 @@ export class Admin {
     private validateToken: (token: string) => Promise<void>,
     private webhooks?: WebhookControl,
     private commands?: ChatCommandsControl,
+    private speech?: (config: Config) => SpeechPort,
+    private previewSpeech?: (config: Config, text: string, signal: AbortSignal) => Promise<Buffer>,
   ) {}
   page(res: ServerResponse) {
     res.writeHead(200, {
@@ -88,7 +113,7 @@ export class Admin {
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy':
-        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
       'Referrer-Policy': 'same-origin',
     });
     res.end(adminPage);
@@ -263,6 +288,66 @@ export class Admin {
       });
       return true;
     }
+    const speechMatch =
+      /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})\/speech\/(catalog|preview)$/.exec(path);
+    if (speechMatch && req.method === 'POST') {
+      const profile = await this.repository.profile(speechMatch[1] as BotId, speechMatch[2]);
+      if (!profile) {
+        send(404, { error: 'Guarda primero el chat y su conexión Home Assistant.' });
+        return true;
+      }
+      const scoped = scopedConfig(this.config, profile);
+      const signal = AbortSignal.timeout(60_000);
+      try {
+        if (speechMatch[3] === 'preview') {
+          const input = z
+            .object({ speech: speechSchema, text: z.string().trim().min(1).max(1000) })
+            .parse(await read());
+          if (input.speech.tts !== 'default' && !scoped.homeAssistant.token) {
+            send(400, { error: 'Activa Home Assistant y guarda su conexión para este chat.' });
+            return true;
+          }
+          if (!this.previewSpeech) throw new Error('Speech preview unavailable');
+          scoped.media = { ...scoped.media, speech: input.speech };
+          const audio = await this.previewSpeech(scoped, input.text, signal);
+          send(200, { audio: audio.toString('base64'), mime: 'audio/ogg' });
+        } else {
+          const input = z
+            .object({
+              kind: z.enum(['stt', 'tts', 'voices']),
+              engine: speechSchema.shape.tts.optional(),
+              language: speechSchema.shape.ttsLanguage.default('es-ES'),
+              search: z.string().max(200).default(''),
+              offset: z.number().int().min(0).max(100000).default(0),
+              limit: z.number().int().min(1).max(100).default(50),
+            })
+            .parse(await read());
+          if (!this.speech || !scoped.homeAssistant.token) {
+            send(400, { error: 'Activa Home Assistant y guarda su conexión para este chat.' });
+            return true;
+          }
+          const speech = this.speech(scoped);
+          send(
+            200,
+            input.kind === 'voices'
+              ? await speech.voices(
+                  z.string().min(1).parse(input.engine),
+                  input.language,
+                  input,
+                  signal,
+                )
+              : await speech.engines(input.kind, input, signal),
+          );
+        }
+      } catch (error) {
+        if (error instanceof z.ZodError) throw error;
+        send(502, {
+          error:
+            'No se pudo completar la solicitud de voz. Comprueba la conexión, el motor, el idioma y la voz. No se ha reintentado.',
+        });
+      }
+      return true;
+    }
     const match = /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})$/.exec(path);
     if (match) {
       const bot = match[1] as BotId,
@@ -344,6 +429,7 @@ export class Admin {
           label: input.label,
           enabled: input.enabled,
           voiceReplies: input.voiceReplies ?? previous?.voiceReplies ?? true,
+          speech: input.speech ?? previous?.speech,
           promptPreset: input.promptPreset ?? previous?.promptPreset,
           capabilities: [...new Set(input.capabilities)],
           owner: previous?.owner || false,
@@ -352,6 +438,17 @@ export class Admin {
           google,
           homeAssistant,
         };
+        if (
+          profile.speech &&
+          (profile.speech.stt !== 'default' || profile.speech.tts !== 'default') &&
+          !scopedConfig(this.config, profile).homeAssistant.token
+        ) {
+          send(400, {
+            error:
+              'Activa Home Assistant y configura su conexión antes de seleccionar sus motores de voz.',
+          });
+          return true;
+        }
         await this.repository.saveProfile(profile);
         if (this.commands && (profile.enabled || previous?.enabled)) {
           try {

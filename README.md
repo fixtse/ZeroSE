@@ -512,6 +512,17 @@ including a deleted original owner; application restarts never restore that perm
 The deletion also clears its Telegram command menu when possible and reports an uncertain
 menu update without retrying it.
 
+Each chat has independent STT and TTS selections under **Voz · transcripción y síntesis**.
+**Predeterminado** preserves the existing ASR endpoint and Edge TTS voice. To use Home
+Assistant (including `stt.microsoft` and `tts.microsoft`), enable the chat's Home Assistant
+capability, save its connection, then load the available engines. Select an engine and
+language for each direction, and a TTS voice from the searchable, paginated dropdown.
+**Probar voz seleccionada** previews the current selection in the browser with editable
+Spanish sample text, without saving preferences or playing on Home Assistant speakers.
+Save permissions to apply the selections to subsequent Telegram messages and voice replies.
+Only the original owner can inherit the original Home Assistant connection; other chats
+use their own saved credentials. Failed speech requests are reported without automatic retries.
+
 Zero retains its existing token and transport. Configure the separate **Salem** token and
 activation switch in the web interface. Salem receives updates exclusively through
 `POST /telegram/salem/webhook`; it never starts a poller or a settings polling timer. Enter
