@@ -19,6 +19,7 @@ export interface AccessRepository {
   ): Promise<{ items: AccessProfile[]; total: number }>;
   saveProfile(profile: AccessProfile): Promise<void>;
   discover(bot: BotId, chatId: string, label: string, kind?: 'user' | 'group'): Promise<void>;
+  migrateGroup(bot: BotId, from: string, to: string): Promise<void>;
   bots(): Promise<BotSettings[]>;
   saveBot(settings: BotSettings): Promise<void>;
 }
@@ -50,6 +51,19 @@ export class Access {
           ? 'group'
           : undefined;
     if (!kind) return;
+    if (kind === 'group' && (message.migrate_to_chat_id || message.migrate_from_chat_id)) {
+      const from = message.migrate_from_chat_id || message.chat.id;
+      const to = message.migrate_to_chat_id || message.chat.id;
+      if (
+        Number.isSafeInteger(from) &&
+        from < 0 &&
+        Number.isSafeInteger(to) &&
+        to < 0 &&
+        from !== to
+      )
+        await this.repository.migrateGroup(bot, String(from), String(to));
+      return;
+    }
     await this.repository.discover(
       bot,
       chatId,

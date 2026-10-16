@@ -96,6 +96,63 @@ test('discovery records Salem contacts as pending, never inherits sender permiss
   }
 });
 
+test('group migration carries access and encrypted settings without enqueueing service messages', async () => {
+  const f = await fixture();
+  const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
+  await repository.initialize(f.config);
+  const access = new Access(repository, f.store);
+  const source: AccessProfile = {
+    ...profile('-10', 'group'),
+    enabled: true,
+    label: 'Original group',
+    capabilities: ['transcription', 'homeAssistant'],
+    memoryMode: 'simple',
+    timezone: 'Europe/London',
+    homeAssistant: { ...f.config.homeAssistant, token: 'group-private-token' },
+  };
+  const migration = (chatId: number, extra: object) => ({
+    update_id: 1,
+    message: {
+      chat: { id: chatId, type: chatId === -10 ? 'group' : 'supergroup' },
+      ...extra,
+    },
+  });
+  try {
+    await repository.saveProfile(source);
+    assert.equal(
+      await access.receive('salem', migration(-10, { migrate_to_chat_id: -10020 })),
+      undefined,
+    );
+    const migrated = (await repository.profile('salem', '-10020'))!;
+    assert.deepEqual(migrated, { ...source, chatId: '-10020' });
+    assert.equal(await f.store.claim([]), undefined, 'Migration must not reach the agent');
+    assert.equal(await repository.profile('zero', '-10020'), undefined);
+    assert.equal((await repository.profile('salem', '-10'))?.enabled, true);
+    await repository.saveProfile({ ...migrated, enabled: false });
+    await access.receive('salem', migration(-10020, { migrate_from_chat_id: -10 }));
+    assert.equal(
+      (await repository.profile('salem', '-10020'))?.enabled,
+      false,
+      'Duplicate migration must not override administrator decisions',
+    );
+    await access.receive('salem', migration(-10030, { migrate_from_chat_id: -10 }));
+    assert.equal(
+      (await repository.profile('salem', '-10030'))?.enabled,
+      true,
+      'The destination-side service message must also carry permissions',
+    );
+    await repository.saveProfile({ ...source, enabled: false });
+    await access.receive('salem', migration(-10, { migrate_to_chat_id: -10040 }));
+    assert.equal((await repository.profile('salem', '-10040'))?.enabled, false);
+    await access.receive('salem', migration(-10050, { migrate_from_chat_id: -999 }));
+    assert.equal(await repository.profile('salem', '-10050'), undefined);
+    await access.receive('salem', migration(-10, { migrate_to_chat_id: 'invalid' }));
+    assert.equal(await f.store.claim([]), undefined);
+  } finally {
+    await f.close();
+  }
+});
+
 test('only the original owner inherits legacy credentials and memory; each new chat has separate memory', async () => {
   const f = await fixture();
   f.config.telegram.allowedUsers = ['1', '2'];

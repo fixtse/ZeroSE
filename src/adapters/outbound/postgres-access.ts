@@ -119,6 +119,29 @@ export class PostgresAccess implements AccessRepository {
       ],
     );
   }
+  async migrateGroup(bot: BotId, from: string, to: string) {
+    const source = await this.profile(bot, from);
+    if (!source || source.kind !== 'group') return;
+    const credentials = this.encrypt(
+      { google: source.google, homeAssistant: source.homeAssistant },
+      `${bot}:${to}`,
+    );
+    // Preserve existing destination decisions and keep the old chat's history intact.
+    await this.pool.query(
+      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone)
+       VALUES($1,$2,'group',$3,$4,$5,false,$6,$7,$8) ON CONFLICT DO NOTHING`,
+      [
+        bot,
+        to,
+        source.label,
+        source.enabled,
+        JSON.stringify(source.capabilities),
+        credentials,
+        source.memoryMode || 'advanced',
+        source.timezone || null,
+      ],
+    );
+  }
   async discover(bot: BotId, chatId: string, label: string, kind: 'user' | 'group' = 'group') {
     await this.pool.query(
       `INSERT INTO access_profiles(bot,chat_id,kind,label) VALUES($1,$2,$4,$3) ON CONFLICT DO NOTHING`,
