@@ -109,7 +109,8 @@ export function createHttpServer(
         const chat = config.telegram.notificationChatId;
         if (!config.schedules.enabled || !chat)
           return send(503, { error: 'Morning notifications are disabled or have no recipient' });
-        const { day } = localClock(new Date(), config.timezone);
+        const profile = await management?.access.forSession('telegram:' + chat);
+        const { day } = localClock(new Date(), profile?.timezone || config.timezone);
         const key = 'morning:' + day;
         const job = await store.enqueue('telegram:' + chat, { kind: 'morning', chatId: chat }, key);
         await store.markScheduled(key);

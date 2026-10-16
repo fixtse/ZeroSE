@@ -384,6 +384,26 @@ changing or disabling an existing profile in the web UI survives restarts. Exist
 and conversation records are preserved. Custom owner prompts and scheduled private agenda
 notifications stay with the owner.
 
+Each profile also has a **long-term memory mode** and an IANA **timezone** (for example,
+`Europe/Madrid`, `America/New_York`, or `Asia/Tokyo`):
+
+- **Advanced:** save memories with embeddings and use hybrid semantic/keyword retrieval.
+- **Simple:** save memories without embeddings and search by keywords. No embedding-provider
+  requests are made for that profile's saves, searches or consolidation.
+- **None:** keep the conversation context, but disable long-term memory tools, external context
+  document reads/writes, and automatic memory consolidation. Messages written in this mode stay
+  in the conversation history but are excluded from later automatic consolidation.
+
+Changing modes does not delete saved facts or existing vectors. Previously saved memories become
+available again after enabling memory. Simple facts remain keyword-searchable after switching to
+advanced; existing facts are not automatically re-embedded. Existing profiles default to advanced
+memory and inherit the installation timezone until an administrator saves their own timezone.
+The scheduler interprets the configured reset and consolidation times in each profile's local
+calendar and timezone, including daylight-saving changes, and deduplicates daily runs per chat
+and local date. The editor shows those configured wall-clock times. A daily reset clears the
+conversation context only; it never deletes long-term memories. Disabled memory still permits
+the scheduled conversation reset. Profile timezone also applies to prompts and calendar handling.
+
 Tokens and integration secrets entered in the web UI are encrypted with AES-256-GCM in
 PostgreSQL and never returned by the administration API. Set `ASSISTANT_SECRETS_KEY` to a
 stable private value of at least 16 characters before first saving credentials if you want

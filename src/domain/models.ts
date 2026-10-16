@@ -1,3 +1,4 @@
+import type { MemoryMode } from './memory.js';
 export interface Job {
   id: string;
   session: string;
@@ -15,6 +16,7 @@ export interface ToolContext {
   jobId: string;
   signal: AbortSignal;
   capabilities?: string[];
+  memoryMode?: MemoryMode;
   generatedImages?: GeneratedImage[];
 }
 export interface MemoryFragment {

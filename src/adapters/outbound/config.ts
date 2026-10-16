@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { memoryModes } from '../../domain/memory.js';
 import type { Config } from '../../domain/config.js';
 
 const secret = z.string().default('');
@@ -109,6 +110,7 @@ export const ConfigSchema = z.object({
     }),
   memory: z
     .object({
+      mode: z.enum(memoryModes).default('advanced'),
       geminiApiKey: secret,
       sharedProfile: secret,
       embeddingModel: z.string().default('gemini-embedding-001'),
@@ -128,6 +130,7 @@ export const ConfigSchema = z.object({
         ]),
     })
     .default({
+      mode: 'advanced',
       geminiApiKey: '',
       sharedProfile: '',
       embeddingModel: 'gemini-embedding-001',

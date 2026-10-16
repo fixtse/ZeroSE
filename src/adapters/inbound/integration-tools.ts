@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { MemoryMode } from '../../domain/memory.js';
 import { jsonPage, listPage } from '../../application/context-budget.js';
 import {
   eventSummary,
@@ -310,7 +311,12 @@ export function registerHomeAssistantTools(
       },
     );
 }
-export function registerMemoryTools(tools: Tools, memory: MemoryPort) {
+export function registerMemoryTools(
+  tools: Tools,
+  memory: MemoryPort,
+  mode: MemoryMode = 'advanced',
+) {
+  if (mode === 'none') return;
   tools.add(
     'memory_catalog',
     'Discover existing memory categories or tags in the current profile only when needed. Filter by search; lists use offset/limit and large JSON fragments use result_offset=next_offset.',
@@ -333,7 +339,10 @@ export function registerMemoryTools(tools: Tools, memory: MemoryPort) {
     .optional();
   tools.add(
     'memories_get',
-    'Search long-term memory by meaning, keywords, categories and save-date range. Returns at most three short results within 900 tokens. Use memory_read with an ID for full details, especially for excerpts. Preserve attribution; do not invent missing memories.',
+    (mode === 'simple'
+      ? 'Search long-term memory by keywords'
+      : 'Search long-term memory by meaning and keywords') +
+      ', categories and save-date range. Returns at most three short results within 900 tokens. Use memory_read with an ID for full details, especially for excerpts. Preserve attribution; do not invent missing memories.',
     z.object({
       search_query: text,
       categories: z.array(z.string()).default([]),

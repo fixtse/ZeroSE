@@ -22,8 +22,15 @@ export class Memory implements MemoryPort {
     private repository: MemoryRepository,
     private embeddings: EmbeddingsPort,
   ) {}
+  private get disabled() {
+    return this.config.mode === 'none';
+  }
+  private get semantic() {
+    return !this.disabled && this.config.mode !== 'simple' && this.embeddings.enabled;
+  }
   async save(session: string, value: MemoryFragment, source?: string, signal?: AbortSignal) {
-    const embedding = this.embeddings.enabled
+    if (this.disabled) throw new Error('Long-term memory is disabled for this chat');
+    const embedding = this.semantic
       ? await this.embeddings.embed(value.text, 'RETRIEVAL_DOCUMENT', signal)
       : null;
     await this.repository.insertMemory(
@@ -42,7 +49,8 @@ export class Memory implements MemoryPort {
     end?: string,
     signal?: AbortSignal,
   ): Promise<MemorySearchResult[]> {
-    const vector = this.embeddings.enabled
+    if (this.disabled) return [];
+    const vector = this.semantic
       ? await this.embeddings.embed(query, 'RETRIEVAL_QUERY', signal)
       : undefined;
     const candidates = await this.repository.searchMemory(
@@ -78,6 +86,7 @@ export class Memory implements MemoryPort {
     return selected;
   }
   async read(session: string, id: string, offset = 0) {
+    if (this.disabled) throw new Error('Long-term memory is disabled for this chat');
     if (!/^[1-9]\d{0,18}$/.test(id)) throw new Error('Invalid memory ID');
     const value = await this.repository.readMemory(this.config.sharedProfile || session, id);
     if (!value) throw new Error('Memory not found in this profile');
@@ -92,6 +101,7 @@ export class Memory implements MemoryPort {
     );
   }
   async catalog(session: string) {
+    if (this.disabled) return { categories: [], tags: [] };
     const catalog = await this.repository.memoryCatalog(this.config.sharedProfile || session);
     return {
       categories: [...new Set([...this.config.categories, ...catalog.categories])],
@@ -99,7 +109,7 @@ export class Memory implements MemoryPort {
     };
   }
   pending(session: string) {
-    return this.repository.pendingMemoryMessages(session);
+    return this.disabled ? Promise.resolve([]) : this.repository.pendingMemoryMessages(session);
   }
   pendingSessions() {
     return this.repository.pendingMemorySessions();
@@ -110,6 +120,7 @@ export class Memory implements MemoryPort {
     ids: number[],
     signal?: AbortSignal,
   ) {
+    if (this.disabled) return;
     const source = ids.join(',');
     for (let index = 0; index < fragments.length; index++)
       await this.save(session, fragments[index], `${session}:${source}:${index}`, signal);

@@ -1,3 +1,4 @@
+import type { MemoryMode } from './memory.js';
 export interface GoogleCredential {
   clientId: string;
   clientSecret: string;
@@ -44,6 +45,7 @@ export interface Config {
     geocodedLocationEntity: string;
   };
   memory: {
+    mode?: MemoryMode;
     geminiApiKey: string;
     embeddingModel: string;
     embeddingDimensions: number;

@@ -37,6 +37,7 @@ export class ProcessManagedMessage {
     if (!(await this.permitted(job))) return { output: '', deliver: false };
     const scope = await this.scope(context);
     context.capabilities = scope.profile?.capabilities;
+    context.memoryMode = scope.profile?.memoryMode || scope.config.memory.mode || 'advanced';
     if (job.payload.kind === 'telegram' && !context.capabilities?.includes('transcription')) {
       const message = job.payload.message;
       if (!message.text && !message.caption)

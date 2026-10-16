@@ -22,6 +22,7 @@ import { TelegramBots } from './adapters/inbound/telegram-bots.js';
 import { PostgresAccess } from './adapters/outbound/postgres-access.js';
 import { Access, scopedConfig } from './application/access.js';
 import { Admin } from './adapters/inbound/admin.js';
+import { isMemoryTool } from './domain/memory.js';
 import { sessionAddress, toolCapability } from './domain/access.js';
 import type { Job, ToolContext } from './domain/models.js';
 import type { JobResult } from './application/use-cases/contracts.js';
@@ -43,7 +44,7 @@ const store = await Store.open(config.database.url, config.memory.embeddingDimen
   telegram = new Telegram(config, media);
 registerGoogleTools(tools, google);
 registerHomeAssistantTools(tools, ha, config.homeAssistant);
-registerMemoryTools(tools, memory);
+registerMemoryTools(tools, memory, config.memory.mode);
 registerSearch(tools, config.braveApiKey);
 const accessRepository = new PostgresAccess(
   store.pool,
@@ -64,10 +65,12 @@ async function services(context: ToolContext) {
   if (address && !profile?.enabled) throw new Error('Chat is not permitted');
   const scoped = profile ? scopedConfig(config, profile) : config;
   context.capabilities = profile?.capabilities;
+  context.memoryMode = scoped.memory.mode || 'advanced';
   const google = new Google(scoped.google, scoped.timezone);
   const ha = new HomeAssistant(scoped.homeAssistant);
   const memory = new Memory(scoped.memory, store, new GeminiEmbeddings(scoped.memory));
   const permitted = (name: string) => {
+    if (isMemoryTool(name) && scoped.memory.mode === 'none') return false;
     const capability = toolCapability(name);
     return !profile || !capability || profile.capabilities.includes(capability);
   };
@@ -79,6 +82,7 @@ async function services(context: ToolContext) {
       const capability = toolCapability(name);
       return (
         !!current?.enabled &&
+        !(isMemoryTool(name) && current.memoryMode === 'none') &&
         (await bots.isEnabled(address.bot)) &&
         (!capability || current.capabilities.includes(capability))
       );
@@ -87,7 +91,7 @@ async function services(context: ToolContext) {
   );
   registerGoogleTools(tools, google);
   registerHomeAssistantTools(tools, ha, scoped.homeAssistant);
-  registerMemoryTools(tools, memory);
+  registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey);
   return { config: scoped, google, ha, memory, tools, profile };
 }
@@ -115,12 +119,18 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       consolidate: async (job, context) => {
         if (!(await canRespond(job))) return { output: '', deliver: false };
         const scope = await services(context);
+        if (scope.config.memory.mode === 'none') return { output: '', deliver: false };
         return new ConsolidateMemory(
           codex,
           scope.google,
           scope.memory,
           scope.profile && !scope.profile.owner ? '' : prompts.consolidation,
           scope.config.memory.categories,
+          scope.config.timezone,
+          async () => {
+            const current = await services(context);
+            return current.config.memory.mode === 'none' ? undefined : current.memory;
+          },
         ).execute(job, context);
       },
       morning: notify,
@@ -138,7 +148,15 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     (job) => bots.get(sessionAddress(job.session)?.bot || 'zero'),
     canRespond,
   ),
-  scheduler = new Scheduler(config, store, memory),
+  scheduler = new Scheduler(config, store, memory, async (session) => {
+    const address = sessionAddress(session);
+    const profile = await access.forSession(session);
+    return {
+      enabled: !address || !!profile?.enabled,
+      timezone: profile?.timezone || config.timezone,
+      memoryMode: profile?.memoryMode || config.memory.mode || 'advanced',
+    };
+  }),
   admin = new Admin(
     config,
     accessRepository,

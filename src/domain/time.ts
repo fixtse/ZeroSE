@@ -25,3 +25,12 @@ export function dayRange(date: Date, timezone: string) {
   const tomorrow = new Date(Date.parse(day + 'T12:00:00Z') + 86400_000).toISOString().slice(0, 10);
   return { start: midnight(day), end: midnight(tomorrow) };
 }
+
+export function validTimezone(value: string) {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
+import { validTimezone } from '../../domain/time.js';
+import { memoryModes } from '../../domain/memory.js';
 import { randomBytes } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
 import {
@@ -17,6 +19,8 @@ const profileSchema = z.object({
   label: z.string().trim().min(1).max(100),
   enabled: z.boolean(),
   capabilities: z.array(z.enum(capabilities)).max(capabilities.length),
+  memoryMode: z.enum(memoryModes).optional(),
+  timezone: z.string().trim().min(1).max(100).refine(validTimezone).optional(),
   google: ConfigSchema.shape.google.optional(),
   homeAssistant: ConfigSchema.shape.homeAssistant
     .unwrap()
@@ -34,7 +38,7 @@ const profileSchema = z.object({
   clearGoogle: z.boolean().default(false),
   clearHomeAssistant: z.boolean().default(false),
 });
-function publicProfile(p: AccessProfile) {
+function publicProfile(p: AccessProfile, timezone: string) {
   return {
     bot: p.bot,
     chatId: p.chatId,
@@ -42,6 +46,8 @@ function publicProfile(p: AccessProfile) {
     label: p.label,
     enabled: p.enabled,
     owner: p.owner,
+    memoryMode: p.memoryMode || 'advanced',
+    timezone: p.timezone || timezone,
     capabilities: p.capabilities,
     hasGoogle: !!(
       p.google?.refreshToken ||
@@ -234,7 +240,18 @@ export class Admin {
         limit,
         query.get('pending') === 'true',
       );
-      send(200, { items: result.items.map(publicProfile), total: result.total, offset, limit });
+      send(200, {
+        timezone: this.config.timezone,
+        schedules: {
+          enabled: this.config.schedules.enabled,
+          reset: this.config.schedules.reset,
+          consolidate: this.config.schedules.consolidate,
+        },
+        items: result.items.map((profile) => publicProfile(profile, this.config.timezone)),
+        total: result.total,
+        offset,
+        limit,
+      });
       return true;
     }
     const match = /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})$/.exec(path);
@@ -245,7 +262,9 @@ export class Admin {
       if (req.method === 'GET') {
         send(
           previous ? 200 : 404,
-          previous ? publicProfile(previous) : { error: 'Chat no encontrado.' },
+          previous
+            ? publicProfile(previous, this.config.timezone)
+            : { error: 'Chat no encontrado.' },
         );
         return true;
       }
@@ -299,6 +318,8 @@ export class Admin {
           enabled: input.enabled,
           capabilities: [...new Set(input.capabilities)],
           owner: previous?.owner || false,
+          memoryMode: input.memoryMode ?? previous?.memoryMode ?? 'advanced',
+          timezone: input.timezone ?? previous?.timezone ?? this.config.timezone,
           google,
           homeAssistant,
         });

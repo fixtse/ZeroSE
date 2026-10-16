@@ -20,7 +20,7 @@ export interface ConversationStore {
   threadPolicy(session: string): Promise<string | undefined>;
   setThread(session: string, thread: string, policy?: string): Promise<void>;
   reset(session?: string): Promise<void>;
-  addMessage(session: string, role: string, text: string): Promise<void>;
+  addMessage(session: string, role: string, text: string, remember?: boolean): Promise<void>;
   history(session: string): Promise<unknown[]>;
   sessions(): Promise<string[]>;
   scheduled(key: string): Promise<boolean>;

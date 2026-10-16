@@ -172,12 +172,11 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
         'UPDATE sessions SET thread=NULL,history_after=(SELECT COALESCE(MAX(id),0) FROM messages)',
       );
   }
-  async addMessage(session: string, role: string, text: string) {
-    await this.pool.query('INSERT INTO messages(session,role,text) VALUES($1,$2,$3)', [
-      session,
-      role,
-      text,
-    ]);
+  async addMessage(session: string, role: string, text: string, remember = true) {
+    await this.pool.query(
+      'INSERT INTO messages(session,role,text,consolidated) VALUES($1,$2,$3,$4)',
+      [session, role, text, remember ? 0 : 1],
+    );
   }
   async history(session: string) {
     return (

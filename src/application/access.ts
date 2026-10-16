@@ -100,19 +100,28 @@ export function scopedConfig(base: Config, profile: AccessProfile): Config {
     geocodedLocationEntity: '',
   };
   const google = structuredClone(profile.google || (profile.owner ? base.google : blankGoogle));
+  const memoryMode = profile.memoryMode || 'advanced';
   if (!profile.capabilities.includes('documents')) {
     google.contextDocumentId = '';
     google.documentFolderId = '';
+  } else if (memoryMode === 'none') {
+    google.contextDocumentId = '';
   }
   return {
     ...base,
+    timezone: profile.timezone || base.timezone,
     google: profile.capabilities.some((c) => ['calendar', 'tasks', 'documents'].includes(c))
       ? google
       : blankGoogle,
     homeAssistant: profile.capabilities.includes('homeAssistant')
       ? structuredClone(profile.homeAssistant || (profile.owner ? base.homeAssistant : blankHA))
       : blankHA,
-    memory: { ...base.memory, sharedProfile: profile.owner ? base.memory.sharedProfile : '' },
+    memory: {
+      ...base.memory,
+      mode: memoryMode,
+      geminiApiKey: memoryMode === 'advanced' ? base.memory.geminiApiKey : '',
+      sharedProfile: profile.owner ? base.memory.sharedProfile : '',
+    },
     telegram: { ...base.telegram },
   };
 }

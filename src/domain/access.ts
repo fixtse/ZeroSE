@@ -1,3 +1,4 @@
+import type { MemoryMode } from './memory.js';
 import type { Config } from './config.js';
 
 export type BotId = 'zero' | 'salem';
@@ -18,6 +19,8 @@ export interface AccessProfile {
   enabled: boolean;
   capabilities: Capability[];
   owner: boolean;
+  memoryMode?: MemoryMode;
+  timezone?: string;
   google?: Config['google'];
   homeAssistant?: Config['homeAssistant'];
 }

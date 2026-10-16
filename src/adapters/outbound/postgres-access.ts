@@ -40,6 +40,8 @@ export class PostgresAccess implements AccessRepository {
       bot TEXT NOT NULL, chat_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT false, capabilities JSONB NOT NULL DEFAULT '["web","transcription"]',
       owner BOOLEAN NOT NULL DEFAULT false, credentials TEXT, PRIMARY KEY(bot,chat_id));
+      ALTER TABLE access_profiles ADD COLUMN IF NOT EXISTS memory_mode TEXT NOT NULL DEFAULT 'advanced' CHECK(memory_mode IN ('advanced','simple','none'));
+      ALTER TABLE access_profiles ADD COLUMN IF NOT EXISTS timezone TEXT;
       CREATE TABLE IF NOT EXISTS managed_bots(id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, token TEXT NOT NULL);
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_url TEXT;`);
@@ -67,6 +69,8 @@ export class PostgresAccess implements AccessRepository {
       enabled: row.enabled,
       capabilities: row.capabilities,
       owner: row.owner,
+      memoryMode: row.memory_mode || 'advanced',
+      timezone: row.timezone || undefined,
       ...(row.credentials ? this.decrypt(row.credentials, `${row.bot}:${row.chat_id}`) : {}),
     };
   }
@@ -100,8 +104,8 @@ export class PostgresAccess implements AccessRepository {
       `${profile.bot}:${profile.chatId}`,
     );
     await this.pool.query(
-      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials) VALUES($1,$2,$3,$4,$5,$6,false,$7)
-      ON CONFLICT(bot,chat_id) DO UPDATE SET kind=EXCLUDED.kind,label=EXCLUDED.label,enabled=EXCLUDED.enabled,capabilities=EXCLUDED.capabilities,credentials=EXCLUDED.credentials`,
+      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone) VALUES($1,$2,$3,$4,$5,$6,false,$7,COALESCE($8,'advanced'),$9)
+      ON CONFLICT(bot,chat_id) DO UPDATE SET kind=EXCLUDED.kind,label=EXCLUDED.label,enabled=EXCLUDED.enabled,capabilities=EXCLUDED.capabilities,credentials=EXCLUDED.credentials,memory_mode=COALESCE($8,access_profiles.memory_mode),timezone=COALESCE($9,access_profiles.timezone)`,
       [
         profile.bot,
         profile.chatId,
@@ -110,6 +114,8 @@ export class PostgresAccess implements AccessRepository {
         profile.enabled,
         JSON.stringify(profile.capabilities),
         credentials,
+        profile.memoryMode || null,
+        profile.timezone || null,
       ],
     );
   }
