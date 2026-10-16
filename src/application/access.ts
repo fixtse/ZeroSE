@@ -34,6 +34,9 @@ export interface WebhookControl {
   configure(settings: BotSettings): Promise<void>;
   status(settings: BotSettings): Promise<WebhookStatus>;
 }
+export interface ChatCommandsControl {
+  configure(profile: AccessProfile): Promise<void>;
+}
 
 export class Access {
   constructor(

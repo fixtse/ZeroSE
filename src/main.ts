@@ -18,6 +18,7 @@ import { ProcessManagedMessage } from './application/use-cases/process-managed-m
 import { ConsolidateMemory } from './application/use-cases/consolidate-memory.js';
 import { PrepareNotification } from './application/use-cases/prepare-notification.js';
 import { TelegramWebhook } from './adapters/outbound/telegram-webhook.js';
+import { TelegramCommands } from './adapters/outbound/telegram-commands.js';
 import { TelegramBots } from './adapters/inbound/telegram-bots.js';
 import { PostgresAccess } from './adapters/outbound/postgres-access.js';
 import { Access, scopedConfig } from './application/access.js';
@@ -177,6 +178,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
           'Salem',
         ),
     ),
+    new TelegramCommands((bot) => bots.get(bot)),
   ),
   server = createHttpServer(config, store, readFileSync('assets/icon.png'), { access, admin });
 

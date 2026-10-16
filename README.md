@@ -361,6 +361,12 @@ to review them, then enable each chat manually. No model invocation, transcripti
 reply, error reply or typing indicator is sent for an unapproved chat. The exception is the
 Spanish welcome with chat ID when a bot is added to a group. Joining does not grant access.
 A permitted user's presence never authorizes a group; group access must be enabled separately.
+When you enable a user or group from the web interface, the bot publishes a Telegram `/`
+command menu scoped to that chat: `/nuevo`, plus `/clean` when tasks are enabled. Saving
+an enabled chat refreshes its menu; disabling it clears that chat's command list. If
+Telegram registration fails, access settings remain saved and the web interface reports
+the menu failure without automatically retrying. Save the chat again to update its menu.
+
 In enabled groups, Salem processes only messages that explicitly mention its Telegram username
 in the message text or media caption, including `/command@username`. Replies without a mention,
 ordinary conversation, and forwarded media without a mention are ignored before queueing or

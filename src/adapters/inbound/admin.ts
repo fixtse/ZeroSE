@@ -10,7 +10,11 @@ import {
   type BotId,
   type BotSettings,
 } from '../../domain/access.js';
-import type { AccessRepository, WebhookControl } from '../../application/access.js';
+import type {
+  AccessRepository,
+  ChatCommandsControl,
+  WebhookControl,
+} from '../../application/access.js';
 import { ConfigSchema } from '../outbound/config.js';
 import { adminPage } from './admin-page.js';
 
@@ -76,6 +80,7 @@ export class Admin {
     private repository: AccessRepository,
     private validateToken: (token: string) => Promise<void>,
     private webhooks?: WebhookControl,
+    private commands?: ChatCommandsControl,
   ) {}
   page(res: ServerResponse) {
     res.writeHead(200, {
@@ -314,7 +319,7 @@ export class Admin {
             ...input.homeAssistant,
             token: input.homeAssistant.token || previousHA?.token || '',
           };
-        await this.repository.saveProfile({
+        const profile: AccessProfile = {
           bot,
           chatId,
           kind: input.kind,
@@ -328,7 +333,20 @@ export class Admin {
           timezone: input.timezone ?? previous?.timezone ?? this.config.timezone,
           google,
           homeAssistant,
-        });
+        };
+        await this.repository.saveProfile(profile);
+        if (this.commands && (profile.enabled || previous?.enabled)) {
+          try {
+            await this.commands.configure(profile);
+          } catch {
+            send(502, {
+              saved: true,
+              error:
+                'Permisos guardados, pero no se pudo confirmar la actualización del menú de comandos de Telegram. No se ha reintentado automáticamente. Puedes volver a guardar el chat para actualizar el menú.',
+            });
+            return true;
+          }
+        }
         send(200, { saved: true });
         return true;
       }
