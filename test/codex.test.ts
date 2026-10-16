@@ -18,6 +18,18 @@ test('app-server multiplexes tools, preserves threads, resumes after restart and
     signal: AbortSignal.timeout(5000),
   });
   try {
+    const inspect = async () =>
+      JSON.parse(await codex.run('catalog', 'inspect-tools', 'instructions', context('catalog')));
+    const catalog = await inspect();
+    assert(catalog.args.includes('web_search="live"'));
+    assert.equal(catalog.settings.config.web_search, 'live');
+    assert.equal(catalog.settings.sandbox, 'read-only');
+    assert.match(catalog.settings.developerInstructions, /built-in live web search/);
+    assert.match(catalog.settings.developerInstructions, /weather/);
+    assert.deepEqual(catalog.settings.dynamicTools, [
+      { type: 'function', ...tools.definitions()[0] },
+    ]);
+    assert.equal((await inspect()).settings.config.web_search, 'live', 'Resume keeps live search');
     const [one, two] = await Promise.all([
       codex.run('one', 'hello', 'instructions', context('one')),
       codex.run('two', 'world', 'instructions', context('two')),
@@ -29,6 +41,7 @@ test('app-server multiplexes tools, preserves threads, resumes after restart and
     assert.equal(await f.store.thread('one'), thread);
     codex.close();
     codex = new Codex(f.config, f.store, tools);
+    assert.equal((await inspect()).settings.config.web_search, 'live', 'Restart keeps live search');
     await codex.run('one', 'resumed', 'instructions', context('one'));
     assert.equal(await f.store.thread('one'), thread);
     await assert.rejects(

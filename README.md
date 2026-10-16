@@ -198,6 +198,48 @@ Google services use separate OAuth grants for their required scopes. Home Assist
 mutating operations are not retried automatically. Interrupted jobs become failed jobs
 requiring inspection rather than silently replaying their actions.
 
+## Agent tools and discovery
+
+Codex's OpenAI built-in web search is enabled in `live` mode at app-server startup
+and explicitly on every thread start/resume. It uses the shared Codex login and does
+not require a Brave key. The agent is instructed to search for current public information,
+including weather for the requested location and date, and include source links.
+If no location is given, it can consult `location_get` or ask the user. The optional
+Home Assistant forecast only covers its configured location.
+
+The application tool catalog is assembled in `src/main.ts`:
+
+| Capability | Tool names | Registration condition |
+| --- | --- | --- |
+| Calendar | `calendar_list`, `calendar_availability`, `calendar_get`, `calendar_create`, `calendar_update`, `calendar_delete` | Google OAuth configured |
+| Tasks | `tasks_list`, `task_get`, `task_create`, `task_update`, `task_delete` | Google OAuth configured |
+| Documents/context | `context_save`, `document_create` | Google OAuth configured |
+| Location | `location_get` | Home Assistant token and at least one location entity |
+| Sensors | `sensors_list`, `sensor_get`, `sensor_history` | Home Assistant token |
+| Shopping | `shopping_list_get`, `shopping_list_change` | Home Assistant token |
+| Local forecast | `weather_forecast` | Home Assistant token and weather entity |
+| Memory | `memories_get`, `memory_save` | Always |
+| Image search | `image_search` | Brave API key |
+| Public page text | `url_read` | Always |
+
+Discovery is eager: registration builds a `Tools` registry; `definitions()` converts
+each tool's Zod input schema to JSON Schema. The adapter sends names, descriptions
+and schemas as `dynamicTools` in `thread/start` and `thread/resume`, so the model sees
+the enabled catalog before selecting a tool. There is no application-side deferred
+tool search, MCP discovery, or keyword router. Calls arrive as `item/tool/call`;
+the registry validates arguments, invokes the adapter, audits success/failure and
+returns the result to Codex. Internal extraction turns can omit application tools.
+
+Built-in web search is provided separately by Codex, not by this registry, and does
+not appear in the startup log's application `tools` list or PostgreSQL tool audit.
+That list shows only tools registered for the current configuration. Disabled
+integrations are omitted; registered Google tools still need the appropriate OAuth
+grant when called. Shell execution, browser automation, apps and multi-agent features
+are disabled by the adapter; threads use a read-only sandbox.
+
+See the official [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+and [app-server dynamic tools documentation](https://learn.chatgpt.com/docs/app-server).
+
 ## Storage and backups
 
 Compose runs PostgreSQL 17 with pgvector 0.8.7 and a persistent `postgres-data` volume.

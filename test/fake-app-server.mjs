@@ -26,17 +26,37 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (request.method === 'initialize') return send({ id: request.id, result: {} });
   if (request.method === 'thread/start') {
     const id = 'thread_' + ++next;
-    threads.set(id, p.dynamicTools || []);
+    threads.set(id, p);
     return send({ id: request.id, result: { thread: { id } } });
   }
   if (request.method === 'thread/resume') {
-    threads.set(p.threadId, p.dynamicTools || []);
+    threads.set(p.threadId, p);
     return send({ id: request.id, result: { thread: { id: p.threadId } } });
   }
   if (request.method === 'turn/interrupt') return send({ id: request.id, result: {} });
   if (request.method === 'turn/start') {
     send({ id: request.id, result: { turn: { id: 'turn' } } });
     const prompt = p.input[0].text;
+    if (prompt === 'inspect-tools') {
+      send({
+        method: 'item/completed',
+        params: {
+          threadId: p.threadId,
+          item: {
+            type: 'agentMessage',
+            phase: 'final_answer',
+            text: JSON.stringify({
+              settings: threads.get(p.threadId),
+              args: process.argv.slice(2),
+            }),
+          },
+        },
+      });
+      return send({
+        method: 'turn/completed',
+        params: { threadId: p.threadId, turn: { id: 'turn', status: 'completed' } },
+      });
+    }
     if (prompt === 'slow') return;
     if (prompt === 'fail')
       return send({
@@ -50,7 +70,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         item: { type: 'agentMessage', phase: 'commentary', text: 'progress only' },
       },
     });
-    if (threads.get(p.threadId)?.length) {
+    if (threads.get(p.threadId)?.dynamicTools?.length) {
       const id = 'server_' + ++next;
       calls.set(id, { thread: p.threadId });
       return send({
