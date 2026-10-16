@@ -113,15 +113,16 @@ export function createHttpServer(
         );
         return send(200, { ok: true, jobId: job.id });
       }
-      if (
-        !equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`) &&
-        !(
-          path.startsWith('/v1/admin/') &&
-          management?.auth &&
-          (await management.auth.authorize(req, res))
+      if (!equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`)) {
+        if (
+          !path.startsWith('/v1/admin/') ||
+          !management?.auth ||
+          !(await management.auth.authorize(req, res))
         )
-      )
-        return send(401, { error: 'Unauthorized' });
+          return send(401, { error: 'Tu sesión ha caducado. Inicia sesión de nuevo.' });
+        if (!management.auth.mutationAllowed(req))
+          return send(403, { error: 'No se pudo autorizar la solicitud desde esta página.' });
+      }
       if (management && (await management.admin.handle(req, path, () => body(req), send))) return;
       if (req.method === 'POST' && path === '/v1/triggers/morning') {
         const chat = config.telegram.notificationChatId;

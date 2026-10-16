@@ -193,7 +193,7 @@ test('profile deletion is origin-protected, revokes access, preserves history, a
     await s.f.store.addMessage('telegram:1', 'user', 'Retained history');
     assert.equal(
       (await fetch(path, { method: 'DELETE', headers: { Cookie: session } })).status,
-      401,
+      403,
     );
     assert.equal(
       (
@@ -202,7 +202,7 @@ test('profile deletion is origin-protected, revokes access, preserves history, a
           headers: { Cookie: session, Origin: 'https://evil.example.com' },
         })
       ).status,
-      401,
+      403,
     );
     assert.equal(
       (await fetch(path, { method: 'DELETE', headers: { Cookie: session, Origin: s.base } }))

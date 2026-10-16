@@ -122,11 +122,6 @@ export class AdminAuth {
     await toNodeHandler(this.auth)(req, res);
   }
   async authorize(req: IncomingMessage, res: ServerResponse) {
-    if (
-      !['GET', 'HEAD', 'OPTIONS'].includes(req.method || '') &&
-      req.headers.origin !== this.origin
-    )
-      return false;
     const result = await this.auth.api.getSession({
       headers: fromNodeHeaders(req.headers),
       returnHeaders: true,
@@ -134,5 +129,16 @@ export class AdminAuth {
     const cookies = result.headers.getSetCookie();
     if (cookies.length) res.setHeader('Set-Cookie', cookies);
     return result.response?.user.username === 'fixt';
+  }
+  mutationAllowed(req: IncomingMessage) {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) return true;
+    if (req.headers.origin === this.origin) return true;
+    // Same-origin browser requests can omit Origin or serialize it as null.
+    // A custom header requires CORS preflight, which this server never permits.
+    return (
+      (req.headers.origin === undefined || req.headers.origin === 'null') &&
+      req.headers['x-admin-request'] === '1' &&
+      req.headers['sec-fetch-site'] !== 'cross-site'
+    );
   }
 }

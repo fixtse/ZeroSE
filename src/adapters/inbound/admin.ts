@@ -89,7 +89,7 @@ export class Admin {
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy':
         "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-      'Referrer-Policy': 'no-referrer',
+      'Referrer-Policy': 'same-origin',
     });
     res.end(adminPage);
   }
