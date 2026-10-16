@@ -17,6 +17,7 @@
     "format": "prettier --write src scripts test",
     "format:check": "prettier --check src scripts test",
     "doctor": "tsx scripts/doctor.ts",
+    "rules:install-home-assistant": "tsx scripts/install-ha-rules.ts",
     "migrate:sqlite": "tsx scripts/migrate-sqlite.ts",
     "admin:password": "tsx scripts/admin-password.ts"
   },

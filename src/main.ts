@@ -12,6 +12,13 @@ import { Telegram } from './adapters/outbound/telegram.js';
 import { Assistant } from './application/assistant.js';
 import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
+import { NotificationRules } from './application/notification-rules.js';
+import { PostgresRules } from './adapters/outbound/postgres-rules.js';
+import { PostgresPersonalData } from './adapters/outbound/postgres-personal-data.js';
+import { OpenStreetMapPlaces } from './adapters/outbound/places.js';
+import { registerNotificationTools } from './adapters/inbound/notification-tools.js';
+import { registerPlacesTools } from './adapters/inbound/places-tools.js';
+import { registerPersonalDataTools } from './adapters/inbound/personal-data-tools.js';
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
 import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
@@ -62,10 +69,52 @@ const adminAuth = new AdminAuth(
 await adminAuth.initialize();
 const access: Access = new Access(accessRepository, store, () => bots.salemUsername());
 const bots = new TelegramBots(config, media, telegram, store, access);
+const ruleRepository = new PostgresRules(store.pool);
+await ruleRepository.initialize();
+const places = new OpenStreetMapPlaces(
+  process.env.ASSISTANT_PHOTON_URL,
+  process.env.ASSISTANT_OSRM_URL,
+);
+const personalData = new PostgresPersonalData(store.pool);
+const rules = new NotificationRules(ruleRepository, async (session) => {
+  const address = sessionAddress(session);
+  const profile = await access.forSession(session);
+  const scoped = profile ? scopedConfig(config, profile) : config;
+  return {
+    enabled: !!address && !!profile?.enabled && (await bots.isEnabled(address.bot)),
+    ha:
+      profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
+        ? new HomeAssistant(scoped.homeAssistant)
+        : undefined,
+  };
+});
+registerNotificationTools(tools, rules, config.homeAssistant.token ? ha : undefined);
+registerPlacesTools(tools, places);
+registerPersonalDataTools(
+  tools,
+  personalData,
+  config.memory.mode !== 'none',
+  config.memory.sharedProfile,
+);
 async function canRespond(job: Job) {
   const address = sessionAddress(job.session);
   if (!address) return true; // HTTP chat already requires the administrator API key.
   const profile = await access.forSession(job.session);
+  if (job.payload.kind === 'rule_notification') {
+    const rule = await ruleRepository.read(job.session, job.payload.ruleId);
+    if (
+      !rule ||
+      rule.generation !== job.payload.generation ||
+      ['paused', 'cancelled', 'expired'].includes(rule.status)
+    )
+      return false;
+    if (
+      rule.kind === 'alert' &&
+      (!profile?.capabilities.includes('homeAssistant') ||
+        !scopedConfig(config, profile).homeAssistant.token)
+    )
+      return false;
+  }
   return !!profile?.enabled && (await bots.isEnabled(address.bot));
 }
 async function services(context: ToolContext) {
@@ -102,6 +151,14 @@ async function services(context: ToolContext) {
   registerHomeAssistantTools(tools, ha, scoped.homeAssistant);
   registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey);
+  registerNotificationTools(tools, rules, scoped.homeAssistant.token ? ha : undefined);
+  registerPlacesTools(tools, places);
+  registerPersonalDataTools(
+    tools,
+    personalData,
+    scoped.memory.mode !== 'none',
+    scoped.memory.sharedProfile,
+  );
   return { config: scoped, google, ha, memory, tools, profile };
 }
 let prompts: Record<string, string> = {};
@@ -144,6 +201,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       },
       morning: notify,
       event_reminders: notify,
+      rule_notification: (job) => rules.notification(job),
       reset: async (job) => {
         await store.reset(job.session);
         const profile = await access.forSession(job.session);
@@ -196,6 +254,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     process.env.ASSISTANT_DEPLOY_WEBHOOK_URL
       ? new DeploymentWebhookProxy(process.env.ASSISTANT_DEPLOY_WEBHOOK_URL)
       : undefined,
+    rules,
   );
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {
@@ -244,6 +303,7 @@ async function close() {
   const deadline = setTimeout(() => process.exit(1), 15_000);
   deadline.unref();
   await assistant.close();
+  await rules.close();
   codex.close();
   await store.close();
   clearTimeout(deadline);

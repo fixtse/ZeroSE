@@ -73,7 +73,9 @@ export function toolCapability(name: string): Capability | undefined {
   if (name.startsWith('calendar_')) return 'calendar';
   if (name.startsWith('task')) return 'tasks';
   if (['context_save', 'document_create'].includes(name)) return 'documents';
-  if (['image_search', 'url_read'].includes(name)) return 'web';
+  if (['image_search', 'url_read', 'places_search', 'route_estimate'].includes(name)) return 'web';
+  if (name.startsWith('alert_') || name === 'alerts_list' || name === 'weather_alert_create')
+    return 'homeAssistant';
   if (
     [
       'location_get',

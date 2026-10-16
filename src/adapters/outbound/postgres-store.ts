@@ -80,6 +80,8 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
         CREATE INDEX IF NOT EXISTS messages_session ON messages(session,id);
         CREATE INDEX IF NOT EXISTS memories_session ON memories(session,category,created);
         ALTER TABLE memories ADD COLUMN IF NOT EXISTS summary TEXT;
+        ALTER TABLE memories ADD COLUMN IF NOT EXISTS forgotten_at TIMESTAMPTZ;
+        CREATE INDEX IF NOT EXISTS messages_lexical ON messages USING gin (to_tsvector('simple',text));
         ALTER TABLE memories ADD COLUMN IF NOT EXISTS superseded_by BIGINT REFERENCES memories(id);
         CREATE INDEX IF NOT EXISTS memories_lexical ON memories USING gin (to_tsvector('simple', text || ' ' || tags::text));
         CREATE INDEX IF NOT EXISTS memories_embedding ON memories USING hnsw ((embedding::halfvec(${this.dimensions})) halfvec_cosine_ops);
@@ -239,7 +241,7 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
       const supersedes = [...new Set(value.supersedes || [])];
       if (rows.length && supersedes.length) {
         const updated = await client.query(
-          'UPDATE memories SET superseded_by=$3 WHERE session=$1 AND id=ANY($2::bigint[]) AND id<>$3 AND superseded_by IS NULL RETURNING id',
+          'UPDATE memories SET superseded_by=$3 WHERE session=$1 AND id=ANY($2::bigint[]) AND id<>$3 AND superseded_by IS NULL AND forgotten_at IS NULL RETURNING id',
           [session, supersedes, rows[0].id],
         );
         if (updated.rowCount !== supersedes.length)
@@ -262,7 +264,7 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
     end?: string,
   ): Promise<MemoryMatch[]> {
     const client = await this.pool.connect();
-    const filter = `session=$1 AND superseded_by IS NULL AND (cardinality($2::text[])=0 OR category=ANY($2)) AND ($3::timestamptz IS NULL OR created >= $3) AND ($4::timestamptz IS NULL OR created <= $4)`;
+    const filter = `session=$1 AND forgotten_at IS NULL AND superseded_by IS NULL AND (cardinality($2::text[])=0 OR category=ANY($2)) AND ($3::timestamptz IS NULL OR created >= $3) AND ($4::timestamptz IS NULL OR created <= $4)`;
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL hnsw.iterative_scan = 'strict_order'");
@@ -319,19 +321,22 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
     };
   }
   async readMemory(session: string, id: string): Promise<MemoryMatch | undefined> {
-    const { rows } = await this.pool.query('SELECT * FROM memories WHERE session=$1 AND id=$2', [
-      session,
-      id,
-    ]);
+    const { rows } = await this.pool.query(
+      'SELECT * FROM memories WHERE session=$1 AND id=$2 AND forgotten_at IS NULL',
+      [session, id],
+    );
     return rows[0] ? this.memoryMatch(rows[0]) : undefined;
   }
   async memoryCatalog(session: string) {
     const categories = (
-      await this.pool.query('SELECT DISTINCT category FROM memories WHERE session=$1', [session])
+      await this.pool.query(
+        'SELECT DISTINCT category FROM memories WHERE session=$1 AND forgotten_at IS NULL',
+        [session],
+      )
     ).rows.map((row) => String(row.category));
     const tags = (
       await this.pool.query(
-        'SELECT DISTINCT jsonb_array_elements_text(tags) AS tag FROM memories WHERE session=$1',
+        'SELECT DISTINCT jsonb_array_elements_text(tags) AS tag FROM memories WHERE session=$1 AND forgotten_at IS NULL',
         [session],
       )
     ).rows.map((row) => String(row.tag));

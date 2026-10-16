@@ -8,6 +8,7 @@ import type { AdminAuth } from './admin-auth.js';
 import type { Admin } from './admin.js';
 import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
+import { rulesToken } from '../../application/rules-auth.js';
 
 export function equalSecret(value: unknown, expected: string) {
   if (typeof value !== 'string' || !expected) return false;
@@ -36,6 +37,7 @@ export function createHttpServer(
   icon?: Buffer,
   management?: { access: Access; admin: Admin; auth?: AdminAuth },
   deployment?: DeploymentWebhookProxy,
+  rules?: { tick(): Promise<void> },
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -60,6 +62,14 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
+      if (req.method === 'POST' && path === '/v1/triggers/rules' && rules) {
+        if (!equalSecret(req.headers.authorization, `Bearer ${rulesToken(config.apiKey)}`))
+          return send(401, { error: 'Unauthorized' });
+        void rules
+          .tick()
+          .catch(() => console.error(JSON.stringify({ event: 'notification_evaluation_failed' })));
+        return send(202, { accepted: true });
+      }
       if (path.startsWith('/api/auth/') && management?.auth) {
         await management.auth.handle(req, res);
         return;

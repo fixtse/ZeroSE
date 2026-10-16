@@ -234,10 +234,102 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 - Home Assistant shopping-list reads/additions/completion/removal, sensor discovery/current values,
   and up to seven days of recorded sensor history. Sensor access can be restricted to named entities.
 - On-demand home/away and known-zone awareness, with GPS accuracy, geocoded address and source timestamps for location-aware suggestions.
+- Dedicated Telegram reminders and countdown timers, with cancellation, snooze, pause/resume and optional fixed-interval reminders. Home Assistant triggers their evaluation; they do not create calendar events.
+- Conditional sensor alerts and forecast-update rain alerts, scoped to each chat's permitted Home Assistant connection.
+- OpenStreetMap place/address lookup and driving distance/time estimates, with clickable Google Maps links. All place suggestions must include Maps links, including suggestions obtained through web search.
+- Saved-memory browsing/deletion and attributed, chat-scoped conversation search across daily resets.
 - Gemini semantic memory retrieval with category/date filters, stored and searched using pgvector.
 - Native memory consolidation, daily short-term reset, morning agenda, and optional event reminders.
   The original disabled 15-minute reminder routine remains disabled by default.
 - Memory consolidation considers both user messages and assistant replies, retaining relevant advice and plans with explicit attribution. Prior suggestions remain distinct from user decisions or completed actions, and can be recalled through `memories_get`. Consolidation runs on the existing schedule; important context can also be saved immediately with `memory_save`.
+
+### Reminders, timers and conditional alerts
+
+Install the Home Assistant heartbeat explicitly from the host checkout:
+
+```sh
+pnpm rules:install-home-assistant
+```
+
+The installer reads private `config.json`, backs up affected files **inside** the
+`home-assistant` container, adds one shell command and one automation, validates
+Home Assistant configuration, then reloads only shell commands and automations.
+It does not restart either service or send Telegram messages. It preserves existing
+automation IDs and behavior. Overrides: `ASSISTANT_HA_CONTAINER` and
+`ASSISTANT_RULES_CALLBACK_URL` (default `http://127.0.0.1:8788/v1/triggers/rules`,
+using the configured assistant port). The callback must be reachable from HA.
+The installed private curl configuration contains a derived, purpose-specific
+bearer token that cannot access the chat or administrator APIs. Reinstall after
+rotating `config.apiKey`. Until the new assistant version is deployed, callbacks
+to the old version fail without delivering notifications.
+
+Home Assistant calls the authenticated heartbeat every ten seconds. PostgreSQL
+persists rules, countdown deadlines, pause state and forecast baselines. Evaluation
+atomically updates rule state and queues a notification into the chat's existing
+ordered queue; the current bot/profile permissions are checked again before
+delivery. An active conversation can delay notification delivery. A healthy
+heartbeat within thirty seconds is required to create/resume/snooze notifications.
+There is no separate LLM call for evaluation or delivery.
+
+`reminder_create` takes an ISO timestamp with offset and optional `repeat_seconds`;
+this repeats at a fixed elapsed interval, **not** a DST-aware local daily time.
+`timer_start` takes a duration in seconds. `reminders_list`, `reminder_get` and
+`reminder_change` inspect, cancel, snooze, pause or resume them. Lists include
+terminal states. A deadline missed by more than sixty seconds expires rather than
+being replayed; repeated reminders advance to the next future interval without
+catching up old occurrences. A `completed` rule has queued its notification;
+this is not a Telegram delivery receipt. Interrupted/uncertain deliveries are
+never automatically retried.
+
+`alert_create` supports permitted sensor/binary-sensor equality and numeric
+above/below conditions, with a hold duration. Holds count consecutive successful
+observations and reset on unknown/unavailable values or gaps over thirty seconds.
+Recurring sensor alerts require a valid nonmatching observation before rearming
+and observe their configured cooldown. Removed HA access pauses alert evaluation
+and suppresses queued alert delivery.
+
+`weather_alert_create` handles requests such as “Avísame si se actualiza la
+previsión y anuncia lluvia para mañana.” It establishes the configured Home
+Assistant **daily** forecast as a baseline and checks it every five minutes. A
+changed forecast triggers when rain/precipitation or a sufficient precipitation
+probability occurs in the selected horizon (default 24 hours and 30% probability).
+The current day's daily period is included. An unchanged rainy forecast does not
+send repeated alerts; later changes obey a cooldown (default one hour).
+`alerts_list` and `alert_change` inspect, pause/resume or cancel either alert type;
+`reminder_get` reads details. Arbitrary web monitoring is not supported.
+
+### Places, routes and personal history
+
+`places_search` uses Photon/OpenStreetMap for named places and addresses with an
+optional coordinate bias. It is not a comprehensive nearby business catalog and
+does not supply verified opening hours or ratings. `route_estimate` uses OSRM for
+driving estimates **without live traffic**. Walking, cycling and transit requests
+return a Maps directions link without an invented duration. Every place result
+has a Google Maps search link and OSM source attribution; route results include
+a Maps directions link. The reply instructions also require a Maps link next to
+every suggested place, regardless of its source.
+
+These tools use the existing `web` permission. Queries and coordinates explicitly
+supplied to them are sent to the configured public providers. Public demo servers
+have no availability guarantee and are intended for low-volume use; requests are
+serialized and limited to less than one per second across chats. Set
+`ASSISTANT_PHOTON_URL` / `ASSISTANT_OSRM_URL` to self-hosted compatible endpoints
+when needed. No Google Maps API key is required.
+
+`memory_list` browses saved facts; `memory_read` retrieves details and
+`memory_delete` erases selected saved text, summaries, tags and vectors only on an
+explicit user request. Tombstones retain IDs/source deduplication for integrity.
+Deletion does **not** erase prior conversation messages, an active agent's context,
+external context documents, or private backups. Use `memory_save.supersedes` for
+corrections. Memory management honors the existing shared-profile and disabled
+memory rules.
+
+`conversation_search` searches keywords and optional date bounds across stored
+messages in the current chat, including messages hidden by daily resets;
+`conversation_read` retrieves a full message with author and date. These tools
+never search another user/group/bot's conversation and remain available when
+long-term memory is disabled. Lists/details use the standard pagination and
+response budgets rather than injecting history into every turn.
 
 Turn instructions include at most 12 distinct configured `memory.categories`, with no
 stored category/tag catalog. Legacy `{{categories}}` placeholders receive this stable list;

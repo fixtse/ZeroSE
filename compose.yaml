@@ -20,6 +20,8 @@ services:
       ASSISTANT_ADMIN_URL: ${ASSISTANT_ADMIN_URL:-https://twk.kcta.cc}
       ASSISTANT_DEPLOY_WEBHOOK_URL: ${ASSISTANT_DEPLOY_WEBHOOK_URL:-}
       ASSISTANT_SECRETS_KEY: ${ASSISTANT_SECRETS_KEY:-}
+      ASSISTANT_PHOTON_URL: ${ASSISTANT_PHOTON_URL:-https://photon.komoot.io}
+      ASSISTANT_OSRM_URL: ${ASSISTANT_OSRM_URL:-https://router.project-osrm.org}
       ASSISTANT_DATABASE_URL: postgresql://assistant:${ASSISTANT_POSTGRES_PASSWORD:?Set ASSISTANT_POSTGRES_PASSWORD in .env}@127.0.0.1:${ASSISTANT_POSTGRES_PORT:-55432}/assistant
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=256m
