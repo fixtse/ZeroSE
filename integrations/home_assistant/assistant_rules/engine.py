@@ -86,6 +86,11 @@ class RuleEngine:
         self.timers = {}
         self.lock = asyncio.Lock()
 
+    def muted(self, rule):
+        condition = rule.get("condition") or {}
+        entity = condition.get("sleep_entity") if condition.get("source") == "weather" else None
+        return bool(entity) and (self.read_state is None or self.read_state(entity) != "off")
+
     async def save(self):
         await self.persist(deepcopy(self.rules))
 
@@ -159,6 +164,14 @@ class RuleEngine:
     async def deliver(self, event):
         if not event:
             return
+        # Recheck sleep at the last local boundary before the single HTTP attempt.
+        async with self.lock:
+            rule = self.rules.get(event["id"])
+            if not rule or rule["generation"] != event["generation"] or self.muted(rule):
+                if rule and rule.get("last_event", {}).get("event_id") == event["event_id"]:
+                    rule["last_event"]["outcome"] = "suppressed"
+                    await self.save()
+                return
         # State was persisted before this single HTTP attempt. Never replay on recovery.
         try:
             outcome = await self.emit(event)
@@ -230,7 +243,7 @@ class RuleEngine:
                 return
             rule["forecast_signature"] = signature
             cooled = not rule.get("last_fired") or self.now() - timestamp(rule["last_fired"]) >= rule["cooldown_seconds"]
-            if previous is not None and cooled and forecast_matches(forecast, json.loads(previous), rule["condition"], self.now()):
+            if previous is not None and cooled and not self.muted(rule) and forecast_matches(forecast, json.loads(previous), rule["condition"], self.now()):
                 event = self.fire(rule)
             await self.save()
         await self.deliver(event)

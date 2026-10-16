@@ -295,6 +295,30 @@ starts again after an HA restart rather than assuming uninterrupted continuity.
 Recurring alerts rearm only after a valid nonmatching state and observe cooldowns;
 HA schedules the cooldown deadline without polling the assistant.
 
+The original owner's Zero chat has one built-in, recurring **all-weather forecast
+change alert**, enabled automatically at startup without a chat request. It uses a
+24-hour horizon and a **30-minute cooldown**. Home Assistant suppresses it unless
+`input_boolean.dormir` is explicitly `off`; missing/unavailable sleep state also
+keeps it quiet. Forecast baselines continue updating during sleep, so waking does
+not replay missed changes. The assistant rechecks the gate before queueing and
+before delivering an already-queued notification. This default is scoped to the
+original owner, not every enabled user or group. Pausing/cancelling it explicitly
+is preserved across restarts. Existing uncertain installations are not replayed.
+
+For an existing deployment, install the updated HA integration and explicitly
+activate the same idempotent built-in rule without restarting the assistant:
+
+```sh
+pnpm rules:install-home-assistant
+pnpm rules:enable-owner-weather
+```
+
+The activation command requires the live `ASSISTANT_DATABASE_URL` when it is not
+already configured in private `config.json`; use the same private encryption key
+as the running assistant. It sends no test message. If no weather entity was
+configured, the scheduler selects it only when HA has exactly one daily forecast
+source; multiple candidates require `homeAssistant.weatherEntity`.
+
 `weather_alert_create` establishes a baseline from Home Assistant's daily forecast
 and subscribes directly to forecast updates, independently of current weather-state
 changes. New alerts default to `mode=any_change`: conditions, temperature, wind,
@@ -311,7 +335,7 @@ included. General/condition filters compare both forecast snapshots within the
 same window, so changes outside that window or mere dictionary/period reordering
 do not trigger. The first observation is a baseline, identical updates do not
 repeat, and subsequent qualifying changes observe the configured cooldown
-(default one hour). These are forecast-change notifications, not an official
+(default thirty minutes). These are forecast-change notifications, not an official
 severe-weather warning feed.
 `alerts_list` and `alert_change` inspect/pause/resume/cancel both alert types;
 `reminder_get` retrieves details. Arbitrary web monitoring is unsupported.

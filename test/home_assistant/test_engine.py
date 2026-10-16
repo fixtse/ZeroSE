@@ -229,3 +229,47 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         forecast[0]['condition'] = 'lightning'
         await self.engine.weather('test-rule', 0, forecast)
         self.assertEqual(self.events, [])
+
+    async def test_weather_sleep_gate_updates_baseline_without_wake_replay_or_consuming_cooldown(self):
+        await self.weather_rule(mode='any_change', sleep_entity='input_boolean.dormir')
+        self.states['input_boolean.dormir'] = 'off'
+        forecast = self.forecast()
+        await self.engine.weather('test-rule', 0, forecast)
+        self.states['input_boolean.dormir'] = 'on'
+        forecast[0]['condition'] = 'lightning'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(self.events, [])
+        self.assertIsNone(self.saved['test-rule']['last_fired'])
+        self.states['input_boolean.dormir'] = 'off'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(self.events, [])
+        forecast[0]['condition'] = 'snowy'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 1)
+
+    async def test_unknown_sleep_state_fails_closed(self):
+        await self.weather_rule(mode='any_change', sleep_entity='input_boolean.dormir')
+        forecast = self.forecast()
+        await self.engine.weather('test-rule', 0, forecast)
+        for state in [None, 'unknown', 'unavailable']:
+            self.states['input_boolean.dormir'] = state
+            forecast[0]['temperature'] = len(forecast[0])
+            await self.engine.weather('test-rule', 0, forecast)
+            self.assertTrue(self.engine.muted(self.saved['test-rule']))
+        self.assertEqual(self.events, [])
+
+    async def test_weather_cooldown_is_thirty_minutes(self):
+        value = self.value(kind='alert', next_at=None, recurring=True, cooldown_seconds=1800, condition={'source': 'weather', 'entity_id': 'weather.home', 'horizon_hours': 24, 'minimum_probability': 30, 'mode': 'any_change'})
+        await self.engine.put('owner', value)
+        forecast = self.forecast()
+        await self.engine.weather('test-rule', 0, forecast)
+        forecast[0]['condition'] = 'lightning'
+        await self.engine.weather('test-rule', 0, forecast)
+        await self.advance(1799)
+        forecast[0]['condition'] = 'snowy'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 1)
+        await self.advance(1)
+        forecast[0]['condition'] = 'hail'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 2)

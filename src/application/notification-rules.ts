@@ -20,11 +20,15 @@ export interface RuleSchedulerPort {
     generation: number;
     status: NotificationRule['status'];
     next_at: string | null;
+    muted?: boolean;
     last_event?: { outcome: string };
   }>;
 }
 export interface RuleRepository {
   create(rule: Omit<NotificationRule, 'id' | 'version' | 'generation'>): Promise<NotificationRule>;
+  ownerWeather(
+    rule: Omit<NotificationRule, 'id' | 'version' | 'generation'>,
+  ): Promise<{ rule: NotificationRule; created: boolean }>;
   read(session: string, id: string): Promise<NotificationRule | undefined>;
   byId(id: string): Promise<NotificationRule | undefined>;
   list(
@@ -47,6 +51,55 @@ export class NotificationRules {
     readonly repository: RuleRepository,
     private scope: (session: string, kind: NotificationRule['kind']) => Promise<RuleScope>,
   ) {}
+  async ensureOwnerWeather(session: string) {
+    const scope = await this.scope(session, 'alert');
+    if (!scope.enabled || !scope.scheduler)
+      throw new Error('Owner weather alerts require an enabled chat and Home Assistant connection');
+    await scope.scheduler.ready();
+    const result = await this.repository.ownerWeather({
+      managed: 'owner_weather',
+      session,
+      kind: 'alert',
+      message: 'La previsión meteorológica ha cambiado.',
+      status: 'active',
+      next_at: null,
+      repeat_seconds: null,
+      remaining_seconds: null,
+      condition: {
+        source: 'weather',
+        mode: 'any_change',
+        conditions: [],
+        horizon_hours: 24,
+        minimum_probability: 30,
+        sleep_entity: 'input_boolean.dormir',
+      },
+      cooldown_seconds: 1800,
+      recurring: true,
+      matched_since: null,
+      last_checked: null,
+      last_fired: null,
+      latched: false,
+      forecast_signature: null,
+      scheduler_state: 'installing',
+      scheduler_key: scope.scheduler.identity,
+    });
+    if (result.created) await this.install(result.rule, scope.scheduler);
+    return this.repository.read(session, result.rule.id);
+  }
+  async canNotify(rule: NotificationRule) {
+    const scope = await this.scope(rule.session, rule.kind);
+    if (!scope.enabled || (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key))
+      return false;
+    if (rule.condition?.source === 'weather' && rule.condition.sleep_entity) {
+      try {
+        const observed = await scope.scheduler?.inspect(rule.id);
+        return observed?.muted === false && observed.generation === rule.generation;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
   async create(
     value: Omit<NotificationRule, 'id' | 'version' | 'generation'>,
     signal?: AbortSignal,
@@ -133,9 +186,7 @@ export class NotificationRules {
     if (!Number.isFinite(age) || age < -30_000 || age > 60_000) return false;
     const rule = await this.repository.byId(event.id);
     if (!rule || rule.generation !== event.generation || rule.status !== 'active') return false;
-    const scope = await this.scope(rule.session, rule.kind);
-    if (!scope.enabled || (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key))
-      return false;
+    if (!(await this.canNotify(rule))) return false;
     return this.repository.accept(event);
   }
   async inspect(session: string, id: string, signal?: AbortSignal) {
@@ -182,9 +233,7 @@ export class NotificationRules {
   }
   async notification(job: Job): Promise<JobResult> {
     const rule = await this.repository.read(job.session, job.payload.ruleId);
-    const scope = rule ? await this.scope(job.session, rule.kind) : undefined;
-    const permitted =
-      scope?.enabled && (!rule?.scheduler_key || scope.scheduler?.identity === rule.scheduler_key);
+    const permitted = rule && (await this.canNotify(rule));
     if (
       !rule ||
       !permitted ||

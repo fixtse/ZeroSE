@@ -6,13 +6,17 @@ import { sessionAddress } from '../../domain/access.js';
 
 export class PostgresRules implements RuleRepository {
   constructor(private pool: pg.Pool) {}
-  async initialize() {
+  async initialize(recoverInterrupted = true) {
     await this.pool.query(`CREATE TABLE IF NOT EXISTS notification_rules (
       id TEXT PRIMARY KEY, session TEXT NOT NULL, value JSONB NOT NULL,
       version INTEGER NOT NULL DEFAULT 0, created TIMESTAMPTZ NOT NULL DEFAULT now());
       CREATE INDEX IF NOT EXISTS notification_rules_session ON notification_rules(session,created,id);
       CREATE TABLE IF NOT EXISTS notification_rule_events(id TEXT PRIMARY KEY, rule_id TEXT NOT NULL REFERENCES notification_rules(id), created TIMESTAMPTZ NOT NULL DEFAULT now());
-      UPDATE notification_rules SET value=jsonb_set(value,'{scheduler_state}','\"uncertain\"'::jsonb) WHERE value->>'scheduler_state'='installing';`);
+      CREATE UNIQUE INDEX IF NOT EXISTS notification_rules_owner_weather ON notification_rules(session) WHERE value->>'managed'='owner_weather';`);
+    if (recoverInterrupted)
+      await this.pool.query(
+        `UPDATE notification_rules SET value=jsonb_set(value,'{scheduler_state}','"uncertain"'::jsonb) WHERE value->>'scheduler_state'='installing'`,
+      );
   }
   private decode(row: any): NotificationRule {
     return { ...row.value, id: row.id, session: row.session, version: row.version };
@@ -26,6 +30,23 @@ export class PostgresRules implements RuleRepository {
       JSON.stringify(rule),
     ]);
     return rule;
+  }
+  async ownerWeather(value: Omit<NotificationRule, 'id' | 'version' | 'generation'>) {
+    const id = randomUUID(),
+      rule = { ...value, managed: 'owner_weather', id, version: 0, generation: 0 };
+    const inserted = await this.pool.query(
+      'INSERT INTO notification_rules(id,session,value) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING *',
+      [id, value.session, JSON.stringify(rule)],
+    );
+    const row =
+      inserted.rows[0] ||
+      (
+        await this.pool.query(
+          "SELECT * FROM notification_rules WHERE session=$1 AND value->>'managed'='owner_weather'",
+          [value.session],
+        )
+      ).rows[0];
+    return { rule: this.decode(row), created: !!inserted.rowCount };
   }
   async read(session: string, id: string) {
     const { rows } = await this.pool.query(

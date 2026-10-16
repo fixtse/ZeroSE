@@ -38,9 +38,30 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
       throw new Error('Install/start the event-driven assistant_rules Home Assistant integration');
   }
   async configure(rule: NotificationRule, signal?: AbortSignal) {
+    let weatherEntity = this.config.weatherEntity;
+    if (rule.condition?.source === 'weather' && !weatherEntity) {
+      const states = await jsonRequest(
+        this.config.url.replace(/\/$/, '') + '/api/states',
+        {
+          headers: { Authorization: `Bearer ${this.config.token}` },
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+            : AbortSignal.timeout(10000),
+        },
+        'Home Assistant weather discovery',
+      );
+      const candidates = (states as any[]).filter(
+        (s) => /^weather\.[a-z0-9_]+$/.test(s.entity_id) && s.attributes?.supported_features & 1,
+      );
+      if (candidates.length !== 1)
+        throw new Error(
+          'Configure homeAssistant.weatherEntity when there is not exactly one daily forecast source',
+        );
+      weatherEntity = candidates[0].entity_id;
+    }
     const condition =
       rule.condition?.source === 'weather'
-        ? { ...rule.condition, entity_id: this.config.weatherEntity }
+        ? { ...rule.condition, entity_id: weatherEntity }
         : rule.condition;
     if (condition?.source === 'weather' && !/^weather\.[a-z0-9_]+$/.test(condition.entity_id))
       throw new Error('Home Assistant weather entity is not configured');

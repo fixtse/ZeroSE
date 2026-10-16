@@ -180,7 +180,7 @@ export function registerNotificationTools(
         horizon_hours: z.number().int().min(1).max(168).default(24),
         minimum_probability: z.number().min(0).max(100).default(30),
         recurring: z.boolean().default(true),
-        cooldown_seconds: z.number().int().min(60).max(31_536_000).default(3600),
+        cooldown_seconds: z.number().int().min(60).max(31_536_000).default(1800),
       })
       .refine(
         (a) => (a.mode === 'conditions' ? a.conditions.length > 0 : a.conditions.length === 0),

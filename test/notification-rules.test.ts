@@ -166,6 +166,11 @@ test('legacy rules migrate once, missed deadlines expire, and interrupted instal
       value({ next_at: new Date(Date.now() - 120000).toISOString() }),
     );
     const interrupted = await f.repository.create(value({ scheduler_state: 'installing' }));
+    await f.repository.initialize(false);
+    assert.equal(
+      (await f.repository.read('telegram:1', interrupted.id))?.scheduler_state,
+      'installing',
+    );
     await f.repository.initialize();
     await f.rules.migrateLegacy();
     await f.rules.migrateLegacy();
@@ -429,6 +434,121 @@ test('weather alerts default to all changes and validate explicit storm/rain fil
     );
     assert.equal(f.configurations.length, 3);
   } finally {
+    await f.close();
+  }
+});
+
+test('owner weather is enabled once, persists across startups and never replays uncertain setup', async () => {
+  const f = await setup();
+  try {
+    const results = await Promise.all([
+      f.rules.ensureOwnerWeather('telegram:1'),
+      f.rules.ensureOwnerWeather('telegram:1'),
+    ]);
+    assert.equal(results[0]?.id, results[1]?.id);
+    assert.equal(f.configurations.length, 1);
+    const rule = (await f.repository.list('telegram:1', 'alert', 0, 20)).items[0];
+    assert.equal(rule.managed, 'owner_weather');
+    assert.equal(rule.cooldown_seconds, 1800);
+    assert.equal((rule.condition as any).sleep_entity, 'input_boolean.dormir');
+    assert.equal((rule.condition as any).mode, 'any_change');
+    await f.rules.ensureOwnerWeather('telegram:1');
+    assert.equal(f.configurations.length, 1);
+    f.scheduler.configure = async () => {
+      throw new Error('Write result unknown');
+    };
+    await assert.rejects(f.rules.ensureOwnerWeather('telegram:2'), /uncertain/);
+    f.scheduler.configure = async () => {
+      throw new Error('Must not replay');
+    };
+    assert.equal((await f.rules.ensureOwnerWeather('telegram:2'))?.scheduler_state, 'uncertain');
+  } finally {
+    await f.close();
+  }
+});
+
+test('sleep suppresses weather callbacks and notifications already queued while awake', async () => {
+  const f = await setup();
+  try {
+    const rule = (await f.rules.ensureOwnerWeather('telegram:1'))!;
+    let muted = true;
+    f.scheduler.inspect = async () => ({
+      generation: rule.generation,
+      status: 'active',
+      next_at: null,
+      muted,
+    });
+    const event = {
+      id: rule.id,
+      generation: rule.generation,
+      event_id: randomUUID(),
+      fired_at: new Date().toISOString(),
+    };
+    assert.equal(await f.rules.receive(event), false);
+    muted = false;
+    assert.equal(await f.rules.receive(event), true);
+    const job = await f.store.claim([]);
+    assert.match((await f.rules.notification(job!)).output, /previsión/);
+    muted = true;
+    assert.equal((await f.rules.notification(job!)).deliver, false);
+    assert.equal(await f.rules.canNotify(rule), false);
+    f.scheduler.inspect = async () => {
+      throw new Error('HA offline');
+    };
+    assert.equal(await f.rules.canNotify(rule), false);
+  } finally {
+    await f.close();
+  }
+});
+
+test('weather discovery chooses the sole daily source and rejects ambiguity before writing', async () => {
+  const f = await fixture();
+  let sources = [{ entity_id: 'weather.forecast_home', attributes: { supported_features: 1 } }];
+  let writes = 0;
+  const server = createServer(async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.url === '/api/states') {
+      res.end(JSON.stringify(sources));
+      return;
+    }
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    writes++;
+    assert.equal(body.condition.entity_id, 'weather.forecast_home');
+    res.end(JSON.stringify({ id: body.id, generation: body.generation, status: body.status }));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const scheduler = new HomeAssistantRuleScheduler({
+      ...f.config.homeAssistant,
+      token: 'test',
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      weatherEntity: '',
+    });
+    const rule = {
+      ...value({
+        kind: 'alert',
+        next_at: null,
+        condition: {
+          source: 'weather',
+          mode: 'any_change',
+          horizon_hours: 24,
+          minimum_probability: 30,
+        },
+      }),
+      id: randomUUID(),
+      version: 0,
+      generation: 0,
+    };
+    await scheduler.configure(rule);
+    sources.push({ entity_id: 'weather.other', attributes: { supported_features: 1 } });
+    await assert.rejects(scheduler.configure(rule), /exactly one daily forecast/);
+    assert.equal(writes, 1);
+  } finally {
+    server.close();
+    await once(server, 'close');
     await f.close();
   }
 });

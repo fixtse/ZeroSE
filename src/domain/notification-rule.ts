@@ -9,10 +9,12 @@ export interface WeatherCondition {
   source: 'weather';
   mode?: 'any_change' | 'conditions' | 'rain';
   conditions?: string[];
+  sleep_entity?: string;
   horizon_hours: number;
   minimum_probability: number;
 }
 export interface NotificationRule {
+  managed?: 'owner_weather';
   id: string;
   session: string;
   kind: 'reminder' | 'timer' | 'alert';

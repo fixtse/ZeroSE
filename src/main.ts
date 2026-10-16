@@ -124,6 +124,7 @@ async function canRespond(job: Job) {
         !scopedConfig(config, profile).homeAssistant.token)
     )
       return false;
+    if (!(await rules.canNotify(rule))) return false;
   }
   return !!profile?.enabled && (await bots.isEnabled(address.bot));
 }
@@ -304,9 +305,12 @@ server.listen(config.port, config.host, () => {
   scheduler.start();
   void rules
     .migrateLegacy()
-    .catch(() =>
-      console.error(JSON.stringify({ event: 'legacy_notification_rule_migration_failed' })),
-    );
+    .then(async () => {
+      const chat = config.telegram.allowedUsers[0] || config.telegram.notificationChatId;
+      if (chat && (await access.forSession('telegram:' + chat))?.owner)
+        await rules.ensureOwnerWeather('telegram:' + chat);
+    })
+    .catch(() => console.error(JSON.stringify({ event: 'notification_rule_startup_failed' })));
   bots.start();
   console.log(
     JSON.stringify({
