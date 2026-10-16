@@ -196,10 +196,20 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
   const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
   await repository.initialize(f.config);
   let validations = 0;
-  const admin = new Admin(f.config, repository, async (token) => {
-    validations++;
-    if (token === '999:bad') throw new Error('invalid');
-  });
+  const admin = new Admin(
+    f.config,
+    repository,
+    async (token) => {
+      validations++;
+      if (token === '999:bad') throw new Error('invalid');
+    },
+    {
+      async configure() {},
+      async status(settings) {
+        return { url: settings.webhookUrl || '', pending: 0 };
+      },
+    },
+  );
   const access = new Access(repository, f.store);
   const server = createHttpServer(f.config, f.store, undefined, { access, admin });
   server.listen(0, '127.0.0.1');
@@ -289,7 +299,13 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
     assert.equal((await put('bots/salem', { enabled: true })).status, 400);
     assert.equal((await put('bots/salem', { token: '999:bad', enabled: true })).status, 400);
     assert.equal(
-      (await put('bots/salem', { token: '999:salem-secret', enabled: true })).status,
+      (
+        await put('bots/salem', {
+          token: '999:salem-secret',
+          enabled: true,
+          webhookUrl: 'https://example.com/telegram/salem/webhook',
+        })
+      ).status,
       200,
     );
     const bots = await get('bots');

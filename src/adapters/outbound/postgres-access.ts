@@ -40,7 +40,9 @@ export class PostgresAccess implements AccessRepository {
       bot TEXT NOT NULL, chat_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT false, capabilities JSONB NOT NULL DEFAULT '["web","transcription"]',
       owner BOOLEAN NOT NULL DEFAULT false, credentials TEXT, PRIMARY KEY(bot,chat_id));
-      CREATE TABLE IF NOT EXISTS managed_bots(id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, token TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS managed_bots(id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, token TEXT NOT NULL);
+      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
+      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_url TEXT;`);
     // Seed exactly once, so disabling an existing owner survives a restart.
     for (const [index, chatId] of config.telegram.allowedUsers.entries()) {
       if (!/^\d+$/.test(chatId)) continue;
@@ -123,12 +125,24 @@ export class PostgresAccess implements AccessRepository {
       id: row.id,
       enabled: row.enabled,
       token: this.decrypt(row.token, `bot:${row.id}`),
+      webhookSecret: row.webhook_secret
+        ? this.decrypt(row.webhook_secret, `webhook:${row.id}`)
+        : undefined,
+      webhookUrl: row.webhook_url || undefined,
     }));
   }
   async saveBot(settings: BotSettings) {
     await this.pool.query(
-      'INSERT INTO managed_bots(id,enabled,token) VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,token=EXCLUDED.token',
-      [settings.id, settings.enabled, this.encrypt(settings.token, `bot:${settings.id}`)],
+      'INSERT INTO managed_bots(id,enabled,token,webhook_secret,webhook_url) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,token=EXCLUDED.token,webhook_secret=COALESCE(EXCLUDED.webhook_secret,managed_bots.webhook_secret),webhook_url=COALESCE(EXCLUDED.webhook_url,managed_bots.webhook_url)',
+      [
+        settings.id,
+        settings.enabled,
+        this.encrypt(settings.token, `bot:${settings.id}`),
+        settings.webhookSecret
+          ? this.encrypt(settings.webhookSecret, `webhook:${settings.id}`)
+          : null,
+        settings.webhookUrl || null,
+      ],
     );
   }
 }

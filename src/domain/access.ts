@@ -25,6 +25,8 @@ export interface BotSettings {
   id: BotId;
   token: string;
   enabled: boolean;
+  webhookSecret?: string;
+  webhookUrl?: string;
 }
 export function telegramSession(bot: BotId, chatId: string) {
   return `${bot === 'zero' ? 'telegram' : 'salem'}:${chatId}`;

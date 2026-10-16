@@ -6,20 +6,14 @@ import { Telegram } from '../outbound/telegram.js';
 import { Media } from '../outbound/media.js';
 import { TelegramPoller } from './telegram-poller.js';
 
-/** Each bot owns its polling cursor and delivery credentials. Settings refresh without restarting Zero. */
+/** Salem receives authenticated webhooks; only Zero retains its configured legacy transport. */
 export class TelegramBots {
   private zeroPoller: TelegramPoller;
-  private salemPoller?: TelegramPoller;
-  private salem?: Telegram;
-  private token = '';
-  private enabled = false;
-  private timer?: NodeJS.Timeout;
-  private syncing?: Promise<void>;
   constructor(
     private config: Config,
     private media: Media,
     readonly zero: Telegram,
-    private store: ConversationStore,
+    store: ConversationStore,
     private access: Access,
   ) {
     this.zeroPoller = new TelegramPoller(config.telegram, zero, store, (update) =>
@@ -42,46 +36,10 @@ export class TelegramBots {
       (b) => b.id === 'salem' && b.enabled && !!b.token,
     );
   }
-  private async sync() {
-    const settings = (await this.access.repository.bots()).find((b) => b.id === 'salem');
-    const token = settings?.token || '';
-    const enabled = !!settings?.enabled && !!token;
-    if (token === this.token && enabled === this.enabled) return;
-    await this.salemPoller?.close();
-    this.salemPoller = undefined;
-    this.token = token;
-    this.enabled = enabled;
-    if (!enabled) return;
-    const config = {
-      ...this.config,
-      telegram: { ...this.config.telegram, token, transport: 'polling' as const },
-    };
-    this.salem = new Telegram(config, this.media, 'Salem');
-    this.salemPoller = new TelegramPoller(
-      config.telegram,
-      this.salem,
-      this.store,
-      (update) => this.access.receive('salem', update, token.split(':')[0]),
-      'salem:' + token.split(':')[0],
-    );
-    this.salemPoller.start();
-  }
   start() {
     this.zeroPoller.start();
-    const tick = () => {
-      if (this.syncing) return;
-      this.syncing = this.sync()
-        .catch(() => console.error(JSON.stringify({ event: 'salem_settings_failed' })))
-        .finally(() => {
-          this.syncing = undefined;
-        });
-    };
-    tick();
-    this.timer = setInterval(tick, 3000);
   }
   async close() {
-    if (this.timer) clearInterval(this.timer);
-    await this.syncing;
-    await Promise.all([this.zeroPoller.close(), this.salemPoller?.close()]);
+    await this.zeroPoller.close();
   }
 }

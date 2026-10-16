@@ -23,6 +23,16 @@ export interface AccessRepository {
   saveBot(settings: BotSettings): Promise<void>;
 }
 
+export interface WebhookStatus {
+  url: string;
+  pending: number;
+  lastError?: string;
+}
+export interface WebhookControl {
+  configure(settings: BotSettings): Promise<void>;
+  status(settings: BotSettings): Promise<WebhookStatus>;
+}
+
 export class Access {
   constructor(
     readonly repository: AccessRepository,

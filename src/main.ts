@@ -17,6 +17,7 @@ import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
 import { ProcessManagedMessage } from './application/use-cases/process-managed-message.js';
 import { ConsolidateMemory } from './application/use-cases/consolidate-memory.js';
 import { PrepareNotification } from './application/use-cases/prepare-notification.js';
+import { TelegramWebhook } from './adapters/outbound/telegram-webhook.js';
 import { TelegramBots } from './adapters/inbound/telegram-bots.js';
 import { PostgresAccess } from './adapters/outbound/postgres-access.js';
 import { Access, scopedConfig } from './application/access.js';
@@ -138,14 +139,26 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     canRespond,
   ),
   scheduler = new Scheduler(config, store, memory),
-  admin = new Admin(config, accessRepository, async (token) => {
-    const candidate = new Telegram(
-      { ...config, telegram: { ...config.telegram, token } },
-      media,
-      'Salem',
-    );
-    await candidate.call('getMe', {}, AbortSignal.timeout(10000));
-  }),
+  admin = new Admin(
+    config,
+    accessRepository,
+    async (token) => {
+      const candidate = new Telegram(
+        { ...config, telegram: { ...config.telegram, token } },
+        media,
+        'Salem',
+      );
+      await candidate.call('getMe', {}, AbortSignal.timeout(10000));
+    },
+    new TelegramWebhook(
+      (settings) =>
+        new Telegram(
+          { ...config, telegram: { ...config.telegram, token: settings.token } },
+          media,
+          'Salem',
+        ),
+    ),
+  ),
   server = createHttpServer(config, store, readFileSync('assets/icon.png'), { access, admin });
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {

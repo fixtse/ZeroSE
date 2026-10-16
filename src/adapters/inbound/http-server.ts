@@ -57,6 +57,23 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
+      if (req.method === 'POST' && path === '/telegram/salem/webhook' && management) {
+        const settings = (await management.access.repository.bots()).find(
+          (bot) => bot.id === 'salem',
+        );
+        if (
+          !equalSecret(
+            req.headers['x-telegram-bot-api-secret-token'],
+            settings?.webhookSecret || '',
+          )
+        )
+          return send(401, { error: 'Unauthorized' });
+        if (!settings?.enabled) return send(200, { ok: true });
+        const update = await body(req);
+        if (!Number.isSafeInteger(update.update_id)) return send(400, { error: 'Invalid update' });
+        const job = await management.access.receive('salem', update, settings.token.split(':')[0]);
+        return send(200, { ok: true, ...(job ? { jobId: job.id } : {}) });
+      }
       if (req.method === 'POST' && path === '/telegram/webhook') {
         if (
           !equalSecret(

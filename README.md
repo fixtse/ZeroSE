@@ -344,10 +344,16 @@ served by the same process, uses no external services, and keeps the administrat
 in the current tab. The authenticated `/v1/admin/` endpoints manage the same settings.
 
 Zero retains its existing token and transport. Configure the separate **Salem** token and
-activation switch in the web interface. Salem uses polling; its Telegram account must not
-have an existing webhook. Saving or disabling Salem applies within a few seconds without
-restarting Zero. This does not register or remove Telegram webhooks. Each bot keeps its own
-polling cursor and update deduplication keys.
+activation switch in the web interface. Salem receives updates exclusively through
+`POST /telegram/salem/webhook`; it never starts a poller or a settings polling timer. Enter
+that route's public HTTPS URL, then use **Guardar y registrar webhook**. The application
+stores a separate encrypted webhook secret and registers the webhook once for that explicit
+save, preserving pending Telegram updates. It never registers or retries mutations at startup.
+Use **Comprobar webhook** for a read-only status check, including URL, pending update count
+and Telegram's last delivery error. If registration is uncertain, inspect its state before
+saving again. Disabling Salem ignores authenticated incoming updates without deleting its
+Telegram webhook. Zero retains its own route, secret and configured transport. Salem's
+account-scoped update deduplication keys are preserved across migration from polling.
 
 Every user or group that contacts either bot appears in the searchable, paginated chat list.
 New contacts are **pending and disabled**, including contacts of Salem. Select “Solo pendientes”

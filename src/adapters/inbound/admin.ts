@@ -1,8 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
+import { randomBytes } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
-import { capabilities, type AccessProfile, type BotId } from '../../domain/access.js';
-import type { AccessRepository } from '../../application/access.js';
+import {
+  capabilities,
+  type AccessProfile,
+  type BotId,
+  type BotSettings,
+} from '../../domain/access.js';
+import type { AccessRepository, WebhookControl } from '../../application/access.js';
 import { ConfigSchema } from '../outbound/config.js';
 import { adminPage } from './admin-page.js';
 
@@ -59,6 +65,7 @@ export class Admin {
     private config: Config,
     private repository: AccessRepository,
     private validateToken: (token: string) => Promise<void>,
+    private webhooks?: WebhookControl,
   ) {}
   page(res: ServerResponse) {
     res.writeHead(200, {
@@ -89,6 +96,8 @@ export class Admin {
           },
           {
             id: 'salem',
+            transport: 'webhook',
+            webhookUrl: settings.find((b) => b.id === 'salem')?.webhookUrl || '',
             configured: settings.some((b) => b.id === 'salem' && !!b.token),
             enabled: settings.some((b) => b.id === 'salem' && b.enabled),
           },
@@ -96,9 +105,31 @@ export class Admin {
       });
       return true;
     }
+    if (req.method === 'GET' && path === '/v1/admin/bots/salem/webhook') {
+      const settings = (await this.repository.bots()).find((b) => b.id === 'salem');
+      if (!settings?.token || !this.webhooks) {
+        send(400, { error: 'Configura primero el token de Salem.' });
+        return true;
+      }
+      try {
+        const status = await this.webhooks.status(settings);
+        send(200, {
+          ...status,
+          expectedUrl: settings.webhookUrl || '',
+          registered: !!settings.webhookUrl && status.url === settings.webhookUrl,
+        });
+      } catch {
+        send(502, { error: 'No se pudo consultar el webhook en Telegram.' });
+      }
+      return true;
+    }
     if (req.method === 'PUT' && path === '/v1/admin/bots/salem') {
       const input = z
-        .object({ token: z.string().max(300).default(''), enabled: z.boolean() })
+        .object({
+          token: z.string().max(300).default(''),
+          enabled: z.boolean(),
+          webhookUrl: z.string().max(2048).optional(),
+        })
         .parse(await read());
       const previous = (await this.repository.bots()).find((b) => b.id === 'salem');
       const token = input.token.trim() || previous?.token || '';
@@ -122,8 +153,61 @@ export class Admin {
           return true;
         }
       }
-      await this.repository.saveBot({ id: 'salem', token, enabled: input.enabled });
-      send(200, { saved: true });
+      const webhookUrl = input.webhookUrl?.trim() || previous?.webhookUrl || '';
+      if (input.enabled && !webhookUrl) {
+        send(400, { error: 'Introduce la URL HTTPS pública del webhook de Salem.' });
+        return true;
+      }
+      if (webhookUrl) {
+        let url: URL;
+        try {
+          url = new URL(webhookUrl);
+        } catch {
+          send(400, { error: 'La URL del webhook no es válida.' });
+          return true;
+        }
+        if (
+          url.protocol !== 'https:' ||
+          url.username ||
+          url.password ||
+          url.search ||
+          url.hash ||
+          url.pathname !== '/telegram/salem/webhook'
+        ) {
+          send(400, {
+            error:
+              'Usa una URL HTTPS pública que termine en /telegram/salem/webhook, sin credenciales ni parámetros.',
+          });
+          return true;
+        }
+      }
+      const sameAccount = previous?.token.split(':')[0] === token.split(':')[0];
+      const settings: BotSettings = {
+        id: 'salem',
+        token,
+        enabled: input.enabled,
+        webhookUrl,
+        webhookSecret:
+          sameAccount && previous?.webhookSecret
+            ? previous.webhookSecret
+            : randomBytes(32).toString('hex'),
+      };
+      // Persist first so Telegram can authenticate immediately after setWebhook succeeds.
+      await this.repository.saveBot(settings);
+      if (input.enabled) {
+        try {
+          if (!this.webhooks) throw new Error('Webhook control is unavailable');
+          await this.webhooks.configure(settings);
+        } catch {
+          send(502, {
+            saved: true,
+            error:
+              'Configuración guardada, pero no se pudo confirmar el registro del webhook. Comprueba su estado antes de volver a registrar; no se ha reintentado automáticamente.',
+          });
+          return true;
+        }
+      }
+      send(200, { saved: true, webhookRegistered: input.enabled });
       return true;
     }
     if (req.method === 'GET' && path === '/v1/admin/profiles') {
