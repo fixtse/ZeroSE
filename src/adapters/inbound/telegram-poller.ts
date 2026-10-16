@@ -12,6 +12,8 @@ export class TelegramPoller {
     private config: Config['telegram'],
     private telegram: TelegramApi,
     private store: ConversationStore,
+    private receive?: (update: any) => Promise<unknown>,
+    private cursorName = 'telegram',
   ) {}
   start() {
     if (this.config.transport !== 'polling') return;
@@ -33,7 +35,7 @@ export class TelegramPoller {
         const updates = await this.telegram.call(
           'getUpdates',
           {
-            offset: await this.store.cursor('telegram'),
+            offset: await this.store.cursor(this.cursorName),
             timeout: 25,
             allowed_updates: ['message'],
           },
@@ -42,7 +44,9 @@ export class TelegramPoller {
         for (const update of updates) {
           if (!Number.isSafeInteger(update.update_id)) throw new Error('Invalid Telegram update');
           const message = update.message;
-          if (
+          if (this.receive) {
+            await this.receive(update);
+          } else if (
             message &&
             this.config.allowedUsers.includes(String(message.from?.id)) &&
             Number.isSafeInteger(message.chat?.id)
@@ -53,7 +57,7 @@ export class TelegramPoller {
               'telegram:' + update.update_id,
             );
           }
-          await this.store.setCursor('telegram', update.update_id + 1);
+          await this.store.setCursor(this.cursorName, update.update_id + 1);
         }
         failures = 0;
       } catch (error) {

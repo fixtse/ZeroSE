@@ -10,6 +10,7 @@ export interface ToolContext {
   session: string;
   jobId: string;
   signal: AbortSignal;
+  capabilities?: string[];
 }
 export interface MemoryFragment {
   text: string;

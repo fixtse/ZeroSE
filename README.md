@@ -154,7 +154,7 @@ separate sessions can run concurrently.
 Telegram supports `disabled`, `webhook`, or `polling` transport. Polling needs no
 public ingress and refuses to start if a webhook already exists. Webhook mode uses
 `POST /telegram/webhook` and validates `X-Telegram-Bot-Api-Secret-Token` plus the
-configured user allowlist. Neither transport registers or removes a webhook on startup.
+independent user/group access policy. Neither transport registers or removes a webhook on startup.
 
 ## Wake-up briefing
 
@@ -329,12 +329,61 @@ and removes an isolated schema. CI provisions that database automatically.
 The selected public endpoint is `https://twk.kcta.cc/telegram/webhook`. This host has
 an active Newt service; configure its Pangolin resource to target `http://127.0.0.1:8788`.
 Telegram must be able to reach the webhook path without an interactive login. The
-assistant checks the configured Telegram secret header and permitted Telegram user IDs.
+assistant checks the configured Telegram secret header and the independently permitted chat.
 `https://twk.kcta.cc/health` should return `{"status":"ok"}` once routing is ready.
 
 Register the Telegram webhook with `secret_token` matching `telegram.webhookSecret`,
 set `telegram.transport` to `webhook`, and enable the intended schedules. Preserve pending
 updates when changing registration. Startup does not register or remove webhooks.
+
+## User and group administration
+
+Open `/admin` on the assistant HTTP origin and sign in with `config.apiKey`. The page is
+served by the same process, uses no external services, and keeps the administrator key only
+in the current tab. The authenticated `/v1/admin/` endpoints manage the same settings.
+
+Zero retains its existing token and transport. Configure the separate **Salem** token and
+activation switch in the web interface. Salem uses polling; its Telegram account must not
+have an existing webhook. Saving or disabling Salem applies within a few seconds without
+restarting Zero. This does not register or remove Telegram webhooks. Each bot keeps its own
+polling cursor and update deduplication keys.
+
+Every user or group that contacts either bot appears in the searchable, paginated chat list.
+New contacts are **pending and disabled**, including contacts of Salem. Select “Solo pendientes”
+to review them, then enable each chat manually. No model invocation, transcription, ordinary
+reply, error reply or typing indicator is sent for an unapproved chat. The exception is the
+Spanish welcome with chat ID when a bot is added to a group. Joining does not grant access.
+A permitted user's presence never authorizes a group; group access must be enabled separately.
+
+New profiles start with public web search, public page reads, media input/transcription and
+chat-scoped memory. Google Calendar, Tasks, Docs/Drive and Home Assistant are disabled.
+Enable these categories and supply that profile's own OAuth credentials or Home Assistant
+API token in its connection settings. Google requires an OAuth client ID, client secret and
+refresh token with the scopes of the enabled services, plus calendar/task-list IDs as needed;
+Google account passwords are not used. Empty secret fields preserve saved secrets; explicit
+connection-removal checkboxes clear them. Profiles never inherit the owner's accounts.
+Tool catalogs are filtered per turn, application tool calls recheck permissions before running,
+and built-in web search follows that chat's web permission. Changing the tool catalog
+starts a fresh agent thread with retained application conversation history; stored messages
+and long-term memory are not deleted. Revoking access also suppresses
+queued messages and delivery of an in-flight answer.
+
+A user chat and a group chat have independent conversation threads, history and memory;
+group memory is shared by that group's participants. Salem and Zero are also isolated, even
+for the same chat ID. Only the first existing `telegram.allowedUsers` entry is seeded as the
+original owner with the previous Zero credentials and legacy memory profile. Other existing
+allowed users receive public capabilities only. Configuration entries are initial seeds;
+changing or disabling an existing profile in the web UI survives restarts. Existing memory
+and conversation records are preserved. Custom owner prompts and scheduled private agenda
+notifications stay with the owner.
+
+Tokens and integration secrets entered in the web UI are encrypted with AES-256-GCM in
+PostgreSQL and never returned by the administration API. Set `ASSISTANT_SECRETS_KEY` to a
+stable private value of at least 16 characters before first saving credentials if you want
+to rotate `config.apiKey` independently. Otherwise the encryption key is derived from
+`config.apiKey`, which must remain unchanged to decrypt those credentials. Back up the database
+and encryption key privately together. Use the existing trusted HTTPS ingress for remote
+administration. No runtime secrets belong in source control or Docker images.
 
 ## Protocol references
 

@@ -3,6 +3,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { Config } from '../../domain/config.js';
 import type { ConversationStore } from '../../application/ports.js';
+import type { Access } from '../../application/access.js';
+import type { Admin } from './admin.js';
 import { localClock } from '../../domain/time.js';
 
 export function equalSecret(value: unknown, expected: string) {
@@ -26,7 +28,12 @@ async function body(request: IncomingMessage) {
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
-export function createHttpServer(config: Config, store: ConversationStore, icon?: Buffer) {
+export function createHttpServer(
+  config: Config,
+  store: ConversationStore,
+  icon?: Buffer,
+  management?: { access: Access; admin: Admin },
+) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -47,6 +54,8 @@ export function createHttpServer(config: Config, store: ConversationStore, icon?
         res.end(icon);
         return;
       }
+      if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
+        return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
       if (req.method === 'POST' && path === '/telegram/webhook') {
         if (
@@ -62,6 +71,10 @@ export function createHttpServer(config: Config, store: ConversationStore, icon?
           message = update.message;
         if (!Number.isSafeInteger(update.update_id)) return send(400, { error: 'Invalid update' });
         if (!message) return send(200, { ok: true });
+        if (management) {
+          const job = await management.access.receive('zero', update);
+          return send(200, { ok: true, ...(job ? { jobId: job.id } : {}) });
+        }
         if (!config.telegram.allowedUsers.includes(String(message.from?.id)))
           return send(403, { error: 'User not permitted' });
         if (!Number.isSafeInteger(message.chat?.id)) return send(400, { error: 'Invalid chat' });
@@ -74,6 +87,7 @@ export function createHttpServer(config: Config, store: ConversationStore, icon?
       }
       if (!equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`))
         return send(401, { error: 'Unauthorized' });
+      if (management && (await management.admin.handle(req, path, () => body(req), send))) return;
       if (req.method === 'POST' && path === '/v1/triggers/morning') {
         const chat = config.telegram.notificationChatId;
         if (!config.schedules.enabled || !chat)

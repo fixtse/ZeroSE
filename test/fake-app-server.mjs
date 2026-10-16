@@ -30,7 +30,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     return send({ id: request.id, result: { thread: { id } } });
   }
   if (request.method === 'thread/resume') {
-    threads.set(p.threadId, p);
+    if ('dynamicTools' in p) return send({ id: request.id, error: { code: -32602 } });
+    threads.set(p.threadId, { ...p, dynamicTools: threads.get(p.threadId)?.dynamicTools || [] });
     return send({ id: request.id, result: { thread: { id: p.threadId } } });
   }
   if (request.method === 'turn/interrupt') return send({ id: request.id, result: {} });

@@ -1,3 +1,4 @@
+import { membershipEvent } from '../domain/access.js';
 import type { Config } from '../domain/config.js';
 import type { Job, ToolContext } from '../domain/models.js';
 import type { ConversationStore, MediaPort, TelegramPort } from './ports.js';
@@ -16,6 +17,8 @@ export class Assistant {
     private handlers: JobHandlers,
     private media: MediaPort,
     private telegram: TelegramPort,
+    private telegramForJob?: (job: Job) => Promise<TelegramPort>,
+    private canRespond: (job: Job) => Promise<boolean> = async () => true,
   ) {}
   start() {
     const pump = () => {
@@ -49,29 +52,41 @@ export class Assistant {
       (job.payload.kind === 'telegram' ? String(job.payload.message.chat.id) : undefined)
     );
   }
-  private async deliver(job: Job, result: JobResult, signal: AbortSignal) {
+  private async deliver(job: Job, result: JobResult, signal: AbortSignal, telegram: TelegramPort) {
     const chat = this.chat(job);
     if (!chat || result.deliver === false) return;
-    await this.telegram.send(chat, result.output, signal, job.payload.message?.message_id);
+    if (!(await this.canRespond(job)) && !membershipEvent(job.payload.message)) return;
+    await telegram.send(chat, result.output, signal, job.payload.message?.message_id);
     await result.afterDelivery?.();
-    if (!this.config.telegram.voiceReplies || result.voice === false || result.output.length > 4000)
+    if (
+      !this.config.telegram.voiceReplies ||
+      result.voice === false ||
+      result.output.length > 4000 ||
+      !(await this.canRespond(job))
+    )
       return;
     try {
-      await this.telegram.sendVoice(chat, result.output, job.id, signal);
+      await telegram.sendVoice(chat, result.output, job.id, signal);
     } catch {
       console.error(JSON.stringify({ event: 'voice_reply_failed', job: job.id }));
-      await this.telegram.send(
+      await telegram.send(
         chat,
         'No se pudo generar la respuesta de voz; la respuesta de texto está arriba.',
         signal,
       );
     }
   }
-  private typing(job: Job, signal: AbortSignal): NodeJS.Timeout | undefined {
+  private typing(
+    job: Job,
+    signal: AbortSignal,
+    telegram: TelegramPort,
+  ): NodeJS.Timeout | undefined {
     const chat = this.chat(job);
     if (!chat || job.payload.kind !== 'telegram') return;
     const send = () => {
-      void this.telegram.typing(chat, signal).catch(() => {});
+      void this.canRespond(job)
+        .then((permitted) => (permitted ? telegram.typing(chat, signal) : undefined))
+        .catch(() => {});
     };
     send();
     return setInterval(send, 4000);
@@ -81,20 +96,23 @@ export class Assistant {
     this.controllers.add(controller);
     const deadline = setTimeout(() => controller.abort(), this.config.codex.timeoutMs);
     const context: ToolContext = { session: job.session, jobId: job.id, signal: controller.signal };
-    const typing = this.typing(job, context.signal);
+    let typing: NodeJS.Timeout | undefined;
+    let telegram: TelegramPort | undefined;
     try {
+      telegram = this.telegramForJob ? await this.telegramForJob(job) : this.telegram;
+      if (await this.canRespond(job)) typing = this.typing(job, context.signal, telegram);
       const handler = this.handlers[job.payload.kind];
       if (!handler) throw new Error('Unsupported assistant job');
       const result = await handler(job, context);
-      await this.deliver(job, result, context.signal);
+      await this.deliver(job, result, context.signal, telegram);
       await this.store.finish(job.id, result.output);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Assistant failed';
       await this.store.fail(job.id, message);
       console.error(JSON.stringify({ event: 'job_failed', job: job.id, kind: job.payload.kind }));
       const chat = this.chat(job);
-      if (chat)
-        await this.telegram
+      if (chat && telegram && (await this.canRespond(job)))
+        await telegram
           .send(
             chat,
             `No pude completar la solicitud: ${message}. Si hubo una acción, comprueba su resultado antes de repetirla.`,

@@ -23,6 +23,7 @@ export class Telegram {
   constructor(
     private config: Config,
     private media: Media,
+    private identity = 'Zero',
   ) {}
   async call(method: string, body: any, signal?: AbortSignal): Promise<any> {
     if (!this.config.telegram.token) throw new Error('Telegram bot token is not configured');
@@ -107,7 +108,7 @@ export class Telegram {
         images: [],
         transcriptionOnly: false,
         serviceReply: joined
-          ? `¡Hola! Soy Zero, vuestro asistente. Gracias por añadirme al grupo.\n\nChat ID: ${message.chat.id}`
+          ? `¡Hola! Soy ${this.identity}, vuestro asistente. Gracias por añadirme al grupo.\n\nChat ID: ${message.chat.id}`
           : '',
       };
     }

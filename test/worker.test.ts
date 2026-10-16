@@ -141,3 +141,69 @@ test('a voice failure preserves text delivery and finishes without retrying the 
     await f.close();
   }
 });
+
+test('pending chats stay silent, welcome is the only exception, and delivery uses the selected bot', async () => {
+  const f = await fixture();
+  const events: string[] = [];
+  const pending = await f.store.enqueue('salem:1', {
+    kind: 'telegram',
+    message: { chat: { id: 1, type: 'private' } },
+  });
+  const welcome = await f.store.enqueue('salem:-2', {
+    kind: 'telegram',
+    message: { chat: { id: -2, type: 'group' }, group_chat_created: true },
+  });
+  const failure = await f.store.enqueue('salem:3', {
+    kind: 'telegram',
+    message: { chat: { id: 3, type: 'private' } },
+  });
+  const telegram = {
+    async input() {
+      throw new Error('unused');
+    },
+    async send(chat: string, text: string) {
+      events.push(`${chat}:${text}`);
+    },
+    async sendVoice() {
+      throw new Error('No voice expected');
+    },
+    async typing() {
+      events.push('typing');
+    },
+  };
+  const worker = new Assistant(
+    f.config,
+    f.store,
+    {
+      telegram: async (job) => {
+        if (job.id === failure.id) throw new Error('Error must not be sent to pending chat');
+        return {
+          output: job.id === welcome.id ? '¡Hola! Soy Salem. Chat ID: -2' : 'Must not be delivered',
+          voice: false,
+        };
+      },
+    },
+    { async cleanup() {} },
+    {
+      ...telegram,
+      async send() {
+        throw new Error('Must not use Zero for Salem');
+      },
+    },
+    async () => telegram,
+    async () => false,
+  );
+  try {
+    worker.start();
+    await until(
+      async () =>
+        (await f.store.job(pending.id))?.status === 'done' &&
+        (await f.store.job(welcome.id))?.status === 'done' &&
+        (await f.store.job(failure.id))?.status === 'failed',
+    );
+    assert.deepEqual(events, ['-2:¡Hola! Soy Salem. Chat ID: -2']);
+  } finally {
+    await worker.close();
+    await f.close();
+  }
+});

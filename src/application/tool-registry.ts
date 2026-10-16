@@ -11,8 +11,13 @@ export interface Tool {
 }
 export class Tools {
   private tools = new Map<string, Tool>();
-  constructor(private store: AuditPort) {}
+  constructor(
+    private store: AuditPort,
+    private authorize?: (name: string, context: ToolContext) => Promise<boolean>,
+    private permitted?: (name: string) => boolean,
+  ) {}
   add(name: string, description: string, schema: z.ZodType, invoke: Tool['invoke']) {
+    if (this.permitted && !this.permitted(name)) return;
     if (this.tools.has(name)) throw new Error(`Duplicate tool ${name}`);
     this.tools.set(name, { name, description, schema, invoke });
   }
@@ -24,6 +29,8 @@ export class Tools {
     }));
   }
   async call(name: string, args: unknown, context: ToolContext) {
+    if (this.authorize && !(await this.authorize(name, context)))
+      throw new Error('Tool is not permitted for this profile');
     const tool = this.tools.get(name);
     if (!tool) throw new Error('Unknown tool');
     context.signal.throwIfAborted();

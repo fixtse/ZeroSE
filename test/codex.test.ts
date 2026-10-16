@@ -75,3 +75,80 @@ test('app-server multiplexes tools, preserves threads, resumes after restart and
     await f.close();
   }
 });
+
+test('per-chat tool catalogs, working directories and web permissions change on resume and checks run again at invocation', async () => {
+  const f = await fixture();
+  f.config.codex.command = process.execPath;
+  f.config.codex.args = [resolve('test/fake-app-server.mjs')];
+  let permitted = true,
+    executed = 0,
+    expanded = false;
+  const fallback = new Tools(f.store);
+  fallback.add('owner_only', 'Never expose owner tool', z.object({}), async () => {
+    throw new Error('Owner tools must not run');
+  });
+  let resolutions = 0;
+  const codex = new Codex(f.config, f.store, fallback, async (context) => {
+    resolutions++;
+    context.capabilities =
+      context.session === 'salem:1' ? ['transcription'] : ['web', 'transcription'];
+    const scoped = new Tools(f.store, async () => permitted);
+    scoped.add('echo', 'Public echo', z.object({ value: z.string() }), async (value) => {
+      executed++;
+      return value;
+    });
+    if (expanded)
+      scoped.add('calendar_list', 'Calendar enabled manually', z.object({}), async () => []);
+    return scoped;
+  });
+  const context = (session: string) => ({
+    session,
+    jobId: 'policy',
+    signal: AbortSignal.timeout(5000),
+  });
+  try {
+    const one = JSON.parse(
+      await codex.run('salem:1', 'inspect-tools', 'Salem', context('salem:1')),
+    ).settings;
+    const two = JSON.parse(
+      await codex.run('salem:2', 'inspect-tools', 'Salem', context('salem:2')),
+    ).settings;
+    assert.equal(one.config.web_search, 'disabled');
+    assert.equal(two.config.web_search, 'live');
+    assert.notEqual(one.cwd, two.cwd);
+    assert.match(one.cwd, /workspaces/);
+    assert.deepEqual(
+      one.dynamicTools.map((t: any) => t.name),
+      ['echo'],
+    );
+    assert(!JSON.stringify(one).includes('owner_only'));
+    assert.equal(
+      JSON.parse(await codex.run('salem:1', 'allowed', 'Salem', context('salem:1'))).success,
+      true,
+    );
+    permitted = false;
+    const denied = JSON.parse(await codex.run('salem:1', 'denied', 'Salem', context('salem:1')));
+    assert.equal(denied.success, false);
+    assert.match(JSON.stringify(denied), /not permitted/);
+    assert.equal(executed, 1);
+    permitted = true;
+    const oldThread = await f.store.thread('salem:1');
+    await f.store.addMessage('salem:1', 'user', 'Retained conversation in this chat');
+    expanded = true;
+    const refreshed = JSON.parse(
+      await codex.run('salem:1', 'after policy change', 'Salem', context('salem:1')),
+    );
+    assert.equal(refreshed.success, true);
+    assert.match(JSON.stringify(refreshed), /Retained conversation in this chat/);
+    assert.notEqual(await f.store.thread('salem:1'), oldThread);
+    const updated = JSON.parse(
+      await codex.run('salem:1', 'inspect-tools', 'Salem', context('salem:1')),
+    ).settings;
+    assert(updated.dynamicTools.some((tool: any) => tool.name === 'calendar_list'));
+
+    assert(resolutions >= 6, 'Resolve a fresh policy at invocation, not only catalog creation');
+  } finally {
+    codex.close();
+    await f.close();
+  }
+});

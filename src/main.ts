@@ -14,10 +14,16 @@ import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
 import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
-import { ProcessMessage } from './application/use-cases/process-message.js';
+import { ProcessManagedMessage } from './application/use-cases/process-managed-message.js';
 import { ConsolidateMemory } from './application/use-cases/consolidate-memory.js';
 import { PrepareNotification } from './application/use-cases/prepare-notification.js';
-import { TelegramPoller } from './adapters/inbound/telegram-poller.js';
+import { TelegramBots } from './adapters/inbound/telegram-bots.js';
+import { PostgresAccess } from './adapters/outbound/postgres-access.js';
+import { Access, scopedConfig } from './application/access.js';
+import { Admin } from './adapters/inbound/admin.js';
+import { sessionAddress, toolCapability } from './domain/access.js';
+import type { Job, ToolContext } from './domain/models.js';
+import type { JobResult } from './application/use-cases/contracts.js';
 import {
   registerGoogleTools,
   registerHomeAssistantTools,
@@ -38,48 +44,136 @@ registerGoogleTools(tools, google);
 registerHomeAssistantTools(tools, ha, config.homeAssistant);
 registerMemoryTools(tools, memory);
 registerSearch(tools, config.braveApiKey);
+const accessRepository = new PostgresAccess(
+  store.pool,
+  process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
+);
+await accessRepository.initialize(config);
+const access = new Access(accessRepository, store);
+const bots = new TelegramBots(config, media, telegram, store, access);
+async function canRespond(job: Job) {
+  const address = sessionAddress(job.session);
+  if (!address) return true; // HTTP chat already requires the administrator API key.
+  const profile = await access.forSession(job.session);
+  return !!profile?.enabled && (await bots.isEnabled(address.bot));
+}
+async function services(context: ToolContext) {
+  const address = sessionAddress(context.session);
+  const profile = await access.forSession(context.session);
+  if (address && !profile?.enabled) throw new Error('Chat is not permitted');
+  const scoped = profile ? scopedConfig(config, profile) : config;
+  context.capabilities = profile?.capabilities;
+  const google = new Google(scoped.google, scoped.timezone);
+  const ha = new HomeAssistant(scoped.homeAssistant);
+  const memory = new Memory(scoped.memory, store, new GeminiEmbeddings(scoped.memory));
+  const permitted = (name: string) => {
+    const capability = toolCapability(name);
+    return !profile || !capability || profile.capabilities.includes(capability);
+  };
+  const tools = new Tools(
+    store,
+    async (name) => {
+      if (!address) return true;
+      const current = await access.forSession(context.session);
+      const capability = toolCapability(name);
+      return (
+        !!current?.enabled &&
+        (await bots.isEnabled(address.bot)) &&
+        (!capability || current.capabilities.includes(capability))
+      );
+    },
+    permitted,
+  );
+  registerGoogleTools(tools, google);
+  registerHomeAssistantTools(tools, ha, scoped.homeAssistant);
+  registerMemoryTools(tools, memory);
+  registerSearch(tools, scoped.braveApiKey);
+  return { config: scoped, google, ha, memory, tools, profile };
+}
 let prompts: Record<string, string> = {};
 try {
   prompts = JSON.parse(readFileSync(join(config.dataDir, 'prompts.json'), 'utf8'));
 } catch {
   /* use default identity */
 }
-const codex = new Codex(config, store, tools),
-  processMessage = new ProcessMessage(config, store, codex, google, telegram, prompts.main),
-  consolidateMemory = new ConsolidateMemory(
+const codex = new Codex(config, store, tools, async (context) => (await services(context)).tools),
+  processManagedMessage = new ProcessManagedMessage(
+    store,
     codex,
-    google,
-    memory,
-    prompts.consolidation,
-    config.memory.categories,
+    services,
+    (bot) => bots.get(bot),
+    canRespond,
+    prompts.main,
   ),
-  prepareNotification = new PrepareNotification(config, store, codex, google, ha, prompts),
   assistant = new Assistant(
     config,
     store,
     {
-      chat: (job, context) => processMessage.execute(job, context),
-      telegram: (job, context) => processMessage.execute(job, context),
-      consolidate: (job, context) => consolidateMemory.execute(job, context),
-      morning: (job, context) => prepareNotification.execute(job, context),
-      event_reminders: (job, context) => prepareNotification.execute(job, context),
+      chat: (job, context) => processManagedMessage.execute(job, context),
+      telegram: (job, context) => processManagedMessage.execute(job, context),
+      consolidate: async (job, context) => {
+        if (!(await canRespond(job))) return { output: '', deliver: false };
+        const scope = await services(context);
+        return new ConsolidateMemory(
+          codex,
+          scope.google,
+          scope.memory,
+          scope.profile && !scope.profile.owner ? '' : prompts.consolidation,
+          scope.config.memory.categories,
+        ).execute(job, context);
+      },
+      morning: notify,
+      event_reminders: notify,
       reset: async (job) => {
         await store.reset(job.session);
-        return { output: 'Zero: Nueva Sesión Iniciada', voice: false };
+        const profile = await access.forSession(job.session);
+        return profile?.owner && (await canRespond(job))
+          ? { output: 'Zero: Nueva Sesión Iniciada', voice: false }
+          : { output: '', deliver: false };
       },
     },
     media,
     telegram,
+    (job) => bots.get(sessionAddress(job.session)?.bot || 'zero'),
+    canRespond,
   ),
   scheduler = new Scheduler(config, store, memory),
-  poller = new TelegramPoller(config.telegram, telegram, store),
-  server = createHttpServer(config, store, readFileSync('assets/icon.png'));
+  admin = new Admin(config, accessRepository, async (token) => {
+    const candidate = new Telegram(
+      { ...config, telegram: { ...config.telegram, token } },
+      media,
+      'Salem',
+    );
+    await candidate.call('getMe', {}, AbortSignal.timeout(10000));
+  }),
+  server = createHttpServer(config, store, readFileSync('assets/icon.png'), { access, admin });
+
+async function notify(job: Job, context: ToolContext): Promise<JobResult> {
+  if (!(await canRespond(job))) return { output: '', deliver: false };
+  const scope = await services(context);
+  if (
+    scope.profile &&
+    (!scope.profile.owner ||
+      !scope.profile.capabilities.includes('calendar') ||
+      !scope.profile.capabilities.includes('tasks'))
+  )
+    return { output: '', deliver: false };
+  return new PrepareNotification(
+    scope.config,
+    store,
+    codex,
+    scope.google,
+    scope.ha,
+    prompts,
+  ).execute(job, context);
+}
+
 server.requestTimeout = 30_000;
 server.headersTimeout = 15_000;
 server.listen(config.port, config.host, () => {
   assistant.start();
   scheduler.start();
-  poller.start();
+  bots.start();
   console.log(
     JSON.stringify({
       event: 'started',
@@ -95,7 +189,7 @@ async function close() {
   if (closing) return;
   closing = true;
   scheduler.close();
-  await poller.close();
+  await bots.close();
   server.close();
   const deadline = setTimeout(() => process.exit(1), 15_000);
   deadline.unref();

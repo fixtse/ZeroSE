@@ -59,3 +59,66 @@ test('polling never replaces an existing webhook', async () => {
     await f.close();
   }
 });
+
+test('managed Salem polling discovers unapproved contacts without replying and uses an independent cursor', async () => {
+  const { PostgresAccess } = await import('../src/adapters/outbound/postgres-access.js');
+  const { Access } = await import('../src/application/access.js');
+  const f = await fixture();
+  f.config.telegram.transport = 'polling';
+  const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
+  await repository.initialize(f.config);
+  const access = new Access(repository, f.store);
+  let calls = 0;
+  const offsets: number[] = [];
+  const telegram = {
+    async call(method: string, body: any, signal?: AbortSignal) {
+      if (method === 'getWebhookInfo') return { url: '' };
+      assert.equal(method, 'getUpdates');
+      offsets.push(body.offset);
+      if (++calls === 1)
+        return [
+          {
+            update_id: 10,
+            message: {
+              chat: { id: 99, type: 'private', first_name: 'Pending user' },
+              from: { id: 99 },
+              text: 'hello',
+            },
+          },
+          {
+            update_id: 11,
+            message: {
+              chat: { id: -99, type: 'group', title: 'Pending group' },
+              from: { id: 99 },
+              text: 'hello',
+            },
+          },
+        ];
+      await new Promise<void>((resolve) =>
+        signal?.addEventListener('abort', () => resolve(), { once: true }),
+      );
+      return [];
+    },
+  };
+  const poller = new TelegramPoller(
+    f.config.telegram,
+    telegram,
+    f.store,
+    (update) => access.receive('salem', update, '999'),
+    'salem:999',
+  );
+  try {
+    poller.start();
+    await until(() => offsets.length >= 2);
+    assert.deepEqual(offsets, [0, 12]);
+    assert.equal(await f.store.cursor('salem:999'), 12);
+    assert.equal(await f.store.cursor('telegram'), 0);
+    assert.equal(await f.store.claim([]), undefined);
+    const discovered = await repository.profiles('', 0, 20, true);
+    assert.equal(discovered.total, 2);
+    assert(discovered.items.every((p) => !p.enabled));
+  } finally {
+    await poller.close();
+    await f.close();
+  }
+});

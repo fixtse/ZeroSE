@@ -16,7 +16,8 @@ export interface ConversationStore {
   finish(id: string, output: string): Promise<void>;
   fail(id: string, error: string): Promise<void>;
   thread(session: string): Promise<string | undefined>;
-  setThread(session: string, thread: string): Promise<void>;
+  threadPolicy(session: string): Promise<string | undefined>;
+  setThread(session: string, thread: string, policy?: string): Promise<void>;
   reset(session?: string): Promise<void>;
   addMessage(session: string, role: string, text: string): Promise<void>;
   history(session: string): Promise<unknown[]>;
