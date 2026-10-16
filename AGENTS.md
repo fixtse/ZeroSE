@@ -4,6 +4,10 @@
 - Keep hexagonal boundaries: domain has no framework dependencies; application uses ports;
   adapters implement integrations; `src/main.ts` wires dependencies.
 - Preserve tool names, conversation state, prompts, and integration behavior unless requested.
+- Keep per-turn instructions small and stable. New tools must expose catalogs and large datasets
+  through scoped, on-demand read/discovery tools with filtering, pagination, and response budgets;
+  never inject growing catalogs or tool results into every turn's instructions. Use brief tool
+  descriptions for discovery, and never require replaying a mutation to fetch omitted output.
 - Storage uses PostgreSQL with pgvector; keep ports asynchronous and preserve queue/session ordering.
   Use a dedicated `TEST_DATABASE_URL` for tests. Never clear production state or volumes.
 - Run `pnpm format:check`, `pnpm check`, `pnpm test`, and `pnpm build` before pushing.

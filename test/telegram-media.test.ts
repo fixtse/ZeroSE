@@ -13,7 +13,6 @@ import type {
   AgentPort,
   ConversationStore,
   GooglePort,
-  MemoryPort,
   TelegramPort,
 } from '../src/application/ports.js';
 
@@ -188,7 +187,6 @@ test('transcription replies bypass commands, the agent, conversation storage and
       unused<ConversationStore>(),
       unused<AgentPort>(),
       unused<GooglePort>(),
-      unused<MemoryPort>(),
       telegram,
       '',
     );

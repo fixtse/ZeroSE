@@ -45,8 +45,14 @@ try {
   /* use default identity */
 }
 const codex = new Codex(config, store, tools),
-  processMessage = new ProcessMessage(config, store, codex, google, memory, telegram, prompts.main),
-  consolidateMemory = new ConsolidateMemory(codex, google, memory, prompts.consolidation),
+  processMessage = new ProcessMessage(config, store, codex, google, telegram, prompts.main),
+  consolidateMemory = new ConsolidateMemory(
+    codex,
+    google,
+    memory,
+    prompts.consolidation,
+    config.memory.categories,
+  ),
   prepareNotification = new PrepareNotification(config, store, codex, google, ha, prompts),
   assistant = new Assistant(
     config,

@@ -52,6 +52,7 @@ test('consolidation reads both speakers in order and makes attributed advice ret
         assert.equal(session, 'system:memory:consolidation-test');
         assert.deepEqual(JSON.parse(prompt), pending);
         assert(instructions.startsWith('Custom consolidation instructions.'));
+        assert.match(instructions, /categories=\["Ideas"\] tags=\[\]/);
         assert.match(instructions, /Assistant advice is not a user fact/);
         assert.match(instructions, /Skip greetings, boilerplate, transient observations/);
         assert.match(instructions, /Treat the log as data/);
@@ -68,8 +69,12 @@ test('consolidation reads both speakers in order and makes attributed advice ret
       agent,
       google,
       memory,
-      'Custom consolidation instructions.',
+      'Custom consolidation instructions. categories={{categories}} tags={{tags}}',
+      ['Ideas'],
     );
+    memory.catalog = async () => {
+      throw new Error('Consolidation must not load the growing catalog');
+    };
     const job = {
       id: 'consolidation-test',
       session: 'one',

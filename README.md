@@ -185,6 +185,14 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
   The original disabled 15-minute reminder routine remains disabled by default.
 - Memory consolidation considers both user messages and assistant replies, retaining relevant advice and plans with explicit attribution. Prior suggestions remain distinct from user decisions or completed actions, and can be recalled through `memories_get`. Consolidation runs on the existing schedule; important context can also be saved immediately with `memory_save`.
 
+Turn instructions include at most 12 distinct configured `memory.categories`, with no
+stored category/tag catalog. Legacy `{{categories}}` placeholders receive this stable list;
+`{{tags}}` receives an empty string. Consolidation also uses only the configured category
+list and an empty tag list. The model can call `memory_catalog` on demand to discover
+existing categories or tags within its current session/shared profile. It accepts `kind`
+(`categories` by default, or `tags`), a case-insensitive `search`, and the standard bounded
+pagination arguments. Discovery is optional before searching or saving.
+
 Long-term memory search returns at most three deduplicated summaries within a 900-token
 response budget. New saves and consolidation can store summaries of up to 480 characters;
 legacy long records return explicitly labeled excerpts. `memory_read` fetches full text by
@@ -249,7 +257,7 @@ The application tool catalog is assembled in `src/main.ts`:
 | Sensors | `sensors_list`, `sensor_get`, `sensor_history` | Home Assistant token |
 | Shopping | `shopping_list_get`, `shopping_list_change` | Home Assistant token |
 | Local forecast | `weather_forecast` | Home Assistant token and weather entity |
-| Memory | `memories_get`, `memory_read`, `memory_save` | Always |
+| Memory | `memories_get`, `memory_catalog`, `memory_read`, `memory_save` | Always |
 | Image search | `image_search` | Brave API key |
 | Public page text | `url_read` | Always |
 

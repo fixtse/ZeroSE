@@ -311,6 +311,22 @@ export function registerHomeAssistantTools(
     );
 }
 export function registerMemoryTools(tools: Tools, memory: MemoryPort) {
+  tools.add(
+    'memory_catalog',
+    'Discover existing memory categories or tags in the current profile only when needed. Filter by search; lists use offset/limit and large JSON fragments use result_offset=next_offset.',
+    z.object({
+      kind: z.enum(['categories', 'tags']).default('categories'),
+      search: z.string().max(200).default(''),
+      ...pagination,
+    }),
+    async (a, c) => {
+      const catalog = await memory.catalog(c.session);
+      const items = [...new Set(a.kind === 'tags' ? catalog.tags : catalog.categories)]
+        .filter((value) => value.toLocaleLowerCase().includes(a.search.toLocaleLowerCase()))
+        .sort();
+      return jsonPage(listPage(items, a.offset, a.limit), a.result_offset);
+    },
+  );
   const date = z
     .string()
     .refine((value) => !value || Number.isFinite(Date.parse(value)), 'Invalid date')
