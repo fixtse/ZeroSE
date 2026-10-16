@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { Access } from '../src/application/access.js';
+import { PostgresAccess } from '../src/adapters/outbound/postgres-access.js';
 import { Assistant } from '../src/application/assistant.js';
 import { fixture, until } from './helpers.js';
 test('job worker runs different sessions concurrently and preserves order within a session', async () => {
@@ -286,6 +288,81 @@ test('generated images use the selected bot, handle image-only replies and never
     assert.equal((await f.store.job(jobs[0].id))?.status, 'done');
     assert(!events.some((e) => e.includes('respuesta de voz')));
     assert.equal(await f.store.claim([]), undefined);
+  } finally {
+    await worker.close();
+    await f.close();
+  }
+});
+
+test('per-chat voice preferences are checked at delivery and text replies remain available', async () => {
+  const f = await fixture();
+  const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
+  await repository.initialize(f.config);
+  const access = new Access(repository, f.store);
+  for (const chatId of ['1', '2'])
+    await repository.saveProfile({
+      bot: 'salem',
+      chatId,
+      kind: 'user',
+      label: chatId,
+      owner: false,
+      enabled: true,
+      capabilities: ['transcription'],
+      voiceReplies: true,
+    });
+  const sent: string[] = [],
+    voices: string[] = [];
+  let disableDuringRequest = true;
+  const handler = async (job: import('../src/domain/models.js').Job) => {
+    if (job.session === 'salem:1' && disableDuringRequest) {
+      const profile = (await repository.profile('salem', '1'))!;
+      await repository.saveProfile({ ...profile, voiceReplies: false });
+    }
+    return { output: 'Text reply' };
+  };
+  const worker = new Assistant(
+    f.config,
+    f.store,
+    { telegram: handler, morning: handler },
+    { async cleanup() {} },
+    {
+      async send(chat) {
+        sent.push(chat);
+      },
+      async sendVoice(chat) {
+        voices.push(chat);
+      },
+      async sendImage() {},
+      async typing() {},
+      async input() {
+        throw new Error('unused');
+      },
+    },
+    undefined,
+    async () => true,
+    async (job) => (await access.forSession(job.session))?.voiceReplies !== false,
+  );
+  const enqueue = (chatId: string, kind: 'telegram' | 'morning' = 'telegram') =>
+    f.store.enqueue('salem:' + chatId, { kind, chatId, message: { chat: { id: Number(chatId) } } });
+  const done = (id: string) => until(async () => (await f.store.job(id))?.status === 'done');
+  try {
+    const first = await enqueue('1');
+    const other = await enqueue('2', 'morning');
+    worker.start();
+    await Promise.all([done(first.id), done(other.id)]);
+    assert.deepEqual(sent.sort(), ['1', '2']);
+    assert.deepEqual(voices, ['2']);
+    disableDuringRequest = false;
+    await repository.saveProfile({
+      ...(await repository.profile('salem', '1'))!,
+      voiceReplies: true,
+    });
+    await done((await enqueue('1')).id);
+    assert.deepEqual(voices, ['2', '1']);
+    f.config.telegram.voiceReplies = false;
+    await done((await enqueue('1')).id);
+    assert.equal(voices.length, 2, 'A chat cannot override the global voice switch');
+    assert.equal(sent.length, 4);
   } finally {
     await worker.close();
     await f.close();

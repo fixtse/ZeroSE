@@ -21,6 +21,8 @@ export interface AccessProfile {
   owner: boolean;
   memoryMode?: MemoryMode;
   timezone?: string;
+  voiceReplies?: boolean;
+  promptPreset?: 'salem' | 'standard';
   google?: Config['google'];
   homeAssistant?: Config['homeAssistant'];
 }
@@ -47,6 +49,25 @@ export function membershipEvent(message: any): boolean {
       message.new_chat_members?.length
     )
   );
+}
+/** Only entities on the incoming message count, never quoted or replied-to text. */
+export function telegramMentions(message: any): string[] {
+  const mentions: string[] = [];
+  for (const [text, entities] of [
+    [message.text, message.entities],
+    [message.caption, message.caption_entities],
+  ]) {
+    if (typeof text !== 'string' || !Array.isArray(entities)) continue;
+    for (const entity of entities) {
+      if (!Number.isInteger(entity.offset) || !Number.isInteger(entity.length)) continue;
+      const value = text.slice(entity.offset, entity.offset + entity.length);
+      if (entity.type === 'mention' && /^@[a-z\d_]+$/i.test(value))
+        mentions.push(value.slice(1).toLowerCase());
+      if (entity.type === 'bot_command' && /^\/\w+@[a-z\d_]+$/i.test(value))
+        mentions.push(value.split('@')[1].toLowerCase());
+    }
+  }
+  return mentions;
 }
 export function toolCapability(name: string): Capability | undefined {
   if (name.startsWith('calendar_')) return 'calendar';

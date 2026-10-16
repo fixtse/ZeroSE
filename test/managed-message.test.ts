@@ -34,6 +34,16 @@ test('Salem access is checked before account context or media and owner prompts 
       calls++;
       assert.match(instructions, /Eres Salem/);
       assert(!instructions.includes('PRIVATE OWNER PROMPT'));
+      if (profile.promptPreset !== 'standard') {
+        assert.match(instructions, /hechicero convertido en gato/);
+        assert.match(instructions, /máximo 15 palabras/);
+        assert.match(instructions, /Use memory_save only/);
+        assert.match(instructions, /Timezone: Europe\/Madrid/);
+        assert(!instructions.includes('Execute previous nodes'));
+        assert(!instructions.includes('including relevant advice or plans you give'));
+      } else {
+        assert(!instructions.includes('hechicero convertido en gato'));
+      }
       return 'Hola';
     },
   };
@@ -112,6 +122,9 @@ test('Salem access is checked before account context or media and owner prompts 
     enabled = true;
     assert.equal((await managed.execute(job({ text: 'hello' }), context())).output, 'Hola');
     assert.equal(calls, 1);
+    profile = { ...profile, promptPreset: 'standard' };
+    assert.equal((await managed.execute(job({ text: 'hello' }), context())).output, 'Hola');
+    profile = { ...profile, promptPreset: 'salem' };
     assert.deepEqual(await managed.execute(job({ text: '/nuevo' }), context()), {
       output: 'Salem: Nueva Sesión Iniciada',
       voice: false,

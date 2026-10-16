@@ -361,6 +361,21 @@ to review them, then enable each chat manually. No model invocation, transcripti
 reply, error reply or typing indicator is sent for an unapproved chat. The exception is the
 Spanish welcome with chat ID when a bot is added to a group. Joining does not grant access.
 A permitted user's presence never authorizes a group; group access must be enabled separately.
+In enabled groups, Salem processes only messages that explicitly mention its Telegram username
+in the message text or media caption, including `/command@username`. Replies without a mention,
+ordinary conversation, and forwarded media without a mention are ignored before queueing or
+media downloads. Reply to a video with `@your_salem_username` to request its transcript.
+Private chats and Zero retain their existing behavior; group welcome and migration events
+are handled separately. Salem resolves its username through `getMe` on demand and caches it
+for the configured token.
+
+Each chat has a **Respuestas de voz** toggle. Turn it off to keep text replies without
+synthesized audio; transcription remains available. The global `telegram.voiceReplies`
+setting still controls whether voice output is available at all.
+Choose **Personalidad → Salem** for the Spanish sarcastic cat persona with a brief closing
+remark, or **Estándar** for the standard assistant. Salem chats default to the Salem preset;
+Zero retains its existing prompt by default. Each chat uses its own current time and timezone.
+Prompt selection does not grant tools or change the chat’s memory mode.
 
 New profiles start with public web search, public page reads, media input/transcription and
 chat-scoped memory. Google Calendar, Tasks, Docs/Drive and Home Assistant are disabled.

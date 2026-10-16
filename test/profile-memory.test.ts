@@ -327,6 +327,9 @@ test('admin stores independent memory mode and timezone, validates values, and p
     const initial = (await (await fetch(base, { headers })).json()) as any;
     assert.equal(initial.memoryMode, 'advanced');
     assert.equal(initial.timezone, f.config.timezone);
+    assert.equal(initial.voiceReplies, true);
+    assert.equal(initial.promptPreset, 'salem');
+    assert.equal((await put({ voiceReplies: false, promptPreset: 'standard' })).status, 200);
     for (const mode of ['simple', 'none', 'advanced']) {
       assert.equal((await put({ memoryMode: mode, timezone: 'Pacific/Auckland' })).status, 200);
       assert.equal((await repository.profile('salem', '1'))?.memoryMode, mode);
@@ -336,14 +339,26 @@ test('admin stores independent memory mode and timezone, validates values, and p
     const retained = (await repository.profile('salem', '1'))!;
     assert.equal(retained.memoryMode, 'none');
     assert.equal(retained.timezone, 'America/New_York');
+    assert.equal(retained.voiceReplies, false);
+    assert.equal(retained.promptPreset, 'standard');
+    const publicSettings = (await (await fetch(base, { headers })).json()) as any;
+    assert.equal(publicSettings.voiceReplies, false);
+    assert.equal(publicSettings.promptPreset, 'standard');
     await repository.initialize(f.config);
     assert.equal((await repository.profile('salem', '1'))?.memoryMode, 'none');
     assert.equal((await put({ memoryMode: 'invalid' })).status, 400);
     assert.equal((await put({ timezone: 'Not/A_Timezone' })).status, 400);
     assert.equal((await put({ timezone: '' })).status, 400);
+    assert.equal((await put({ voiceReplies: 'false' })).status, 400);
+    assert.equal((await put({ promptPreset: 'invalid' })).status, 400);
     await repository.discover('salem', '-2', 'Group', 'group');
     assert.equal((await repository.profile('salem', '-2'))?.memoryMode, 'advanced');
     assert.equal((await repository.profile('salem', '-2'))?.timezone, undefined);
+    assert.equal((await repository.profile('salem', '-2'))?.voiceReplies, true);
+    assert.equal((await repository.profile('salem', '-2'))?.promptPreset, undefined);
+    assert.equal((await put({ voiceReplies: true, promptPreset: 'salem' })).status, 200);
+    assert.equal((await repository.profile('salem', '1'))?.voiceReplies, true);
+    assert.equal((await repository.profile('salem', '1'))?.promptPreset, 'salem');
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

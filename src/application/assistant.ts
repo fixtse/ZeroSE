@@ -19,6 +19,7 @@ export class Assistant {
     private telegram: TelegramPort,
     private telegramForJob?: (job: Job) => Promise<TelegramPort>,
     private canRespond: (job: Job) => Promise<boolean> = async () => true,
+    private voiceRepliesEnabled: (job: Job) => Promise<boolean> = async () => true,
   ) {}
   start() {
     const pump = () => {
@@ -74,7 +75,8 @@ export class Assistant {
       !this.config.telegram.voiceReplies ||
       result.voice === false ||
       result.output.length > 4000 ||
-      !(await this.canRespond(job))
+      !(await this.canRespond(job)) ||
+      !(await this.voiceRepliesEnabled(job))
     )
       return;
     try {

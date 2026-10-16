@@ -51,7 +51,7 @@ const accessRepository = new PostgresAccess(
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
 );
 await accessRepository.initialize(config);
-const access = new Access(accessRepository, store);
+const access: Access = new Access(accessRepository, store, () => bots.salemUsername());
 const bots = new TelegramBots(config, media, telegram, store, access);
 async function canRespond(job: Job) {
   const address = sessionAddress(job.session);
@@ -147,6 +147,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     telegram,
     (job) => bots.get(sessionAddress(job.session)?.bot || 'zero'),
     canRespond,
+    async (job) => (await access.forSession(job.session))?.voiceReplies !== false,
   ),
   scheduler = new Scheduler(config, store, memory, async (session) => {
     const address = sessionAddress(session);

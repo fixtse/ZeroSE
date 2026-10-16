@@ -9,6 +9,7 @@ import type { Job, ToolContext } from '../../domain/models.js';
 import type { AgentPort, ConversationStore, GooglePort, TelegramPort } from '../ports.js';
 import { ProcessMessage } from './process-message.js';
 import type { JobResult } from './contracts.js';
+import { salemPrompt } from '../prompts.js';
 
 export interface ProfileScope {
   config: Config;
@@ -50,7 +51,13 @@ export class ProcessManagedMessage {
         payload: { ...job.payload, message: { text: message.text || message.caption } },
       };
     }
-    const prompt = scope.profile && !scope.profile.owner ? '' : this.ownerPrompt;
+    const preset = scope.profile?.promptPreset || (address?.bot === 'salem' ? 'salem' : 'standard');
+    const prompt =
+      preset === 'salem'
+        ? salemPrompt
+        : scope.profile && !scope.profile.owner
+          ? ''
+          : this.ownerPrompt;
     return new ProcessMessage(
       scope.config,
       this.store,
@@ -59,6 +66,7 @@ export class ProcessManagedMessage {
       telegram,
       prompt,
       identity,
+      preset,
     ).execute(job, context);
   }
 }

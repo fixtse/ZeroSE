@@ -3,6 +3,7 @@ import {
   membershipEvent,
   sessionAddress,
   telegramSession,
+  telegramMentions,
   type AccessProfile,
   type BotId,
   type BotSettings,
@@ -38,6 +39,7 @@ export class Access {
   constructor(
     readonly repository: AccessRepository,
     private store: ConversationStore,
+    private salemUsername: () => Promise<string> = async () => '',
   ) {}
   async receive(bot: BotId, update: any, accountId?: string) {
     if (!Number.isSafeInteger(update.update_id)) throw new Error('Invalid update');
@@ -79,6 +81,11 @@ export class Access {
       const profile = await this.repository.profile(bot, chatId);
       if (!profile?.enabled || profile.kind !== kind) return;
       if (kind === 'user' && String(message.from?.id) !== chatId) return;
+      if (bot === 'salem' && kind === 'group') {
+        const mentions = telegramMentions(message);
+        if (!mentions.length || !mentions.includes((await this.salemUsername()).toLowerCase()))
+          return;
+      }
     }
     return this.store.enqueue(
       telegramSession(bot, chatId),
@@ -136,6 +143,9 @@ export function scopedConfig(base: Config, profile: AccessProfile): Config {
       geminiApiKey: memoryMode === 'advanced' ? base.memory.geminiApiKey : '',
       sharedProfile: profile.owner ? base.memory.sharedProfile : '',
     },
-    telegram: { ...base.telegram },
+    telegram: {
+      ...base.telegram,
+      voiceReplies: base.telegram.voiceReplies && profile.voiceReplies !== false,
+    },
   };
 }

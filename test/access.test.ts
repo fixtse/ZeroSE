@@ -37,7 +37,7 @@ test('discovery records Salem contacts as pending, never inherits sender permiss
   const f = await fixture();
   const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
   await repository.initialize(f.config);
-  const access = new Access(repository, f.store);
+  const access = new Access(repository, f.store, async () => 'del_chat_ai_bot');
   const update = (id: number, chatId: number, type = 'private') => ({
     update_id: id,
     message: {
@@ -84,13 +84,102 @@ test('discovery records Salem contacts as pending, never inherits sender permiss
       'Welcome must not activate the group',
     );
     await repository.saveProfile({ ...profile('-10', 'group'), enabled: true });
-    assert.ok(await access.receive('salem', { ...group, update_id: 5 }));
+    assert.ok(
+      await access.receive('salem', {
+        ...group,
+        update_id: 5,
+        message: {
+          ...group.message,
+          text: '@del_chat_ai_bot',
+          entities: [{ type: 'mention', offset: 0, length: 16 }],
+        },
+      }),
+    );
     await repository.saveProfile({ ...profile('-10', 'group'), enabled: false });
     assert.equal(await access.receive('salem', { ...group, update_id: 6 }), undefined);
     assert.equal((await repository.profiles('', 0, 20, true)).total, 2);
     assert.equal((await repository.profiles('A group', 0, 1, true)).items.length, 1);
     assert.equal((await repository.profiles('', 99, 20, true)).total, 2);
     await assert.rejects(() => access.receive('salem', { update_id: 'wrong' }), /Invalid update/);
+  } finally {
+    await f.close();
+  }
+});
+
+test('Salem groups require an explicit mention on the incoming text or media caption', async () => {
+  const f = await fixture();
+  const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
+  await repository.initialize(f.config);
+  let lookups = 0;
+  const access = new Access(repository, f.store, async () => {
+    lookups++;
+    return 'del_chat_ai_bot';
+  });
+  const mention = { type: 'mention', offset: 0, length: 16 };
+  const addressed = { text: '@del_chat_ai_bot', entities: [mention] };
+  const video = { file_id: 'video-file' };
+  try {
+    await repository.saveProfile({ ...profile('-10', 'group'), enabled: true });
+    let updateId = 100;
+    for (const type of ['group', 'supergroup']) {
+      for (const message of [
+        { text: 'hello' },
+        { video, forward_origin: { type: 'user' } },
+        { text: 'transcribe', reply_to_message: { video } },
+        { text: 'hello', reply_to_message: { from: { is_bot: true }, ...addressed } },
+        { text: '@another_bot', entities: [{ ...mention, length: 12 }] },
+        { text: '@del_chat_ai_bot', entities: [{ ...mention, type: 'code' }] },
+        { text: '/transcribe', entities: [{ type: 'bot_command', offset: 0, length: 11 }] },
+      ]) {
+        assert.equal(
+          await access.receive('salem', {
+            update_id: updateId++,
+            message: { chat: { id: -10, type }, ...message },
+          }),
+          undefined,
+        );
+      }
+      for (const message of [
+        addressed,
+        { ...addressed, reply_to_message: { video } },
+        { text: '😀 @DEL_CHAT_AI_BOT', entities: [{ ...mention, offset: 3 }] },
+        { video, caption: addressed.text, caption_entities: addressed.entities },
+        {
+          video,
+          caption: addressed.text,
+          caption_entities: addressed.entities,
+          forward_origin: { type: 'user' },
+        },
+        {
+          text: '/transcribe@del_chat_ai_bot',
+          entities: [{ type: 'bot_command', offset: 0, length: 27 }],
+        },
+      ]) {
+        const job = await access.receive('salem', {
+          update_id: updateId++,
+          message: { chat: { id: -10, type }, ...message },
+        });
+        assert.equal(job?.session, 'salem:-10');
+        assert.deepEqual(
+          job?.payload.message.reply_to_message,
+          'reply_to_message' in message ? message.reply_to_message : undefined,
+        );
+      }
+    }
+    const beforePrivate = lookups;
+    await repository.saveProfile({ ...profile('10'), enabled: true });
+    assert.ok(
+      await access.receive('salem', {
+        update_id: updateId++,
+        message: {
+          chat: { id: 10, type: 'private' },
+          from: { id: 10 },
+          video,
+        },
+      }),
+    );
+    assert.equal(lookups, beforePrivate, 'Private messages do not need a bot username');
+    assert.equal(lookups, 14, 'Unaddressed messages never fetch the bot identity');
   } finally {
     await f.close();
   }
@@ -105,6 +194,8 @@ test('group migration carries access and encrypted settings without enqueueing s
     ...profile('-10', 'group'),
     enabled: true,
     label: 'Original group',
+    voiceReplies: false,
+    promptPreset: 'standard',
     capabilities: ['transcription', 'homeAssistant'],
     memoryMode: 'simple',
     timezone: 'Europe/London',
