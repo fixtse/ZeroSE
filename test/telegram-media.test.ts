@@ -177,6 +177,7 @@ test('transcription replies bypass commands, the agent, conversation storage and
         return { text, images: [], transcriptionOnly: true };
       },
       async send() {},
+      async sendImage() {},
       async sendVoice() {
         throw new Error('Must not synthesize a transcription');
       },
@@ -203,4 +204,49 @@ test('transcription replies bypass commands, the agent, conversation storage and
       { output: text, voice: false },
     );
   }
+});
+
+test('Telegram uploads generated images as original files with correct MIME, extension and reply target', async () => {
+  const config = ConfigSchema.parse({ telegram: { token: 'test-only' }, media: { maxBytes: 20 } });
+  let calls = 0;
+  class ImageTelegram extends Telegram {
+    async call(method: string, body: FormData, signal?: AbortSignal) {
+      calls++;
+      assert.equal(method, 'sendDocument');
+      assert.equal(body.get('chat_id'), '-123');
+      assert.deepEqual(JSON.parse(String(body.get('reply_parameters'))), {
+        message_id: 42,
+        allow_sending_without_reply: true,
+      });
+      const file = body.get('document') as File;
+      assert.equal(file.type, expectedMime);
+      assert.equal(file.name, `image.${expectedExtension}`);
+      assert.deepEqual(new Uint8Array(await file.arrayBuffer()), bytes);
+      assert(signal);
+    }
+  }
+  const telegram = new ImageTelegram(config, new Media(config));
+  const signal = new AbortController().signal;
+  const bytes = new Uint8Array([1, 2, 3]);
+  let expectedMime = '',
+    expectedExtension = '';
+  for (const [mime, extension] of [
+    ['image/png', 'png'],
+    ['image/jpeg', 'jpg'],
+    ['image/webp', 'webp'],
+    ['image/gif', 'gif'],
+  ] as const) {
+    expectedMime = mime;
+    expectedExtension = extension;
+    await telegram.sendImage('-123', { data: bytes, mimeType: mime }, signal, 42);
+  }
+  await assert.rejects(
+    telegram.sendImage('-123', { data: new Uint8Array(21), mimeType: 'image/png' }, signal),
+    /size limit/,
+  );
+  await assert.rejects(
+    telegram.sendImage('-123', { data: bytes, mimeType: 'image/png' }, AbortSignal.abort()),
+    /abort/i,
+  );
+  assert.equal(calls, 4);
 });

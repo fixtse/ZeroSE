@@ -28,6 +28,7 @@ test('job worker runs different sessions concurrently and preserves order within
     { async cleanup() {} },
     {
       async send() {},
+      async sendImage() {},
       async sendVoice() {},
       async typing() {},
       async input() {
@@ -74,6 +75,7 @@ test('delivery errors fail a job without replaying the completed action', async 
         sends++;
         throw new Error('Delivery unavailable');
       },
+      async sendImage() {},
       async sendVoice() {},
       async typing() {},
       async input() {
@@ -116,6 +118,7 @@ test('a voice failure preserves text delivery and finishes without retrying the 
       async send(_chat, text) {
         sent.push(text);
       },
+      async sendImage() {},
       async sendVoice() {
         voices++;
         throw new Error('Speech synthesis failed');
@@ -164,6 +167,7 @@ test('pending chats stay silent, welcome is the only exception, and delivery use
     async send(chat: string, text: string) {
       events.push(`${chat}:${text}`);
     },
+    async sendImage() {},
     async sendVoice() {
       throw new Error('No voice expected');
     },
@@ -202,6 +206,86 @@ test('pending chats stay silent, welcome is the only exception, and delivery use
         (await f.store.job(failure.id))?.status === 'failed',
     );
     assert.deepEqual(events, ['-2:¡Hola! Soy Salem. Chat ID: -2']);
+  } finally {
+    await worker.close();
+    await f.close();
+  }
+});
+
+test('generated images use the selected bot, handle image-only replies and never replay failed uploads', async () => {
+  const f = await fixture();
+  const events: string[] = [];
+  let generations = 0;
+  const jobs = await Promise.all(
+    ['telegram:1', 'salem:2', 'salem:3', 'salem:4'].map((session, index) =>
+      f.store.enqueue(session, {
+        kind: 'telegram',
+        message: { message_id: 7, chat: { id: index + 1 } },
+      }),
+    ),
+  );
+  const worker = new Assistant(
+    f.config,
+    f.store,
+    {
+      telegram: async (job, context) => {
+        generations++;
+        context.generatedImages = [{ data: new Uint8Array([1, 2, 3]), mimeType: 'image/png' }];
+        return { output: '', deliver: job.session === 'salem:4' ? false : true };
+      },
+    },
+    { async cleanup() {} },
+    {
+      async input() {
+        throw new Error('unused');
+      },
+      async typing() {},
+      async send() {
+        throw new Error('Wrong bot');
+      },
+      async sendVoice() {
+        throw new Error('Wrong bot');
+      },
+      async sendImage() {
+        throw new Error('Wrong bot');
+      },
+    },
+    async (job) => ({
+      async input() {
+        throw new Error('unused');
+      },
+      async typing() {},
+      async send(_chat, text) {
+        if (text) events.push(`text:${text}`);
+      },
+      async sendVoice() {
+        throw new Error('Image-only replies must not synthesize speech');
+      },
+      async sendImage(chat, image, signal, replyTo) {
+        events.push(`${job.session}:${chat}`);
+        assert.equal(image.mimeType, 'image/png');
+        assert.equal(replyTo, 7);
+        assert(!signal.aborted);
+        if (chat === '3') throw new Error('Upload uncertain');
+      },
+    }),
+  );
+  try {
+    worker.start();
+    await until(async () =>
+      (await Promise.all(jobs.map((job) => f.store.job(job.id)))).every((job) =>
+        ['done', 'failed'].includes(job?.status || ''),
+      ),
+    );
+    assert.equal(generations, 4);
+    assert(events.includes('telegram:1:1'));
+    assert(events.includes('salem:2:2'));
+    assert.equal(events.filter((e) => e === 'salem:3:3').length, 1);
+    assert(!events.includes('salem:4:4'));
+    assert.equal((await f.store.job(jobs[2].id))?.status, 'failed');
+    assert.equal((await f.store.job(jobs[0].id))?.status, 'done');
+    assert(!events.some((e) => e.includes('respuesta de voz')));
+    assert.equal(await f.store.claim([]), undefined);
   } finally {
     await worker.close();
     await f.close();

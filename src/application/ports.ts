@@ -1,5 +1,6 @@
 import type {
   Job,
+  GeneratedImage,
   ToolContext,
   MemoryFragment,
   MemoryMatch,
@@ -135,6 +136,12 @@ export interface TelegramPort {
     signal: AbortSignal,
   ): Promise<{ text: string; images: string[]; transcriptionOnly: boolean; serviceReply?: string }>;
   send(chat: string, text: string, signal?: AbortSignal, replyTo?: number): Promise<void>;
+  sendImage(
+    chat: string,
+    image: GeneratedImage,
+    signal: AbortSignal,
+    replyTo?: number,
+  ): Promise<void>;
   sendVoice(chat: string, text: string, job: string, signal: AbortSignal): Promise<void>;
   typing(chat: string, signal?: AbortSignal): Promise<unknown>;
 }

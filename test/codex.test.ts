@@ -152,3 +152,71 @@ test('per-chat tool catalogs, working directories and web permissions change on 
     await f.close();
   }
 });
+
+test('Codex collects generated image events per turn, deduplicates them and honors tools-disabled turns', async () => {
+  const f = await fixture();
+  f.config.codex.command = process.execPath;
+  f.config.codex.args = [resolve('test/fake-app-server.mjs')];
+  const codex = new Codex(f.config, f.store, new Tools(f.store));
+  const context = (session: string): import('../src/domain/models.js').ToolContext => ({
+    session,
+    jobId: 'image',
+    signal: AbortSignal.timeout(30_000),
+  });
+  try {
+    const one = context('telegram:1'),
+      two = context('salem:2');
+    const inspect = JSON.parse(await codex.run(one.session, 'inspect-tools', '', one));
+    assert.equal(inspect.settings.config['features.image_generation'], true);
+    assert.equal(inspect.settings.sandbox, 'read-only');
+    assert.match(inspect.settings.developerInstructions, /built-in image generation/);
+    await Promise.all([
+      codex.run(one.session, 'image-png', '', one),
+      codex.run(two.session, 'image-jpeg', '', two),
+    ]);
+    assert.deepEqual(
+      one.generatedImages?.map((i) => i.mimeType),
+      ['image/png'],
+    );
+    assert.deepEqual(
+      two.generatedImages?.map((i) => i.mimeType),
+      ['image/jpeg'],
+    );
+    for (const format of ['webp', 'gif']) {
+      const c = context('salem:3');
+      await codex.run(c.session, `image-${format}`, '', c);
+      assert.equal(c.generatedImages?.[0]?.mimeType, `image/${format}`);
+    }
+    const failed = context('salem:3');
+    await codex.run(failed.session, 'image-failed', '', failed);
+    assert.equal(failed.generatedImages, undefined);
+    await assert.rejects(
+      codex.run(failed.session, 'image-invalid', '', failed),
+      /Invalid generated image/,
+    );
+    const interrupted = context('salem:4');
+    await assert.rejects(
+      codex.run(interrupted.session, 'image-interrupted', '', interrupted),
+      /interrupted/,
+    );
+    assert.equal(interrupted.generatedImages, undefined);
+    const disabled = context('salem:5');
+    const settings = JSON.parse(
+      await codex.run(disabled.session, 'inspect-tools', '', disabled, [], undefined, false),
+    ).settings;
+    assert.equal(settings.config['features.image_generation'], false);
+    await codex.run(disabled.session, 'image-png', '', disabled, [], undefined, false);
+    assert.equal(disabled.generatedImages, undefined);
+    const http = context('http-test');
+    await codex.run(http.session, 'image-png', '', http);
+    assert.equal(http.generatedImages, undefined);
+    f.config.media.maxBytes = 1;
+    await assert.rejects(
+      codex.run(two.session, 'image-png', '', context(two.session)),
+      /size limit/,
+    );
+  } finally {
+    codex.close();
+    await f.close();
+  }
+});

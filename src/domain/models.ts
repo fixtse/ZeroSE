@@ -6,11 +6,16 @@ export interface Job {
   output?: string;
   error?: string;
 }
+export interface GeneratedImage {
+  data: Uint8Array;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+}
 export interface ToolContext {
   session: string;
   jobId: string;
   signal: AbortSignal;
   capabilities?: string[];
+  generatedImages?: GeneratedImage[];
 }
 export interface MemoryFragment {
   text: string;

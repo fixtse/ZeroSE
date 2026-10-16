@@ -1,6 +1,6 @@
 import { membershipEvent } from '../domain/access.js';
 import type { Config } from '../domain/config.js';
-import type { Job, ToolContext } from '../domain/models.js';
+import type { GeneratedImage, Job, ToolContext } from '../domain/models.js';
 import type { ConversationStore, MediaPort, TelegramPort } from './ports.js';
 import type { JobHandlers, JobResult } from './use-cases/contracts.js';
 
@@ -52,13 +52,25 @@ export class Assistant {
       (job.payload.kind === 'telegram' ? String(job.payload.message.chat.id) : undefined)
     );
   }
-  private async deliver(job: Job, result: JobResult, signal: AbortSignal, telegram: TelegramPort) {
+  private async deliver(
+    job: Job,
+    result: JobResult,
+    signal: AbortSignal,
+    telegram: TelegramPort,
+    images: GeneratedImage[] = [],
+  ) {
     const chat = this.chat(job);
     if (!chat || result.deliver === false) return;
     if (!(await this.canRespond(job)) && !membershipEvent(job.payload.message)) return;
-    await telegram.send(chat, result.output, signal, job.payload.message?.message_id);
+    for (const image of images) {
+      if (!(await this.canRespond(job))) return;
+      await telegram.sendImage(chat, image, signal, job.payload.message?.message_id);
+    }
+    if (result.output.trim())
+      await telegram.send(chat, result.output, signal, job.payload.message?.message_id);
     await result.afterDelivery?.();
     if (
+      !result.output.trim() ||
       !this.config.telegram.voiceReplies ||
       result.voice === false ||
       result.output.length > 4000 ||
@@ -104,7 +116,7 @@ export class Assistant {
       const handler = this.handlers[job.payload.kind];
       if (!handler) throw new Error('Unsupported assistant job');
       const result = await handler(job, context);
-      await this.deliver(job, result, context.signal, telegram);
+      await this.deliver(job, result, context.signal, telegram, context.generatedImages);
       await this.store.finish(job.id, result.output);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Assistant failed';

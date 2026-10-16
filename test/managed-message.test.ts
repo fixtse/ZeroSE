@@ -5,7 +5,7 @@ import { Telegram } from '../src/adapters/outbound/telegram.js';
 import { Media } from '../src/adapters/outbound/media.js';
 import type { AgentPort, GooglePort, TelegramPort } from '../src/application/ports.js';
 import type { AccessProfile } from '../src/domain/access.js';
-import type { Job } from '../src/domain/models.js';
+import type { Job, ToolContext } from '../src/domain/models.js';
 import { fixture } from './helpers.js';
 
 test('Salem access is checked before account context or media and owner prompts stay private', async () => {
@@ -13,7 +13,8 @@ test('Salem access is checked before account context or media and owner prompts 
   let enabled = false,
     scopes = 0,
     inputs = 0,
-    calls = 0;
+    calls = 0,
+    imageOnly = false;
   let lastMessage: any;
   let profile: AccessProfile = {
     bot: 'salem',
@@ -25,7 +26,11 @@ test('Salem access is checked before account context or media and owner prompts 
     capabilities: ['web', 'transcription'],
   };
   const agent: AgentPort = {
-    async run(_session, _prompt, instructions) {
+    async run(_session, _prompt, instructions, context) {
+      if (imageOnly) {
+        context.generatedImages = [{ data: new Uint8Array([1, 2, 3]), mimeType: 'image/png' }];
+        return '';
+      }
       calls++;
       assert.match(instructions, /Eres Salem/);
       assert(!instructions.includes('PRIVATE OWNER PROMPT'));
@@ -59,6 +64,7 @@ test('Salem access is checked before account context or media and owner prompts 
       };
     },
     async send() {},
+    async sendImage() {},
     async sendVoice() {},
     async typing() {},
   };
@@ -135,6 +141,13 @@ test('Salem access is checked before account context or media and owner prompts 
       'Hola',
     );
     assert.deepEqual(lastMessage, { text: 'hello' });
+    imageOnly = true;
+    const imageContext: ToolContext = context();
+    assert.deepEqual(await managed.execute(job({ text: 'Generate a cat' }), imageContext), {
+      output: '',
+    });
+    assert.equal(imageContext.generatedImages?.length, 1);
+    assert.match(JSON.stringify(await f.store.history('salem:1')), /Generated 1 image/);
     const concrete = new Telegram(f.config, new Media(f.config), 'Salem');
     const welcome = await concrete.input(
       { chat: { id: -123, type: 'group' }, group_chat_created: true },

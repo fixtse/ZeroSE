@@ -1,3 +1,4 @@
+import type { GeneratedImage } from '../../domain/models.js';
 import { Config } from '../../domain/config.js';
 import { Media } from './media.js';
 import { jsonRequest, RemoteError } from './http.js';
@@ -71,6 +72,33 @@ export class Telegram {
         await this.call('sendMessage', { ...body, text: chunk }, signal);
       }
     }
+  }
+  async sendImage(chat: string, image: GeneratedImage, signal: AbortSignal, replyTo?: number) {
+    signal.throwIfAborted();
+    if (!image.data.length || image.data.length > Math.min(this.config.media.maxBytes, 50_000_000))
+      throw new Error('Generated image exceeds the configured size limit or is empty');
+    const extensions = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    };
+    const extension = extensions[image.mimeType];
+    if (!extension) throw new Error('Unsupported generated image format');
+    const form = new FormData();
+    form.set('chat_id', chat);
+    // Documents preserve original quality, transparency and formats such as WebP.
+    form.set(
+      'document',
+      new Blob([new Uint8Array(image.data)], { type: image.mimeType }),
+      `image.${extension}`,
+    );
+    if (replyTo)
+      form.set(
+        'reply_parameters',
+        JSON.stringify({ message_id: replyTo, allow_sending_without_reply: true }),
+      );
+    await this.call('sendDocument', form, signal);
   }
   async sendVoice(chat: string, text: string, job: string, signal: AbortSignal) {
     const buffer = await this.media.voice(text, job, signal),

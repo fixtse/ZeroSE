@@ -58,6 +58,45 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         params: { threadId: p.threadId, turn: { id: 'turn', status: 'completed' } },
       });
     }
+    if (prompt.startsWith('image-')) {
+      const formats = {
+        png: '89504e470d0a1a0a',
+        jpeg: 'ffd8ff',
+        webp: '524946460400000057454250',
+        gif: '474946383961',
+      };
+      const format = prompt.slice(6);
+      const item = {
+        type: 'imageGeneration',
+        id: 'image-1',
+        status: format === 'failed' ? 'failed' : 'completed',
+        result:
+          format === 'invalid'
+            ? 'not an image'
+            : Buffer.from(formats[format] || formats.png, 'hex').toString('base64'),
+        savedPath: '/must/not/read/private-file.png',
+      };
+      send({
+        method: 'item/started',
+        params: { threadId: p.threadId, item: { ...item, status: 'in_progress', result: '' } },
+      });
+      for (let i = 0; i < 2; i++)
+        send({ method: 'item/completed', params: { threadId: p.threadId, item } });
+      send({
+        method: 'item/completed',
+        params: {
+          threadId: p.threadId,
+          item: { type: 'agentMessage', phase: 'final_answer', text: '' },
+        },
+      });
+      return send({
+        method: 'turn/completed',
+        params: {
+          threadId: p.threadId,
+          turn: { status: format === 'interrupted' ? 'interrupted' : 'completed' },
+        },
+      });
+    }
     if (prompt === 'slow') return;
     if (prompt === 'fail')
       return send({
