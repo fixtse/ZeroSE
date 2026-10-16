@@ -13,12 +13,24 @@ export interface ToolContext {
 }
 export interface MemoryFragment {
   text: string;
+  summary?: string;
+  supersedes?: string[];
   category: string;
   tags: string[];
 }
 export interface MemoryMatch {
+  id: string;
   text: string;
+  summary: string | null;
+  superseded_by: string | null;
   metadata: { category: string; tags: string[]; created_at: string };
+  similarity: number;
+}
+export interface MemorySearchResult {
+  id: string;
+  summary: string;
+  summary_is_excerpt: boolean;
+  metadata: MemoryMatch['metadata'];
   similarity: number;
 }
 export interface PendingMemoryMessage {

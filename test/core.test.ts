@@ -62,7 +62,7 @@ test('memory is session-isolated, semantically ranked, date filtered and consoli
     await memory.save('two', { text: 'trade secret', category: 'Trading', tags: [] });
     const found = await memory.search('one', 'trade', ['Trading']);
     assert.equal(found.length, 1);
-    assert.equal(found[0].text, 'trade idea');
+    assert.equal(found[0].summary, 'trade idea');
     assert.equal((await memory.search('one', 'trade', [], '2100-01-01')).length, 0);
     await f.store.addMessage('one', 'user', 'trade idea');
     const pending = await memory.pending('one');

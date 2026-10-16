@@ -58,7 +58,9 @@ test('consolidation reads both speakers in order and makes attributed advice ret
         assert.equal(toolsEnabled, false);
         assert(schema);
         return JSON.stringify({
-          fragments: [{ text: advice, metadata: { category: 'Ideas', tags: ['backups'] } }],
+          fragments: [
+            { text: advice, summary: advice, metadata: { category: 'Ideas', tags: ['backups'] } },
+          ],
         });
       },
     };
@@ -83,12 +85,17 @@ test('consolidation reads both speakers in order and makes attributed advice ret
     assert.equal(result.output, 'Consolidated 2 messages into 1 memories');
     assert.equal(result.deliver, false);
     assert.deepEqual(await memory.pending('one'), []);
+    assert.equal(
+      (await f.store.pool.query("SELECT summary FROM memories WHERE session='one'")).rows[0]
+        .summary,
+      advice,
+    );
     assert.deepEqual(await memory.pendingSessions(), ['two']);
     await consolidate.execute(job, context);
     assert.equal(runs, 1);
     await f.store.reset('one');
     assert.deepEqual(await f.store.history('one'), []);
-    assert.equal((await memory.search('one', 'backups'))[0]?.text, advice);
+    assert.equal((await memory.search('one', 'backups'))[0]?.summary, advice);
     assert.deepEqual(await memory.search('two', 'backups'), []);
   } finally {
     await f.close();

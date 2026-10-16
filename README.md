@@ -185,6 +185,37 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
   The original disabled 15-minute reminder routine remains disabled by default.
 - Memory consolidation considers both user messages and assistant replies, retaining relevant advice and plans with explicit attribution. Prior suggestions remain distinct from user decisions or completed actions, and can be recalled through `memories_get`. Consolidation runs on the existing schedule; important context can also be saved immediately with `memory_save`.
 
+Long-term memory search returns at most three deduplicated summaries within a 900-token
+response budget. New saves and consolidation can store summaries of up to 480 characters;
+legacy long records return explicitly labeled excerpts. `memory_read` fetches full text by
+ID within the current session or configured shared profile. `memory_save.supersedes` accepts
+IDs of facts explicitly corrected by the user: replacing them is transactional, excludes
+old facts from search, and retains their text and replacement ID for provenance. Existing
+records are upgraded additively on startup, without rewriting embeddings or generating
+summaries for the existing corpus.
+
+Ranking combines up to 100 vector candidates and 100 PostgreSQL full-text candidates over
+memory text and tags using reciprocal rank fusion. Vector candidates retain full-precision
+cosine scoring and the existing similarity threshold; keyword matches can surface even
+without an embedding. Query embeddings use `RETRIEVAL_QUERY`, paired with
+`RETRIEVAL_DOCUMENT` for saved memories. Deduplication conservatively ignores case,
+punctuation and articles while retaining attribution, negations, quantities and word order.
+It does not automatically merge semantic paraphrases or infer that facts are superseded.
+
+Application tool responses are capped at 1,200 tokens, counted over serialized JSON with
+the local `o200k_base` tokenizer (an accounting convention, not total agent context usage).
+Calendar, task, sensor and shopping lists accept `offset` and `limit` (default 20, maximum
+50); responses include `total` and `next_offset`, and the token budget may reduce page size.
+List projections omit verbose descriptions and notes; use the corresponding get tool for
+details. Oversized records, URL reads, forecasts and other large reads return JSON-fragment
+pages: repeat the read with `result_offset=next_offset` and otherwise identical arguments.
+Reassemble pages before interpreting a partial record. Each read is a fresh observation;
+source changes can shift pages. Mutations return small receipts and must never be repeated
+to page through a result. Sensor history defaults to sample counts, first/last observations,
+and numeric min/max/sample mean; `mode=raw` returns paginated original readings. Unknown
+and unavailable readings are excluded from numeric statistics. These limits do not rotate
+conversation threads or control Codex's built-in web-search output.
+
 Location-aware answers use the read-only `location_get` tool when relevant. Configure
 `homeAssistant.locationEntity` with your `person.*` or `device_tracker.*` entity
 (default `device_tracker.galaxy_s26`) and `homeAssistant.geocodedLocationEntity`
@@ -218,7 +249,7 @@ The application tool catalog is assembled in `src/main.ts`:
 | Sensors | `sensors_list`, `sensor_get`, `sensor_history` | Home Assistant token |
 | Shopping | `shopping_list_get`, `shopping_list_change` | Home Assistant token |
 | Local forecast | `weather_forecast` | Home Assistant token and weather entity |
-| Memory | `memories_get`, `memory_save` | Always |
+| Memory | `memories_get`, `memory_read`, `memory_save` | Always |
 | Image search | `image_search` | Brave API key |
 | Public page text | `url_read` | Always |
 

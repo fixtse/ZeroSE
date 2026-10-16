@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Tools, text } from '../../application/tool-registry.js';
+import { jsonPage } from '../../application/context-budget.js';
 import { jsonRequest, boundedBody } from './http.js';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
@@ -24,8 +25,8 @@ export function registerSearch(tools: Tools, key: string) {
   if (key)
     tools.add(
       'image_search',
-      'Find image URLs using Brave Image Search.',
-      z.object({ query: text }),
+      'Find image URLs using Brave Image Search. Large results return JSON fragments; continue with result_offset=next_offset.',
+      z.object({ query: text, result_offset: z.number().int().min(0).default(0) }),
       async (a, c) => {
         const result = await jsonRequest(
           'https://api.search.brave.com/res/v1/images/search?' +
@@ -36,17 +37,20 @@ export function registerSearch(tools: Tools, key: string) {
           },
           'Brave Search',
         );
-        return result.results?.map((r: any) => ({
-          title: r.title,
-          url: r.properties?.url,
-          source: r.url,
-        }));
+        return jsonPage(
+          result.results?.map((r: any) => ({
+            title: r.title,
+            url: r.properties?.url,
+            source: r.url,
+          })),
+          a.result_offset,
+        );
       },
     );
   tools.add(
     'url_read',
-    'Read text from a public HTTPS web page. Cannot access private network services.',
-    z.object({ url: z.url() }),
+    'Read text from a public HTTPS web page. Cannot access private network services. Large results return JSON fragments; continue with result_offset=next_offset and the same URL.',
+    z.object({ url: z.url(), result_offset: z.number().int().min(0).default(0) }),
     async (a, c) => {
       const url = new URL(a.url);
       if (
@@ -64,10 +68,13 @@ export function registerSearch(tools: Tools, key: string) {
         redirect: 'error',
         signal: c.signal,
       });
-      return {
-        url: url.href,
-        text: (await boundedBody(response, 500_000)).toString('utf8').slice(0, 100_000),
-      };
+      return jsonPage(
+        {
+          url: url.href,
+          text: (await boundedBody(response, 500_000)).toString('utf8'),
+        },
+        a.result_offset,
+      );
     },
   );
 }

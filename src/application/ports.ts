@@ -3,6 +3,7 @@ import type {
   ToolContext,
   MemoryFragment,
   MemoryMatch,
+  MemorySearchResult,
   PendingMemoryMessage,
 } from '../domain/models.js';
 
@@ -41,6 +42,7 @@ export interface MemoryRepository {
     start?: string,
     end?: string,
   ): Promise<MemoryMatch[]>;
+  readMemory(session: string, id: string): Promise<MemoryMatch | undefined>;
   memoryCatalog(session: string): Promise<{ categories: string[]; tags: string[] }>;
   pendingMemoryMessages(session: string): Promise<PendingMemoryMessage[]>;
   pendingMemorySessions(): Promise<string[]>;
@@ -64,7 +66,8 @@ export interface MemoryPort {
     start?: string,
     end?: string,
     signal?: AbortSignal,
-  ): Promise<MemoryMatch[]>;
+  ): Promise<MemorySearchResult[]>;
+  read(session: string, id: string, offset?: number): Promise<unknown>;
   catalog(session: string): Promise<{ categories: string[]; tags: string[] }>;
   pending(session: string): Promise<PendingMemoryMessage[]>;
   pendingSessions(): Promise<string[]>;

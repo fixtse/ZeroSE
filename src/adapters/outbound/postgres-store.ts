@@ -78,6 +78,9 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
         CREATE UNIQUE INDEX IF NOT EXISTS jobs_running_session ON jobs(session) WHERE status='running';
         CREATE INDEX IF NOT EXISTS messages_session ON messages(session,id);
         CREATE INDEX IF NOT EXISTS memories_session ON memories(session,category,created);
+        ALTER TABLE memories ADD COLUMN IF NOT EXISTS summary TEXT;
+        ALTER TABLE memories ADD COLUMN IF NOT EXISTS superseded_by BIGINT REFERENCES memories(id);
+        CREATE INDEX IF NOT EXISTS memories_lexical ON memories USING gin (to_tsvector('simple', text || ' ' || tags::text));
         CREATE INDEX IF NOT EXISTS memories_embedding ON memories USING hnsw ((embedding::halfvec(${this.dimensions})) halfvec_cosine_ops);
         INSERT INTO schema_version(version,dimensions) VALUES(1,${this.dimensions}) ON CONFLICT DO NOTHING;`);
       const { rows } = await client.query(
@@ -212,17 +215,37 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
     embedding: number[] | null,
     source?: string,
   ) {
-    await this.pool.query(
-      'INSERT INTO memories(session,text,category,tags,embedding,source) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(source) DO NOTHING',
-      [
-        session,
-        value.text,
-        value.category,
-        JSON.stringify(value.tags),
-        embedding ? JSON.stringify(embedding) : null,
-        source || null,
-      ],
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        'INSERT INTO memories(session,text,category,tags,embedding,source,summary) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(source) DO NOTHING RETURNING id',
+        [
+          session,
+          value.text,
+          value.category,
+          JSON.stringify(value.tags),
+          embedding ? JSON.stringify(embedding) : null,
+          source || null,
+          value.summary || null,
+        ],
+      );
+      const supersedes = [...new Set(value.supersedes || [])];
+      if (rows.length && supersedes.length) {
+        const updated = await client.query(
+          'UPDATE memories SET superseded_by=$3 WHERE session=$1 AND id=ANY($2::bigint[]) AND id<>$3 AND superseded_by IS NULL RETURNING id',
+          [session, supersedes, rows[0].id],
+        );
+        if (updated.rowCount !== supersedes.length)
+          throw new Error('Superseded memories must be active records in this profile');
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   async searchMemory(
     session: string,
@@ -233,42 +256,68 @@ export class Store implements ConversationStore, AuditPort, MemoryRepository {
     end?: string,
   ): Promise<MemoryMatch[]> {
     const client = await this.pool.connect();
-    const filter = `session=$1 AND (cardinality($2::text[])=0 OR category=ANY($2)) AND ($3::timestamptz IS NULL OR created >= $3) AND ($4::timestamptz IS NULL OR created <= $4)`;
-    const words = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-    const lexical = `(SELECT count(*)::float FROM unnest($6::text[]) word WHERE strpos(lower(text),word)>0) / GREATEST(cardinality($6::text[]),1)`;
+    const filter = `session=$1 AND superseded_by IS NULL AND (cardinality($2::text[])=0 OR category=ANY($2)) AND ($3::timestamptz IS NULL OR created >= $3) AND ($4::timestamptz IS NULL OR created <= $4)`;
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL hnsw.iterative_scan = 'strict_order'");
       const { rows } = await client.query(
         `WITH candidates AS MATERIALIZED (
-        SELECT * FROM memories WHERE ${filter} AND embedding IS NOT NULL AND $5::vector IS NOT NULL
-        ORDER BY embedding::halfvec(${this.dimensions}) <=> $5::halfvec(${this.dimensions}) LIMIT 100
-      ), scored AS (
-        SELECT text,category,tags,created,CASE WHEN vector_norm(embedding)=0 OR vector_norm($5::vector)=0 THEN 0 ELSE 1-(embedding <=> $5::vector) END AS similarity FROM candidates
-        UNION ALL SELECT text,category,tags,created,${lexical} AS similarity FROM memories
-        WHERE ${filter} AND (embedding IS NULL OR $5::vector IS NULL)
-      ) SELECT * FROM scored WHERE similarity>0.4 ORDER BY similarity DESC LIMIT 10`,
+          SELECT * FROM memories WHERE ${filter} AND embedding IS NOT NULL AND $5::vector IS NOT NULL
+          ORDER BY embedding::halfvec(${this.dimensions}) <=> $5::halfvec(${this.dimensions}) LIMIT 100
+        ), semantic_scores AS (
+          SELECT id, CASE WHEN vector_norm(embedding)=0 OR vector_norm($5::vector)=0 THEN 0
+            ELSE 1-(embedding <=> $5::vector) END AS similarity FROM candidates
+        ), semantic AS (
+          SELECT id, similarity, row_number() OVER (ORDER BY similarity DESC, id DESC) AS rank
+          FROM semantic_scores WHERE similarity > 0.4
+        ), lexical_candidates AS MATERIALIZED (
+          SELECT id, ts_rank_cd(to_tsvector('simple', text || ' ' || tags::text), websearch_to_tsquery('simple',$6)) AS score
+          FROM memories WHERE ${filter}
+            AND to_tsvector('simple', text || ' ' || tags::text) @@ websearch_to_tsquery('simple',$6)
+          ORDER BY score DESC, id DESC LIMIT 100
+        ), lexical AS (
+          SELECT id, row_number() OVER (ORDER BY score DESC, id DESC) AS rank FROM lexical_candidates
+        ), fused AS (
+          SELECT COALESCE(s.id,l.id) AS id, COALESCE(s.similarity,0) AS similarity,
+            COALESCE(1.0/(60+s.rank),0) + COALESCE(1.0/(60+l.rank),0) AS score
+          FROM semantic s FULL OUTER JOIN lexical l ON s.id=l.id
+        ) SELECT m.id,m.text,m.summary,m.category,m.tags,m.created,f.similarity
+          FROM fused f JOIN memories m ON m.id=f.id
+          ORDER BY f.score DESC,m.created DESC,m.id DESC LIMIT 50`,
         [
           session,
           categories,
           start || null,
           end || null,
           vector ? JSON.stringify(vector) : null,
-          words,
+          query,
         ],
       );
       await client.query('COMMIT');
-      return rows.map((row) => ({
-        text: row.text,
-        metadata: { category: row.category, tags: row.tags, created_at: row.created.toISOString() },
-        similarity: row.similarity,
-      }));
+      return rows.map((row) => this.memoryMatch(row));
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
     }
+  }
+  private memoryMatch(row: any): MemoryMatch {
+    return {
+      id: String(row.id),
+      text: row.text,
+      summary: row.summary,
+      superseded_by: row.superseded_by ? String(row.superseded_by) : null,
+      metadata: { category: row.category, tags: row.tags, created_at: row.created.toISOString() },
+      similarity: Number(row.similarity || 0),
+    };
+  }
+  async readMemory(session: string, id: string): Promise<MemoryMatch | undefined> {
+    const { rows } = await this.pool.query('SELECT * FROM memories WHERE session=$1 AND id=$2', [
+      session,
+      id,
+    ]);
+    return rows[0] ? this.memoryMatch(rows[0]) : undefined;
   }
   async memoryCatalog(session: string) {
     const categories = (

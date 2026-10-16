@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AuditPort } from './ports.js';
 import type { ToolContext } from '../domain/models.js';
+import { jsonPage } from './context-budget.js';
 export type { ToolContext } from '../domain/models.js';
 export interface Tool {
   name: string;
@@ -31,7 +32,7 @@ export class Tools {
     try {
       const result = await tool.invoke(input, context);
       await this.store.audit(context.jobId, name, true, Date.now() - start);
-      return result;
+      return jsonPage(result);
     } catch (error) {
       await this.store.audit(context.jobId, name, false, Date.now() - start);
       throw error;
