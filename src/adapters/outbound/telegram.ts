@@ -85,7 +85,32 @@ export class Telegram {
     message: any,
     job: string,
     signal: AbortSignal,
-  ): Promise<{ text: string; images: string[]; transcriptionOnly: boolean }> {
+  ): Promise<{
+    text: string;
+    images: string[];
+    transcriptionOnly: boolean;
+    serviceReply?: string;
+  }> {
+    if (
+      ['group', 'supergroup'].includes(message.chat?.type) &&
+      (message.group_chat_created ||
+        message.supergroup_chat_created ||
+        message.new_chat_members?.length)
+    ) {
+      let joined = !!(message.group_chat_created || message.supergroup_chat_created);
+      if (!joined) {
+        const me = await this.call('getMe', {}, signal);
+        joined = message.new_chat_members.some((member: { id: number }) => member.id === me.id);
+      }
+      return {
+        text: '',
+        images: [],
+        transcriptionOnly: false,
+        serviceReply: joined
+          ? `¡Hola! Soy Zero, vuestro asistente. Gracias por añadirme al grupo.\n\nChat ID: ${message.chat.id}`
+          : '',
+      };
+    }
     const reply = message.reply_to_message || message.external_reply;
     const repliedMedia = reply && (reply.voice || reply.audio || reply.video_note || reply.video);
     const source = repliedMedia ? reply : message;

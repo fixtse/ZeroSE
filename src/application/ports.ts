@@ -132,7 +132,7 @@ export interface TelegramPort {
     message: any,
     job: string,
     signal: AbortSignal,
-  ): Promise<{ text: string; images: string[]; transcriptionOnly: boolean }>;
+  ): Promise<{ text: string; images: string[]; transcriptionOnly: boolean; serviceReply?: string }>;
   send(chat: string, text: string, signal?: AbortSignal, replyTo?: number): Promise<void>;
   sendVoice(chat: string, text: string, job: string, signal: AbortSignal): Promise<void>;
   typing(chat: string, signal?: AbortSignal): Promise<unknown>;
