@@ -23,6 +23,7 @@ import { TelegramCommands } from './adapters/outbound/telegram-commands.js';
 import { TelegramBots } from './adapters/inbound/telegram-bots.js';
 import { PostgresAccess } from './adapters/outbound/postgres-access.js';
 import { Access, scopedConfig } from './application/access.js';
+import { AdminAuth } from './adapters/inbound/admin-auth.js';
 import { Admin } from './adapters/inbound/admin.js';
 import { isMemoryTool } from './domain/memory.js';
 import { sessionAddress, toolCapability } from './domain/access.js';
@@ -53,6 +54,12 @@ const accessRepository = new PostgresAccess(
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
 );
 await accessRepository.initialize(config);
+const adminAuth = new AdminAuth(
+  store.pool,
+  process.env.ASSISTANT_ADMIN_URL || `http://127.0.0.1:${config.port}`,
+  process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
+);
+await adminAuth.initialize();
 const access: Access = new Access(accessRepository, store, () => bots.salemUsername());
 const bots = new TelegramBots(config, media, telegram, store, access);
 async function canRespond(job: Job) {
@@ -185,7 +192,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     config,
     store,
     readFileSync('assets/icon.png'),
-    { access, admin },
+    { access, admin, auth: adminAuth },
     process.env.ASSISTANT_DEPLOY_WEBHOOK_URL
       ? new DeploymentWebhookProxy(process.env.ASSISTANT_DEPLOY_WEBHOOK_URL)
       : undefined,

@@ -19,6 +19,7 @@ export interface AccessRepository {
     pending?: boolean,
   ): Promise<{ items: AccessProfile[]; total: number }>;
   saveProfile(profile: AccessProfile): Promise<void>;
+  removeProfile(bot: BotId, chatId: string): Promise<void>;
   discover(bot: BotId, chatId: string, label: string, kind?: 'user' | 'group'): Promise<void>;
   migrateGroup(bot: BotId, from: string, to: string): Promise<void>;
   bots(): Promise<BotSettings[]>;

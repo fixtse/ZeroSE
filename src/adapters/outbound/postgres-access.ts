@@ -47,12 +47,17 @@ export class PostgresAccess implements AccessRepository {
       CREATE TABLE IF NOT EXISTS managed_bots(id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, token TEXT NOT NULL);
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_url TEXT;`);
+    await this.pool.query(`CREATE TABLE IF NOT EXISTS access_profile_deletions (
+      bot TEXT NOT NULL, chat_id TEXT NOT NULL, deleted TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY(bot,chat_id));`);
     // Seed exactly once, so disabling an existing owner survives a restart.
     for (const [index, chatId] of config.telegram.allowedUsers.entries()) {
       if (!/^\d+$/.test(chatId)) continue;
       await this.pool.query(
         `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner)
-        VALUES('zero',$1,'user',$2,true,$3,$4) ON CONFLICT DO NOTHING`,
+        SELECT 'zero',$1,'user',$2,true,$3,$4 WHERE NOT EXISTS (
+          SELECT 1 FROM access_profile_deletions WHERE bot='zero' AND chat_id=$1)
+        ON CONFLICT DO NOTHING`,
         [
           chatId,
           index === 0 ? 'Propietario de Zero' : chatId,
@@ -125,6 +130,23 @@ export class PostgresAccess implements AccessRepository {
       ],
     );
   }
+  async removeProfile(bot: BotId, chatId: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'INSERT INTO access_profile_deletions(bot,chat_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+        [bot, chatId],
+      );
+      await client.query('DELETE FROM access_profiles WHERE bot=$1 AND chat_id=$2', [bot, chatId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   async migrateGroup(bot: BotId, from: string, to: string) {
     const source = await this.profile(bot, from);
     if (!source || source.kind !== 'group') return;
@@ -135,7 +157,9 @@ export class PostgresAccess implements AccessRepository {
     // Preserve existing destination decisions and keep the old chat's history intact.
     await this.pool.query(
       `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone,voice_replies,prompt_preset)
-       VALUES($1,$2,'group',$3,$4,$5,false,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,
+       SELECT $1,$2,'group',$3,$4,$5,false,$6,$7,$8,$9,$10 WHERE NOT EXISTS (
+         SELECT 1 FROM access_profile_deletions WHERE bot=$1 AND chat_id=$2)
+       ON CONFLICT DO NOTHING`,
       [
         bot,
         to,

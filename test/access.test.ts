@@ -232,6 +232,13 @@ test('group migration carries access and encrypted settings without enqueueing s
       true,
       'The destination-side service message must also carry permissions',
     );
+    await repository.removeProfile('salem', '-10030');
+    await access.receive('salem', migration(-10030, { migrate_from_chat_id: -10 }));
+    assert.equal(
+      await repository.profile('salem', '-10030'),
+      undefined,
+      'A repeated migration must not restore a deleted destination',
+    );
     await repository.saveProfile({ ...source, enabled: false });
     await access.receive('salem', migration(-10, { migrate_to_chat_id: -10040 }));
     assert.equal((await repository.profile('salem', '-10040'))?.enabled, false);

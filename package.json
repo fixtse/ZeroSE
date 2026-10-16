@@ -17,10 +17,12 @@
     "format": "prettier --write src scripts test",
     "format:check": "prettier --check src scripts test",
     "doctor": "tsx scripts/doctor.ts",
-    "migrate:sqlite": "tsx scripts/migrate-sqlite.ts"
+    "migrate:sqlite": "tsx scripts/migrate-sqlite.ts",
+    "admin:password": "tsx scripts/admin-password.ts"
   },
   "dependencies": {
     "@openai/codex": "0.159.2",
+    "better-auth": "1.7.10",
     "exceljs": "4.4.0",
     "js-tiktoken": "1.0.21",
     "mammoth": "1.13.0",

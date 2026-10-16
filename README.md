@@ -392,9 +392,33 @@ updates when changing registration. Startup does not register or remove webhooks
 
 ## User and group administration
 
-Open `/admin` on the assistant HTTP origin and sign in with `config.apiKey`. The page is
-served by the same process, uses no external services, and keeps the administrator key only
-in the current tab. The authenticated `/v1/admin/` endpoints manage the same settings.
+Open `/admin` on the assistant's public HTTPS origin and sign in as **fixt** with the
+administrator password. Better Auth stores password hashes and sessions in PostgreSQL.
+Sessions last 30 days, renew while active, and survive application restarts and deployments.
+Use **Cambiar contraseña** in the header to change the password: the current browser remains
+signed in and other sessions are revoked. Login attempts are rate-limited, registration is
+disabled, and browser sessions use HttpOnly cookies with Secure enabled for HTTPS.
+
+Set `ASSISTANT_ADMIN_URL` to the exact public origin (production Compose defaults to
+`https://twk.kcta.cc`); this controls trusted origins, CSRF checks and secure cookies.
+For local development, set it to your local HTTP origin. Provision the first account with
+a password in a private file (12–128 characters, outside the repository and container mounts):
+
+```sh
+pnpm run admin:password --password-file /private/initial-password.txt
+```
+
+The command refuses to replace an existing account. For an explicit recovery reset, add
+`--reset`; this also revokes all existing sessions. Normal password changes belong in the
+web interface. Never commit the initial password file. The page no longer asks for the
+administrator API key. Headless clients retain bearer authentication with `config.apiKey`;
+browser sessions authorize only `/v1/admin/` settings, not other privileged API endpoints.
+
+Select a user or group and use **Eliminar chat** to revoke its access and remove the entry.
+History and memories remain intact. A returning contact appears pending and disabled,
+including a deleted original owner; application restarts never restore that permission.
+The deletion also clears its Telegram command menu when possible and reports an uncertain
+menu update without retrying it.
 
 Zero retains its existing token and transport. Configure the separate **Salem** token and
 activation switch in the web interface. Salem receives updates exclusively through

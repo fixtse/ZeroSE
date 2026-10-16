@@ -17,6 +17,7 @@ services:
         condition: service_healthy
     environment:
       ASSISTANT_CODEX_HOME: /codex
+      ASSISTANT_ADMIN_URL: ${ASSISTANT_ADMIN_URL:-https://twk.kcta.cc}
       ASSISTANT_DEPLOY_WEBHOOK_URL: ${ASSISTANT_DEPLOY_WEBHOOK_URL:-}
       ASSISTANT_SECRETS_KEY: ${ASSISTANT_SECRETS_KEY:-}
       ASSISTANT_DATABASE_URL: postgresql://assistant:${ASSISTANT_POSTGRES_PASSWORD:?Set ASSISTANT_POSTGRES_PASSWORD in .env}@127.0.0.1:${ASSISTANT_POSTGRES_PORT:-55432}/assistant

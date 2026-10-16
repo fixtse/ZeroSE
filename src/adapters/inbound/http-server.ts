@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { Config } from '../../domain/config.js';
 import type { ConversationStore } from '../../application/ports.js';
 import type { Access } from '../../application/access.js';
+import type { AdminAuth } from './admin-auth.js';
 import type { Admin } from './admin.js';
 import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
@@ -33,7 +34,7 @@ export function createHttpServer(
   config: Config,
   store: ConversationStore,
   icon?: Buffer,
-  management?: { access: Access; admin: Admin },
+  management?: { access: Access; admin: Admin; auth?: AdminAuth },
   deployment?: DeploymentWebhookProxy,
 ) {
   return createServer(async (req, res) => {
@@ -59,6 +60,10 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
+      if (path.startsWith('/api/auth/') && management?.auth) {
+        await management.auth.handle(req, res);
+        return;
+      }
       if (req.method === 'POST' && path === '/github/deploy' && deployment) {
         const result = await deployment.forward(req);
         return send(result.status, result.body);
@@ -108,7 +113,14 @@ export function createHttpServer(
         );
         return send(200, { ok: true, jobId: job.id });
       }
-      if (!equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`))
+      if (
+        !equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`) &&
+        !(
+          path.startsWith('/v1/admin/') &&
+          management?.auth &&
+          (await management.auth.authorize(req, res))
+        )
+      )
         return send(401, { error: 'Unauthorized' });
       if (management && (await management.admin.handle(req, path, () => body(req), send))) return;
       if (req.method === 'POST' && path === '/v1/triggers/morning') {

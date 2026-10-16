@@ -268,6 +268,24 @@ export class Admin {
       const bot = match[1] as BotId,
         chatId = match[2];
       const previous = await this.repository.profile(bot, chatId);
+      if (req.method === 'DELETE') {
+        if (!previous) {
+          send(404, { error: 'Chat no encontrado.' });
+          return true;
+        }
+        await this.repository.removeProfile(bot, chatId);
+        let warning: string | undefined;
+        if (this.commands && previous.enabled) {
+          try {
+            await this.commands.configure({ ...previous, enabled: false });
+          } catch {
+            warning =
+              'Chat eliminado. No se pudo confirmar que se vaciara su menú de Telegram; no se ha reintentado automáticamente.';
+          }
+        }
+        send(200, { deleted: true, ...(warning ? { warning } : {}) });
+        return true;
+      }
       if (req.method === 'GET') {
         send(
           previous ? 200 : 404,
