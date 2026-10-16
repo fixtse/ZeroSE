@@ -205,8 +205,17 @@ test('profile deletion is origin-protected, revokes access, preserves history, a
       403,
     );
     assert.equal(
-      (await fetch(path, { method: 'DELETE', headers: { Cookie: session, Origin: s.base } }))
-        .status,
+      (
+        await fetch(path, {
+          method: 'DELETE',
+          headers: {
+            Cookie: session,
+            Origin: 'https://panel.example.com',
+            'X-Admin-Request': '1',
+            'Sec-Fetch-Site': 'same-origin',
+          },
+        })
+      ).status,
       200,
     );
     assert.equal(await s.repository.profile('zero', '1'), undefined);
