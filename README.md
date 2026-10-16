@@ -297,10 +297,22 @@ HA schedules the cooldown deadline without polling the assistant.
 
 `weather_alert_create` establishes a baseline from Home Assistant's daily forecast
 and subscribes directly to forecast updates, independently of current weather-state
-changes. A changed forecast triggers when it includes rain/precipitation or a
-sufficient precipitation probability within the selected horizon (default 24 hours
-and 30%). The current day's daily period is included. An unchanged rainy forecast
-does not repeat; later changes observe a cooldown (default one hour).
+changes. New alerts default to `mode=any_change`: conditions, temperature, wind,
+precipitation and other changes within the selected horizon can trigger, including
+dry thunderstorms, snow, hail, fog, exceptional weather and clearing skies.
+`mode=conditions` with a nonempty `conditions` list restricts notifications to
+selected Home Assistant conditions (for storms, `lightning` and `lightning-rainy`).
+`mode=rain` keeps rain/precipitation monitoring with `minimum_probability`
+(default 30%). That probability threshold does not filter storms or other modes.
+Persisted rules without a mode retain their original rain-only behavior.
+
+The selected horizon defaults to 24 hours; the current day's daily period is
+included. General/condition filters compare both forecast snapshots within the
+same window, so changes outside that window or mere dictionary/period reordering
+do not trigger. The first observation is a baseline, identical updates do not
+repeat, and subsequent qualifying changes observe the configured cooldown
+(default one hour). These are forecast-change notifications, not an official
+severe-weather warning feed.
 `alerts_list` and `alert_change` inspect/pause/resume/cancel both alert types;
 `reminder_get` retrieves details. Arbitrary web monitoring is unsupported.
 

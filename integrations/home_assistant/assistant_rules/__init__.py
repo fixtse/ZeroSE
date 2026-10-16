@@ -27,7 +27,8 @@ DOMAIN = "assistant_rules"
 _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({vol.Required("callback_url"): cv.url, vol.Required("callback_token"): vol.All(str, vol.Length(min=24))})}, extra=vol.ALLOW_EXTRA)
 SENSOR_CONDITION = vol.Schema({vol.Optional("source"): "sensor", vol.Required("entity_id"): vol.Match(r"^(sensor|binary_sensor)\.[a-z0-9_]+$"), vol.Required("operator"): vol.In(["equals", "above", "below"]), vol.Required("value"): vol.Any(str, int, float), vol.Required("hold_seconds"): vol.All(int, vol.Range(min=0, max=86400))})
-WEATHER_CONDITION = vol.Schema({vol.Required("source"): "weather", vol.Required("entity_id"): vol.Match(r"^weather\.[a-z0-9_]+$"), vol.Required("horizon_hours"): vol.All(int, vol.Range(min=1, max=168)), vol.Required("minimum_probability"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100))})
+WEATHER_CONDITIONS = ["clear-night", "cloudy", "fog", "hail", "lightning", "lightning-rainy", "partlycloudy", "pouring", "rainy", "snowy", "snowy-rainy", "sunny", "windy", "windy-variant", "exceptional"]
+WEATHER_CONDITION = vol.Schema({vol.Optional("mode"): vol.In(["any_change", "conditions", "rain"]), vol.Optional("conditions"): vol.All([vol.In(WEATHER_CONDITIONS)], vol.Length(max=15)),vol.Required("source"): "weather", vol.Required("entity_id"): vol.Match(r"^weather\.[a-z0-9_]+$"), vol.Required("horizon_hours"): vol.All(int, vol.Range(min=1, max=168)), vol.Required("minimum_probability"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100))})
 RULE_SCHEMA = vol.Schema({vol.Optional("last_fired", default=None): vol.Any(None, cv.datetime), vol.Required("id"): str, vol.Required("generation"): vol.All(int, vol.Range(min=0)), vol.Required("kind"): vol.In(["reminder", "timer", "alert"]), vol.Required("status"): vol.In(["active", "paused", "cancelled", "completed", "expired"]), vol.Required("next_at"): vol.Any(None, cv.datetime), vol.Required("repeat_seconds"): vol.Any(None, vol.All(int, vol.Range(min=60, max=31536000))), vol.Required("condition"): vol.Any(None, SENSOR_CONDITION, WEATHER_CONDITION), vol.Required("cooldown_seconds"): vol.All(int, vol.Range(min=0, max=31536000)), vol.Required("recurring"): bool})
 
 
@@ -134,6 +135,9 @@ class Manager:
             if not condition:
                 raise ValueError("Alert condition is required")
             if condition.get("source") == "weather":
+                mode = condition.get("mode", "rain")
+                if (mode == "conditions") != bool(condition.get("conditions")):
+                    raise ValueError("Conditions mode requires selected weather conditions")
                 entity = self.hass.data[DATA_COMPONENT].get_entity(condition["entity_id"])
                 if entity is None or not (entity.supported_features or 0) & WeatherEntityFeature.FORECAST_DAILY:
                     raise ValueError("Configured weather entity must support daily forecasts")

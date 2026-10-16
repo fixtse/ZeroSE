@@ -7,6 +7,8 @@ export interface AlertCondition {
 }
 export interface WeatherCondition {
   source: 'weather';
+  mode?: 'any_change' | 'conditions' | 'rain';
+  conditions?: string[];
   horizon_hours: number;
   minimum_probability: number;
 }

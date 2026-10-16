@@ -51,6 +51,33 @@ def forecast_rain(forecast, condition, now):
     return False
 
 
+def forecast_window(forecast, condition, now):
+    """Filter both snapshots at the same instant; time alone must not create changes."""
+    periods = []
+    for period in forecast:
+        try:
+            at = timestamp(period["datetime"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if now - 86400 <= at <= now + condition["horizon_hours"] * 3600:
+            periods.append(period)
+    return sorted(periods, key=lambda period: period["datetime"])
+
+
+def forecast_matches(forecast, previous, condition, now):
+    # Persisted rain-only rules keep their meaning; new general alerts select any_change.
+    mode = condition.get("mode", "rain")
+    if mode == "rain":
+        return forecast_rain(forecast, condition, now)
+    current = forecast_window(forecast, condition, now)
+    before = forecast_window(previous, condition, now)
+    if current == before:
+        return False
+    if mode == "any_change":
+        return True
+    return any(period.get("condition") in condition.get("conditions", []) for period in current)
+
+
 class RuleEngine:
     def __init__(self, now, persist, schedule, emit, read_state=None):
         self.now, self.persist, self.schedule, self.emit = now, persist, schedule, emit
@@ -203,7 +230,7 @@ class RuleEngine:
                 return
             rule["forecast_signature"] = signature
             cooled = not rule.get("last_fired") or self.now() - timestamp(rule["last_fired"]) >= rule["cooldown_seconds"]
-            if previous is not None and cooled and forecast_rain(forecast, rule["condition"], self.now()):
+            if previous is not None and cooled and forecast_matches(forecast, json.loads(previous), rule["condition"], self.now()):
                 event = self.fire(rule)
             await self.save()
         await self.deliver(event)

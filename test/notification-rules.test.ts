@@ -391,3 +391,44 @@ test('changing the HA connection invalidates callbacks from the old integration'
     await f.close();
   }
 });
+
+test('weather alerts default to all changes and validate explicit storm/rain filters', async () => {
+  const f = await setup();
+  try {
+    const tools = new Tools(f.store);
+    registerNotificationTools(tools, f.rules, {} as any);
+    const context = { session: 'telegram:1', jobId: 'test', signal: AbortSignal.timeout(10000) };
+    await tools.call('weather_alert_create', { message: 'Forecast changed' }, context);
+    assert.equal((f.configurations.at(-1)?.condition as any).mode, 'any_change');
+    await tools.call(
+      'weather_alert_create',
+      {
+        message: 'Storm forecast',
+        mode: 'conditions',
+        conditions: ['lightning', 'lightning-rainy'],
+      },
+      context,
+    );
+    assert.deepEqual((f.configurations.at(-1)?.condition as any).conditions, [
+      'lightning',
+      'lightning-rainy',
+    ]);
+    await tools.call('weather_alert_create', { message: 'Rain forecast', mode: 'rain' }, context);
+    assert.equal((f.configurations.at(-1)?.condition as any).mode, 'rain');
+    await assert.rejects(
+      tools.call('weather_alert_create', { message: 'Invalid', mode: 'conditions' }, context),
+      /at least one condition/,
+    );
+    await assert.rejects(
+      tools.call(
+        'weather_alert_create',
+        { message: 'Invalid', conditions: ['lightning'] },
+        context,
+      ),
+      /only for conditions mode/,
+    );
+    assert.equal(f.configurations.length, 3);
+  } finally {
+    await f.close();
+  }
+});

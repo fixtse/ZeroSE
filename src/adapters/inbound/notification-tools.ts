@@ -150,14 +150,42 @@ export function registerNotificationTools(
   if (!ha) return;
   tools.add(
     'weather_alert_create',
-    'Notify this Telegram chat when Home Assistant’s daily forecast changes and includes rain within horizon_hours. The first successful observation establishes a baseline and does not notify. Home Assistant subscribes directly to forecast updates; only changed forecasts trigger. No arbitrary web monitoring.',
-    z.object({
-      message,
-      horizon_hours: z.number().int().min(1).max(168).default(24),
-      minimum_probability: z.number().min(0).max(100).default(30),
-      recurring: z.boolean().default(true),
-      cooldown_seconds: z.number().int().min(60).max(31_536_000).default(3600),
-    }),
+    'Notify this Telegram chat when Home Assistant’s daily forecast changes within horizon_hours. Default any_change includes storms, snow, wind, temperature, rain and clearing. Use mode=rain for rain-only requests, or mode=conditions with explicit HA condition names (storms: lightning/lightning-rainy). minimum_probability applies only to rain mode. The first observation establishes a baseline. Event-driven; no model runs in the background.',
+    z
+      .object({
+        message,
+        mode: z.enum(['any_change', 'conditions', 'rain']).default('any_change'),
+        conditions: z
+          .array(
+            z.enum([
+              'clear-night',
+              'cloudy',
+              'fog',
+              'hail',
+              'lightning',
+              'lightning-rainy',
+              'partlycloudy',
+              'pouring',
+              'rainy',
+              'snowy',
+              'snowy-rainy',
+              'sunny',
+              'windy',
+              'windy-variant',
+              'exceptional',
+            ]),
+          )
+          .max(15)
+          .default([]),
+        horizon_hours: z.number().int().min(1).max(168).default(24),
+        minimum_probability: z.number().min(0).max(100).default(30),
+        recurring: z.boolean().default(true),
+        cooldown_seconds: z.number().int().min(60).max(31_536_000).default(3600),
+      })
+      .refine(
+        (a) => (a.mode === 'conditions' ? a.conditions.length > 0 : a.conditions.length === 0),
+        'Supply conditions only for conditions mode, with at least one condition',
+      ),
     (a, c) =>
       create(
         'alert',
@@ -165,6 +193,8 @@ export function registerNotificationTools(
           ...a,
           condition: {
             source: 'weather',
+            mode: a.mode,
+            conditions: a.conditions,
             horizon_hours: a.horizon_hours,
             minimum_probability: a.minimum_probability,
           },

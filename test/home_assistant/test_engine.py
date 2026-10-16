@@ -164,3 +164,68 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.events), 1)
         await self.advance(60)
         self.assertEqual(len(self.events), 2)
+
+    async def weather_rule(self, **condition):
+        await self.engine.put('owner', self.value(kind='alert', next_at=None, recurring=True, condition={'source': 'weather', 'entity_id': 'weather.home', 'horizon_hours': 24, 'minimum_probability': 30, **condition}))
+
+    def forecast(self, condition='sunny', **fields):
+        return [{'datetime': iso(self.now + 3600), 'condition': condition, 'precipitation_probability': 0, **fields}]
+
+    async def test_general_forecast_alert_includes_dry_storms_snow_wind_fog_and_clearing(self):
+        await self.weather_rule(mode='any_change')
+        await self.engine.weather('test-rule', 0, self.forecast())
+        for count, condition in enumerate(['lightning', 'lightning-rainy', 'snowy', 'hail', 'windy', 'fog', 'exceptional', 'sunny'], 1):
+            # Keep forecast timestamps fixed while moving the clock beyond the cooldown.
+            forecast = [{'datetime': iso(1792152000 + 3600), 'condition': condition, 'precipitation_probability': 0}]
+            await self.advance(60)
+            await self.engine.weather('test-rule', 0, forecast)
+            self.assertEqual(len(self.events), count)
+
+    async def test_general_alert_detects_temperature_and_wind_changes_without_rain(self):
+        await self.weather_rule(mode='any_change')
+        forecast = self.forecast(temperature=20, wind_speed=5)
+        await self.engine.weather('test-rule', 0, forecast)
+        forecast[0]['temperature'] = 30
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 1)
+        await self.advance(60)
+        forecast[0]['wind_speed'] = 50
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 2)
+        await self.advance(60)
+        await self.engine.weather('test-rule', 0, deepcopy(forecast))
+        self.assertEqual(len(self.events), 2)
+
+    async def test_storm_filter_ignores_rain_probability_and_unrelated_conditions(self):
+        await self.weather_rule(mode='conditions', conditions=['lightning', 'lightning-rainy'])
+        forecast = self.forecast('sunny')
+        await self.engine.weather('test-rule', 0, forecast)
+        forecast[0]['condition'] = 'snowy'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(self.events, [])
+        forecast[0]['condition'] = 'lightning'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 1)
+        await self.advance(60)
+        forecast[0]['condition'] = 'lightning-rainy'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(len(self.events), 2)
+
+    async def test_general_forecast_ignores_changes_outside_horizon_and_dictionary_order(self):
+        await self.weather_rule(mode='any_change')
+        forecast = self.forecast(temperature=20) + [{'datetime': iso(self.now + 3 * 86400), 'condition': 'sunny'}]
+        await self.engine.weather('test-rule', 0, forecast)
+        forecast[1]['condition'] = 'lightning'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(self.events, [])
+        reordered = [{key: period[key] for key in reversed(period)} for period in forecast]
+        await self.engine.weather('test-rule', 0, reordered)
+        self.assertEqual(self.events, [])
+
+    async def test_legacy_rain_alert_is_not_silently_broadened_to_storm_only(self):
+        await self.weather_rule()
+        forecast = self.forecast()
+        await self.engine.weather('test-rule', 0, forecast)
+        forecast[0]['condition'] = 'lightning'
+        await self.engine.weather('test-rule', 0, forecast)
+        self.assertEqual(self.events, [])
