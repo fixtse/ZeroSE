@@ -5,6 +5,7 @@ import { Config } from '../../domain/config.js';
 import type { ConversationStore } from '../../application/ports.js';
 import type { Access } from '../../application/access.js';
 import type { Admin } from './admin.js';
+import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
 
 export function equalSecret(value: unknown, expected: string) {
@@ -33,6 +34,7 @@ export function createHttpServer(
   store: ConversationStore,
   icon?: Buffer,
   management?: { access: Access; admin: Admin },
+  deployment?: DeploymentWebhookProxy,
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -57,6 +59,10 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
+      if (req.method === 'POST' && path === '/github/deploy' && deployment) {
+        const result = await deployment.forward(req);
+        return send(result.status, result.body);
+      }
       if (req.method === 'POST' && path === '/telegram/salem/webhook' && management) {
         const settings = (await management.access.repository.bots()).find(
           (bot) => bot.id === 'salem',

@@ -110,7 +110,60 @@ the image, configuration file, data directory, and shared Codex directory.
 For controlled upgrades or rollback, set `ASSISTANT_IMAGE` in `.env` to a previously
 published `sha-<full-commit>` tag or an image digest, then run the pull/up commands again.
 The CI image job reports the published digest. The production Compose file has no build
-step and does not automatically deploy when an image is published.
+step. Automatic deployment is optional and uses the signed host webhook described below.
+
+### Deploy successful GitHub Actions builds automatically
+
+The optional host worker receives signed GitHub `workflow_run` webhooks at
+`https://twk.kcta.cc/github/deploy`. It accepts only successful `main` builds from
+`fixtse/node-assistant` using `.github/workflows/images.yaml`. Pull requests, other
+repositories, other branches, failed runs, and older out-of-order runs are ignored.
+The existing image workflow needs no deployment credentials or Docker access on the host.
+
+Build the TypeScript host worker with `pnpm build`. Create a private `.env.deploy`
+(mode `0600`) beside `.env`, using a fresh secret of at least 32 characters:
+
+```dotenv
+ASSISTANT_DEPLOY_SECRET=replace-with-a-fresh-random-secret
+ASSISTANT_DEPLOY_REPOSITORY=fixtse/node-assistant
+ASSISTANT_DEPLOY_PORT=8790
+ASSISTANT_DEPLOY_NOTIFY_CHAT=6977841634
+# Ensure this PATH contains node and docker when launched by systemd.
+# PATH=/path/to/node/bin:/usr/local/bin:/usr/bin
+# For unattended registry access, point at a private Docker config that works without a desktop login.
+# DOCKER_CONFIG=/private/path/to/docker-config
+```
+
+Add `ASSISTANT_DEPLOY_WEBHOOK_URL=http://127.0.0.1:8790/github/deploy` to `.env`.
+Install `deploy/assistant-deploy.service` in `~/.config/systemd/user/`, adapting its
+working directory if needed, then run `systemctl --user daemon-reload` and
+`systemctl --user enable --now assistant-deploy.service`. Enable user lingering
+(`loginctl enable-linger "$USER"`) so the service survives logout. The worker listens
+only on loopback; the assistant forwards the public webhook path without altering the
+signed body. Bootstrap the new assistant image once to expose that proxy route.
+
+In the repository's GitHub webhook settings, add the HTTPS URL above, select JSON,
+use the same private secret, leave TLS verification enabled, and select only
+**Workflow runs**. Confirm the initial ping succeeds. No Telegram webhook changes
+are needed.
+
+The worker records deployments in PostgreSQL, serializes them, and deduplicates
+run/attempt pairs. It pulls the `sha-<commit>` image, verifies its revision label,
+pins the resolved digest in `.env`, and runs Compose with `--no-deps --wait` for
+**assistant only**. PostgreSQL and its volume are never restarted or cleared.
+Previous `.env` files are backed up privately under `data/deployment-backups/`.
+A healthy rollout sends a Spanish notification through Salem to the configured chat;
+a failed rollout sends a failure notice. Uncertain Telegram deliveries are not retried.
+Deployment notifications do not enter conversation history or memory.
+
+Interrupted deployments become failed records on worker restart and are never replayed.
+Failed or duplicate deliveries are not deployment retries; inspect the current container
+and journal before explicitly rerunning a build. Inspect service logs with
+`journalctl --user -u assistant-deploy.service` and recent results with
+`SELECT run_id, attempt, sha, status, detail FROM deployment_runs ORDER BY id DESC`.
+The controller and Compose definitions are host-managed; image deployment does not reset
+or pull the host Git checkout. Stop automatic deployment with
+`systemctl --user disable --now assistant-deploy.service` and deactivate the GitHub hook.
 
 For a local source build:
 

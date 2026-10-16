@@ -12,6 +12,7 @@ import { Telegram } from './adapters/outbound/telegram.js';
 import { Assistant } from './application/assistant.js';
 import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
+import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
 import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
 import { ProcessManagedMessage } from './application/use-cases/process-managed-message.js';
@@ -180,7 +181,15 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     ),
     new TelegramCommands((bot) => bots.get(bot)),
   ),
-  server = createHttpServer(config, store, readFileSync('assets/icon.png'), { access, admin });
+  server = createHttpServer(
+    config,
+    store,
+    readFileSync('assets/icon.png'),
+    { access, admin },
+    process.env.ASSISTANT_DEPLOY_WEBHOOK_URL
+      ? new DeploymentWebhookProxy(process.env.ASSISTANT_DEPLOY_WEBHOOK_URL)
+      : undefined,
+  );
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {
   if (!(await canRespond(job))) return { output: '', deliver: false };
