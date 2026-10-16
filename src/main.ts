@@ -15,6 +15,7 @@ import { Assistant } from './application/assistant.js';
 import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
 import { NotificationRules } from './application/notification-rules.js';
+import { HomeAssistantRuleScheduler } from './adapters/outbound/ha-rule-scheduler.js';
 import { PostgresRules } from './adapters/outbound/postgres-rules.js';
 import { PostgresPersonalData } from './adapters/outbound/postgres-personal-data.js';
 import { OpenStreetMapPlaces } from './adapters/outbound/places.js';
@@ -78,16 +79,23 @@ const places = new OpenStreetMapPlaces(
   process.env.ASSISTANT_OSRM_URL,
 );
 const personalData = new PostgresPersonalData(store.pool);
-const rules = new NotificationRules(ruleRepository, async (session) => {
+const rules = new NotificationRules(ruleRepository, async (session, kind) => {
   const address = sessionAddress(session);
   const profile = await access.forSession(session);
   const scoped = profile ? scopedConfig(config, profile) : config;
   return {
-    enabled: !!address && !!profile?.enabled && (await bots.isEnabled(address.bot)),
-    ha:
-      profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
-        ? new HomeAssistant(scoped.homeAssistant)
-        : undefined,
+    enabled:
+      !!address &&
+      !!profile?.enabled &&
+      (await bots.isEnabled(address.bot)) &&
+      (kind !== 'alert' ||
+        (profile.capabilities.includes('homeAssistant') && !!scoped.homeAssistant.token)),
+    scheduler:
+      kind !== 'alert'
+        ? new HomeAssistantRuleScheduler(config.homeAssistant)
+        : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
+          ? new HomeAssistantRuleScheduler(scoped.homeAssistant)
+          : undefined,
   };
 });
 registerNotificationTools(tools, rules, config.homeAssistant.token ? ha : undefined);
@@ -294,6 +302,11 @@ server.headersTimeout = 15_000;
 server.listen(config.port, config.host, () => {
   assistant.start();
   scheduler.start();
+  void rules
+    .migrateLegacy()
+    .catch(() =>
+      console.error(JSON.stringify({ event: 'legacy_notification_rule_migration_failed' })),
+    );
   bots.start();
   console.log(
     JSON.stringify({
@@ -315,7 +328,6 @@ async function close() {
   const deadline = setTimeout(() => process.exit(1), 15_000);
   deadline.unref();
   await assistant.close();
-  await rules.close();
   codex.close();
   await store.close();
   clearTimeout(deadline);

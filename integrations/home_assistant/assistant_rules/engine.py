@@ -1,0 +1,214 @@
+"""Persistent, event-driven rules. No polling, model calls, or delivery retries."""
+from __future__ import annotations
+
+import asyncio
+from copy import deepcopy
+from datetime import datetime, timezone
+import json
+import math
+from uuid import uuid4
+
+
+def timestamp(value):
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def iso(value):
+    return datetime.fromtimestamp(value, timezone.utc).isoformat()
+
+
+def sensor_match(condition, state):
+    if state is None or str(state).strip().lower() in ("", "unknown", "unavailable"):
+        return None
+    if condition["operator"] == "equals":
+        return str(state) == str(condition["value"])
+    try:
+        number = float(state)
+    except (ValueError, TypeError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return number > condition["value"] if condition["operator"] == "above" else number < condition["value"]
+
+
+def forecast_rain(forecast, condition, now):
+    for period in forecast:
+        try:
+            at = timestamp(period["datetime"])
+        except (ValueError, KeyError, TypeError):
+            continue
+        if not now - 86400 <= at <= now + condition["horizon_hours"] * 3600:
+            continue
+        probability = period.get("precipitation_probability")
+        wet = period.get("condition") in ("rainy", "pouring", "lightning-rainy", "snowy-rainy")
+        try:
+            wet = wet or float(period.get("precipitation") or 0) > 0
+            chance = float(probability or 0)
+        except (ValueError, TypeError):
+            continue
+        if (wet and (probability is None or chance >= condition["minimum_probability"])) or (chance > 0 and chance >= condition["minimum_probability"]):
+            return True
+    return False
+
+
+class RuleEngine:
+    def __init__(self, now, persist, schedule, emit, read_state=None):
+        self.now, self.persist, self.schedule, self.emit = now, persist, schedule, emit
+        self.read_state = read_state
+        self.rules = {}
+        self.timers = {}
+        self.lock = asyncio.Lock()
+
+    async def save(self):
+        await self.persist(deepcopy(self.rules))
+
+    def arm(self, rule):
+        cancel = self.timers.pop(rule["id"], None)
+        if cancel:
+            cancel()
+        if rule["status"] != "active":
+            return
+        at = rule.get("hold_until") if rule["kind"] == "alert" else rule.get("next_at")
+        if at:
+            rule_id, generation = rule["id"], rule["generation"]
+            self.timers[rule_id] = self.schedule(timestamp(at), lambda: self.deadline(rule_id, generation))
+
+    async def restore(self, rules):
+        async with self.lock:
+            self.rules = deepcopy(rules)
+            for rule in self.rules.values():
+                if rule.get("last_event", {}).get("outcome") == "pending":
+                    rule["last_event"]["outcome"] = "uncertain"
+                # A restart breaks proof of a continuous sensor hold. Do not replay it.
+                rule["hold_until"] = None
+                if rule["status"] == "active" and rule["kind"] != "alert" and timestamp(rule["next_at"]) <= self.now():
+                    self.advance(rule, expired=True)
+                self.arm(rule)
+            await self.save()
+
+    def advance(self, rule, expired=False):
+        interval = rule.get("repeat_seconds")
+        if interval:
+            due = timestamp(rule["next_at"])
+            rule["next_at"] = iso(due + (max(0, math.floor((self.now() - due) / interval)) + 1) * interval)
+        else:
+            rule["status"] = "expired" if expired else "completed"
+
+    async def put(self, owner, value):
+        async with self.lock:
+            old = self.rules.get(value["id"])
+            if old and old["owner"] != owner:
+                raise PermissionError("Rule belongs to another Home Assistant user")
+            if old and value["generation"] <= old["generation"]:
+                if value["generation"] == old["generation"]:
+                    return deepcopy(old)
+                raise ValueError("Stale rule generation")
+            rule = {**deepcopy(value), "owner": owner, "hold_until": None, "latched": False, "last_fired": value.get("last_fired"), "forecast_signature": None}
+            self.rules[rule["id"]] = rule
+            if rule["status"] == "active" and rule["kind"] != "alert" and timestamp(rule["next_at"]) <= self.now():
+                self.advance(rule, expired=True)
+            await self.save()
+            self.arm(rule)
+            return deepcopy(rule)
+
+    def current(self, rule_id, generation):
+        rule = self.rules.get(rule_id)
+        return rule if rule and rule["generation"] == generation and rule["status"] == "active" else None
+
+    def fire(self, rule):
+        rule["last_fired"] = iso(self.now())
+        event = {"id": rule["id"], "generation": rule["generation"], "event_id": str(uuid4()), "fired_at": rule["last_fired"]}
+        if rule["kind"] == "alert":
+            rule["latched"] = True
+            rule["hold_until"] = None
+            if not rule["recurring"]:
+                rule["status"] = "completed"
+        else:
+            self.advance(rule)
+            event["next_at"] = rule["next_at"] if rule["status"] == "active" else None
+        rule["last_event"] = {**event, "outcome": "pending"}
+        return event
+
+    async def deliver(self, event):
+        if not event:
+            return
+        # State was persisted before this single HTTP attempt. Never replay on recovery.
+        try:
+            outcome = await self.emit(event)
+        except Exception:
+            outcome = "uncertain"
+        async with self.lock:
+            rule = self.rules.get(event["id"])
+            if rule and rule.get("last_event", {}).get("event_id") == event["event_id"]:
+                rule["last_event"]["outcome"] = outcome
+                await self.save()
+
+    async def deadline(self, rule_id, generation):
+        event = None
+        async with self.lock:
+            rule = self.current(rule_id, generation)
+            if not rule:
+                return
+            at = rule.get("hold_until") if rule["kind"] == "alert" else rule.get("next_at")
+            if not at or timestamp(at) > self.now():
+                return
+            if self.now() - timestamp(at) > 60:
+                if rule["kind"] == "alert":
+                    rule["hold_until"] = None
+                else:
+                    self.advance(rule, expired=True)
+            elif rule["kind"] == "alert" and self.read_state is not None and sensor_match(rule["condition"], self.read_state(rule["condition"]["entity_id"])) is not True:
+                rule["hold_until"] = None
+            else:
+                event = self.fire(rule)
+            await self.save()
+            self.arm(rule)
+        await self.deliver(event)
+
+    async def sensor(self, rule_id, generation, state):
+        event = None
+        async with self.lock:
+            rule = self.current(rule_id, generation)
+            if not rule:
+                return
+            before = deepcopy(rule)
+            matches = sensor_match(rule["condition"], state)
+            if matches is not True:
+                rule["hold_until"] = None
+                if matches is False:
+                    rule["latched"] = False
+            elif not rule["latched"] and not rule.get("hold_until"):
+                cooldown_at = timestamp(rule["last_fired"]) + rule["cooldown_seconds"] if rule.get("last_fired") else self.now()
+                at = max(self.now() + rule["condition"]["hold_seconds"], cooldown_at)
+                if at > self.now():
+                    rule["hold_until"] = iso(at)
+                else:
+                    event = self.fire(rule)
+            if before != rule:
+                await self.save()
+                self.arm(rule)
+        await self.deliver(event)
+
+    async def weather(self, rule_id, generation, forecast):
+        if not forecast:
+            return
+        event = None
+        async with self.lock:
+            rule = self.current(rule_id, generation)
+            if not rule:
+                return
+            signature = json.dumps(forecast, sort_keys=True, separators=(",", ":"))
+            previous = rule.get("forecast_signature")
+            if previous == signature:
+                return
+            rule["forecast_signature"] = signature
+            cooled = not rule.get("last_fired") or self.now() - timestamp(rule["last_fired"]) >= rule["cooldown_seconds"]
+            if previous is not None and cooled and forecast_rain(forecast, rule["condition"], self.now()):
+                event = self.fire(rule)
+            await self.save()
+        await self.deliver(event)
+
+    def stop(self):
+        for cancel in self.timers.values():
+            cancel()
+        self.timers.clear()

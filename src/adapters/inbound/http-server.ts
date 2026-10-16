@@ -37,7 +37,9 @@ export function createHttpServer(
   icon?: Buffer,
   management?: { access: Access; admin: Admin; auth?: AdminAuth },
   deployment?: DeploymentWebhookProxy,
-  rules?: { tick(): Promise<void> },
+  rules?: {
+    receive(event: import('../../application/notification-rules.js').RuleEvent): Promise<boolean>;
+  },
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -62,13 +64,21 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
-      if (req.method === 'POST' && path === '/v1/triggers/rules' && rules) {
+      if (req.method === 'POST' && path === '/v1/triggers/rule-events' && rules) {
         if (!equalSecret(req.headers.authorization, `Bearer ${rulesToken(config.apiKey)}`))
           return send(401, { error: 'Unauthorized' });
-        void rules
-          .tick()
-          .catch(() => console.error(JSON.stringify({ event: 'notification_evaluation_failed' })));
-        return send(202, { accepted: true });
+        const event = z
+          .object({
+            id: z.uuid(),
+            generation: z.number().int().min(0),
+            event_id: z.uuid(),
+            fired_at: z.iso.datetime({ offset: true }),
+            next_at: z.iso.datetime({ offset: true }).nullable().optional(),
+          })
+          .strict()
+          .parse(await body(req));
+        const accepted = await rules.receive(event);
+        return send(202, { accepted });
       }
       if (path.startsWith('/api/auth/') && management?.auth) {
         await management.auth.handle(req, res);

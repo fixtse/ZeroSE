@@ -11,7 +11,7 @@
     "build": "tsc",
     "start": "node dist/src/main.js",
     "dev": "tsx src/main.ts",
-    "test": "tsx --test test/*.test.ts",
+    "test": "tsx --test test/*.test.ts && python3 -B -m unittest discover -s test/home_assistant -p 'test_*.py'",
     "check": "tsc --noEmit",
     "login": "tsx scripts/login.ts",
     "format": "prettier --write src scripts test",

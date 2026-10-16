@@ -234,7 +234,7 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 - Home Assistant shopping-list reads/additions/completion/removal, sensor discovery/current values,
   and up to seven days of recorded sensor history. Sensor access can be restricted to named entities.
 - On-demand home/away and known-zone awareness, with GPS accuracy, geocoded address and source timestamps for location-aware suggestions.
-- Dedicated Telegram reminders and countdown timers, with cancellation, snooze, pause/resume and optional fixed-interval reminders. Home Assistant triggers their evaluation; they do not create calendar events.
+- Dedicated Telegram reminders and countdown timers, with cancellation, snooze, pause/resume and optional fixed-interval reminders. Home Assistant owns their event-driven schedules; they do not create calendar events.
 - Conditional sensor alerts and forecast-update rain alerts, scoped to each chat's permitted Home Assistant connection.
 - OpenStreetMap place/address lookup and driving distance/time estimates, with clickable Google Maps links. All place suggestions must include Maps links, including suggestions obtained through web search.
 - Saved-memory browsing/deletion and attributed, chat-scoped conversation search across daily resets.
@@ -245,58 +245,72 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 
 ### Reminders, timers and conditional alerts
 
-Install the Home Assistant heartbeat explicitly from the host checkout:
+Install the event-driven Home Assistant integration explicitly from the host checkout:
 
 ```sh
 pnpm rules:install-home-assistant
 ```
 
 The installer reads private `config.json`, backs up affected files **inside** the
-`home-assistant` container, adds one shell command and one automation, validates
-Home Assistant configuration, then reloads only shell commands and automations.
-It does not restart either service or send Telegram messages. It preserves existing
-automation IDs and behavior. Overrides: `ASSISTANT_HA_CONTAINER` and
-`ASSISTANT_RULES_CALLBACK_URL` (default `http://127.0.0.1:8788/v1/triggers/rules`,
-using the configured assistant port). The callback must be reachable from HA.
-The installed private curl configuration contains a derived, purpose-specific
-bearer token that cannot access the chat or administrator APIs. Reinstall after
-rotating `config.apiKey`. Until the new assistant version is deployed, callbacks
-to the old version fail without delivering notifications.
+`home-assistant` container, installs the small HA-native Python integration under
+`/config/custom_components/assistant_rules`, validates Home Assistant configuration,
+and restarts **Home Assistant only** to load it. The assistant remains running.
+It removes the previous ten-second heartbeat automation, shell command and curl
+credential file while preserving other automations. Overrides:
+`ASSISTANT_HA_CONTAINER` and `ASSISTANT_RULES_CALLBACK_URL` (default
+`http://127.0.0.1:8788/v1/triggers/rule-events`, using the configured assistant port).
+The callback URL must be reachable from Home Assistant. A private included YAML
+file holds a derived, purpose-specific bearer credential; it cannot access the
+chat or administrator APIs. Reinstall after rotating `config.apiKey`. Install the
+integration in each separate HA instance used for conditional alerts.
 
-Home Assistant calls the authenticated heartbeat every ten seconds. PostgreSQL
-persists rules, countdown deadlines, pause state and forecast baselines. Evaluation
-atomically updates rule state and queues a notification into the chat's existing
-ordered queue; the current bot/profile permissions are checked again before
-delivery. An active conversation can delay notification delivery. A healthy
-heartbeat within thirty seconds is required to create/resume/snooze notifications.
-There is no separate LLM call for evaluation or delivery.
+**There is no heartbeat or periodic assistant callback.** The TypeScript assistant
+creates/changes rules through the integration's authenticated API. Home Assistant
+stores them durably, schedules deadlines precisely, and listens directly to sensor
+state and weather forecast updates. Callback payloads contain only rule ID,
+generation, unique event ID and timestamps—never a chat recipient, arbitrary
+message or model-supplied URL. No model runs during evaluation or delivery.
+
+The callback validates the rule's current generation and permissions, then
+atomically records its unique event and queues a notification in the chat's
+existing ordered queue. Duplicate/stale callbacks are ignored. Permission changes,
+pausing, cancellation and snoozing suppress old queued notifications. An active
+conversation can still delay delivery. Normal enabled Telegram chats can create
+reminders/timers using the installation's HA scheduler; conditional alerts require
+the chat's own permitted HA connection. Scheduling from HTTP chats is unsupported.
 
 `reminder_create` takes an ISO timestamp with offset and optional `repeat_seconds`;
 this repeats at a fixed elapsed interval, **not** a DST-aware local daily time.
-`timer_start` takes a duration in seconds. `reminders_list`, `reminder_get` and
-`reminder_change` inspect, cancel, snooze, pause or resume them. Lists include
-terminal states. A deadline missed by more than sixty seconds expires rather than
-being replayed; repeated reminders advance to the next future interval without
-catching up old occurrences. A `completed` rule has queued its notification;
-this is not a Telegram delivery receipt. Interrupted/uncertain deliveries are
-never automatically retried.
+`timer_start` takes seconds. `reminders_list`, `reminder_get` and `reminder_change`
+inspect, cancel, snooze, pause or resume rules. `reminder_get` includes the remote
+scheduler's status and latest callback outcome for inspecting uncertain effects.
+Missed deadlines expire rather than replaying on HA restart; recurring reminders
+skip missed occurrences and resume at the next future deadline. A completed local
+rule has queued its notification; it is not a Telegram delivery receipt.
 
-`alert_create` supports permitted sensor/binary-sensor equality and numeric
-above/below conditions, with a hold duration. Holds count consecutive successful
-observations and reset on unknown/unavailable values or gaps over thirty seconds.
-Recurring sensor alerts require a valid nonmatching observation before rearming
-and observe their configured cooldown. Removed HA access pauses alert evaluation
-and suppresses queued alert delivery.
+`alert_create` watches permitted sensor/binary-sensor equality and numeric
+above/below conditions continuously, with an optional hold duration. Unknown,
+unavailable or nonnumeric readings interrupt numeric holds. An incomplete hold
+starts again after an HA restart rather than assuming uninterrupted continuity.
+Recurring alerts rearm only after a valid nonmatching state and observe cooldowns;
+HA schedules the cooldown deadline without polling the assistant.
 
-`weather_alert_create` handles requests such as “Avísame si se actualiza la
-previsión y anuncia lluvia para mañana.” It establishes the configured Home
-Assistant **daily** forecast as a baseline and checks it every five minutes. A
-changed forecast triggers when rain/precipitation or a sufficient precipitation
-probability occurs in the selected horizon (default 24 hours and 30% probability).
-The current day's daily period is included. An unchanged rainy forecast does not
-send repeated alerts; later changes obey a cooldown (default one hour).
-`alerts_list` and `alert_change` inspect, pause/resume or cancel either alert type;
-`reminder_get` reads details. Arbitrary web monitoring is not supported.
+`weather_alert_create` establishes a baseline from Home Assistant's daily forecast
+and subscribes directly to forecast updates, independently of current weather-state
+changes. A changed forecast triggers when it includes rain/precipitation or a
+sufficient precipitation probability within the selected horizon (default 24 hours
+and 30%). The current day's daily period is included. An unchanged rainy forecast
+does not repeat; later changes observe a cooldown (default one hour).
+`alerts_list` and `alert_change` inspect/pause/resume/cancel both alert types;
+`reminder_get` retrieves details. Arbitrary web monitoring is unsupported.
+
+Home Assistant persists rule state before making **one** callback attempt. Failed,
+uncertain or interrupted callbacks and Telegram deliveries are never automatically
+retried. A remote setup failure leaves the local rule ID and an `uncertain` status
+available for inspection; it is not blindly reinstalled. Existing heartbeat-era
+rules are claimed and migrated once at assistant startup; interrupted migrations
+are also left uncertain. PostgreSQL retains the old heartbeat table if present,
+but the new application never reads or writes it.
 
 ### Places, routes and personal history
 
