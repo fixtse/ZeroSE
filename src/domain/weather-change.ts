@@ -16,6 +16,7 @@ export const forecastFields = [
   'uv_index',
 ] as const;
 export interface WeatherChange {
+  forecast_type?: 'daily' | 'hourly';
   entity_id: string;
   units: { temperature?: string; precipitation?: string; wind_speed?: string; pressure?: string };
   changes: {

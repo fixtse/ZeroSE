@@ -315,3 +315,58 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         evidence = module.weather_change(after, [], condition, self.now, {})
         self.assertIsNone(evidence['changes'][0]['before'])
         self.assertEqual(evidence['changes'][0]['after'], {'temperature': 22})
+
+    async def test_hourly_baseline_is_independent_persistent_and_opt_in(self):
+        await self.weather_rule(mode='any_change', hourly_updates=True)
+        daily = self.forecast(temperature=25)
+        hourly = self.forecast(temperature=20)
+        await self.engine.weather('test-rule', 0, daily)
+        await self.engine.weather('test-rule', 0, hourly, {'temperature': '°C'}, 'hourly')
+        self.assertEqual(self.events, [])
+        await self.engine.restore(self.saved)
+        hourly[0]['condition'] = 'rainy'
+        await self.engine.weather('test-rule', 0, hourly, {'temperature': '°C'}, 'hourly')
+        self.assertEqual(len(self.events), 1)
+        self.assertEqual(self.events[0]['weather']['forecast_type'], 'hourly')
+        self.assertEqual(self.events[0]['weather']['changes'][0]['before'], {'condition': 'sunny'})
+        # A daily update cannot be mistaken for a change to an hourly snapshot.
+        await self.engine.weather('test-rule', 0, daily)
+        self.assertEqual(len(self.events), 1)
+        daily[0]['temperature'] = 30
+        await self.engine.weather('test-rule', 0, daily)
+        self.assertEqual(len(self.events), 2)
+        self.assertNotIn('forecast_type', self.events[1]['weather'])
+        await self.engine.put('owner', {**self.value(kind='alert', next_at=None, recurring=True, condition={'source': 'weather', 'entity_id': 'weather.home', 'mode': 'any_change', 'horizon_hours': 24, 'minimum_probability': 30}), 'generation': 1})
+        await self.engine.weather('test-rule', 1, hourly, None, 'hourly')
+        self.assertNotIn('hourly_forecast_signature', self.engine.rules['test-rule'])
+
+    async def test_hourly_sleep_and_cooldown_suppress_without_replaying(self):
+        self.states['input_boolean.dormir'] = 'off'
+        await self.weather_rule(mode='any_change', hourly_updates=True, sleep_entity='input_boolean.dormir')
+        hourly = self.forecast()
+        await self.engine.weather('test-rule', 0, hourly, None, 'hourly')
+        self.states['input_boolean.dormir'] = 'on'
+        hourly[0]['condition'] = 'rainy'
+        await self.engine.weather('test-rule', 0, hourly, None, 'hourly')
+        self.states['input_boolean.dormir'] = 'off'
+        await self.engine.weather('test-rule', 0, hourly, None, 'hourly')
+        self.assertEqual(self.events, [])
+        hourly[0]['condition'] = 'snowy'
+        await self.engine.weather('test-rule', 0, hourly, None, 'hourly')
+        self.assertEqual(len(self.events), 1)
+        hourly[0]['condition'] = 'hail'
+        await self.engine.weather('test-rule', 0, hourly, None, 'hourly')
+        self.assertEqual(len(self.events), 1)
+        await self.advance(60)
+        await self.engine.weather('test-rule', 0, hourly, None, 'hourly')
+        self.assertEqual(len(self.events), 1)
+
+    async def test_hourly_evidence_keeps_later_event_hours_and_bounds_callback_size(self):
+        condition = {'entity_id': 'weather.home', 'horizon_hours': 168, '_forecast_type': 'hourly'}
+        before = [{'datetime': iso(self.now + i * 3600), 'condition': 'sunny'} for i in range(60)]
+        after = [{**period, 'condition': 'rainy'} for period in before]
+        evidence = module.weather_change(after, before, condition, self.now, {})
+        self.assertEqual(evidence['forecast_type'], 'hourly')
+        self.assertEqual(len(evidence['changes']), 48)
+        self.assertTrue(evidence['truncated'])
+        self.assertEqual(evidence['changes'][23]['datetime'], iso(self.now + 23 * 3600))

@@ -6,6 +6,7 @@ export interface AlertCondition {
   hold_seconds: number;
 }
 export interface WeatherCondition {
+  hourly_updates?: boolean;
   source: 'weather';
   mode?: 'any_change' | 'conditions' | 'rain';
   conditions?: string[];
@@ -32,6 +33,7 @@ export interface NotificationRule {
   matched_since: string | null;
   last_checked: string | null;
   last_fired: string | null;
+  last_hourly_fired?: string | null;
   latched: boolean;
   version: number;
   generation: number;

@@ -28,7 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({vol.Required("callback_url"): cv.url, vol.Required("callback_token"): vol.All(str, vol.Length(min=24))})}, extra=vol.ALLOW_EXTRA)
 SENSOR_CONDITION = vol.Schema({vol.Optional("source"): "sensor", vol.Required("entity_id"): vol.Match(r"^(sensor|binary_sensor)\.[a-z0-9_]+$"), vol.Required("operator"): vol.In(["equals", "above", "below"]), vol.Required("value"): vol.Any(str, int, float), vol.Required("hold_seconds"): vol.All(int, vol.Range(min=0, max=86400))})
 WEATHER_CONDITIONS = ["clear-night", "cloudy", "fog", "hail", "lightning", "lightning-rainy", "partlycloudy", "pouring", "rainy", "snowy", "snowy-rainy", "sunny", "windy", "windy-variant", "exceptional"]
-WEATHER_CONDITION = vol.Schema({vol.Optional("sleep_entity"): vol.Match(r"^input_boolean\.[a-z0-9_]+$"),vol.Optional("mode"): vol.In(["any_change", "conditions", "rain"]), vol.Optional("conditions"): vol.All([vol.In(WEATHER_CONDITIONS)], vol.Length(max=15)),vol.Required("source"): "weather", vol.Required("entity_id"): vol.Match(r"^weather\.[a-z0-9_]+$"), vol.Required("horizon_hours"): vol.All(int, vol.Range(min=1, max=168)), vol.Required("minimum_probability"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100))})
+WEATHER_CONDITION = vol.Schema({vol.Optional("hourly_updates"): bool,vol.Optional("sleep_entity"): vol.Match(r"^input_boolean\.[a-z0-9_]+$"),vol.Optional("mode"): vol.In(["any_change", "conditions", "rain"]), vol.Optional("conditions"): vol.All([vol.In(WEATHER_CONDITIONS)], vol.Length(max=15)),vol.Required("source"): "weather", vol.Required("entity_id"): vol.Match(r"^weather\.[a-z0-9_]+$"), vol.Required("horizon_hours"): vol.All(int, vol.Range(min=1, max=168)), vol.Required("minimum_probability"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100))})
 RULE_SCHEMA = vol.Schema({vol.Optional("last_fired", default=None): vol.Any(None, cv.datetime), vol.Required("id"): str, vol.Required("generation"): vol.All(int, vol.Range(min=0)), vol.Required("kind"): vol.In(["reminder", "timer", "alert"]), vol.Required("status"): vol.In(["active", "paused", "cancelled", "completed", "expired"]), vol.Required("next_at"): vol.Any(None, cv.datetime), vol.Required("repeat_seconds"): vol.Any(None, vol.All(int, vol.Range(min=60, max=31536000))), vol.Required("condition"): vol.Any(None, SENSOR_CONDITION, WEATHER_CONDITION), vol.Required("cooldown_seconds"): vol.All(int, vol.Range(min=0, max=31536000)), vol.Required("recurring"): bool})
 
 
@@ -112,15 +112,31 @@ class Manager:
             entity = self.hass.data[DATA_COMPONENT].get_entity(condition["entity_id"])
             if entity is None:
                 raise ValueError("Configured weather entity does not exist")
-            @callback
-            def changed(forecast):
-                state = self.hass.states.get(condition['entity_id'])
-                attributes = state.attributes if state else {}
-                units = {key: attributes[key + '_unit'] for key in ('temperature', 'precipitation', 'wind_speed', 'pressure') if key + '_unit' in attributes}
-                self.task(self.dispatch(rule_id, self.engine.weather(rule_id, generation, forecast, units)))
-            self.listeners[rule_id] = entity.async_subscribe_forecast("daily", changed)
-            # Seed the baseline without sending a callback. Subsequent updates are pushed by HA.
-            await entity.async_update_listeners({"daily"})
+            def subscribe(forecast_type):
+                @callback
+                def changed(forecast):
+                    state = self.hass.states.get(condition['entity_id'])
+                    attributes = state.attributes if state else {}
+                    units = {key: attributes[key + '_unit'] for key in ('temperature', 'precipitation', 'wind_speed', 'pressure') if key + '_unit' in attributes}
+                    self.task(self.dispatch(rule_id, self.engine.weather(rule_id, generation, forecast, units, forecast_type)))
+                return entity.async_subscribe_forecast(forecast_type, changed)
+            types = {"daily"}
+            if condition.get("hourly_updates") and (entity.supported_features or 0) & WeatherEntityFeature.FORECAST_HOURLY:
+                types.add("hourly")
+            removers = []
+            try:
+                for kind in sorted(types):
+                    removers.append(subscribe(kind))
+            except Exception:
+                for remove in removers:
+                    remove()
+                raise
+            def unsubscribe():
+                for remove in removers:
+                    remove()
+            self.listeners[rule_id] = unsubscribe
+            # Each forecast type seeds its own baseline without replaying old changes.
+            await entity.async_update_listeners(types)
         else:
             @callback
             def changed(event):
@@ -180,7 +196,7 @@ class RulesView(HomeAssistantView):
 
     async def get(self, request, rule_id=None):
         if not rule_id:
-            return self.json({"protocol": 2, "ready": self.manager.ready})
+            return self.json({"protocol": 2, "ready": self.manager.ready, "hourly_updates": True})
         rule = self.manager.engine.rules.get(rule_id)
         if not rule or rule["owner"] != request["hass_user"].id:
             return self.json({"error": "Rule not found"}, status_code=404)

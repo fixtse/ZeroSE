@@ -115,18 +115,21 @@ export class PostgresRules implements RuleRepository {
         [event.id],
       );
       const rule = rows[0] ? this.decode(rows[0]) : undefined;
+      const hourly = event.weather?.forecast_type === 'hourly';
+      const lastFired = hourly ? rule?.last_hourly_fired : rule?.last_fired;
       if (
         !rule ||
         rule.generation !== event.generation ||
         rule.status !== 'active' ||
-        (rule.last_fired && Date.parse(event.fired_at) <= Date.parse(rule.last_fired))
+        (hourly && (rule.condition?.source !== 'weather' || !rule.condition.hourly_updates)) ||
+        (lastFired && Date.parse(event.fired_at) <= Date.parse(lastFired))
       ) {
         await client.query('ROLLBACK');
         return false;
       }
       const fired = Date.parse(event.fired_at);
       if (rule.kind === 'alert') {
-        if (rule.last_fired && fired - Date.parse(rule.last_fired) < rule.cooldown_seconds * 1000) {
+        if (lastFired && fired - Date.parse(lastFired) < rule.cooldown_seconds * 1000) {
           await client.query('ROLLBACK');
           return false;
         }
@@ -155,7 +158,8 @@ export class PostgresRules implements RuleRepository {
         await client.query('ROLLBACK');
         return false;
       }
-      rule.last_fired = event.fired_at;
+      if (hourly) rule.last_hourly_fired = event.fired_at;
+      else rule.last_fired = event.fired_at;
       rule.scheduler_state = 'installed';
       await client.query('UPDATE notification_rules SET value=$2,version=version+1 WHERE id=$1', [
         rule.id,

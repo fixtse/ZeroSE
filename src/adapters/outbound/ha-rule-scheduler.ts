@@ -38,6 +38,9 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
     if (response?.protocol !== 2 || response?.ready !== true)
       throw new Error('Install/start the event-driven assistant_rules Home Assistant integration');
   }
+  async supportsHourlyUpdates() {
+    return (await this.request('', 'GET'))?.hourly_updates === true;
+  }
   async configure(rule: NotificationRule, signal?: AbortSignal) {
     let weatherEntity = this.config.weatherEntity;
     if (rule.condition?.source === 'weather' && !weatherEntity) {

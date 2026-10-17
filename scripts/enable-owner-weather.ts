@@ -42,6 +42,8 @@ try {
       status: rule.status,
       cooldown_seconds: rule.cooldown_seconds,
       sleep_entity: rule.condition?.source === 'weather' ? rule.condition.sleep_entity : undefined,
+      hourly_updates:
+        rule.condition?.source === 'weather' ? rule.condition.hourly_updates === true : false,
       home_assistant: observed.home_assistant,
     }),
   );

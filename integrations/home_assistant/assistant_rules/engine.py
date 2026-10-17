@@ -34,7 +34,7 @@ def weather_change(forecast, previous, condition, now, units):
         keys = [key for key in FORECAST_FIELDS if (key in (old or {}) or key in (new or {})) and (old is None or new is None or old.get(key) != new.get(key))]
         if keys:
             changes.append({'datetime': at, 'before': {key: old.get(key) for key in keys} if old is not None else None, 'after': {key: new.get(key) for key in keys} if new is not None else None})
-    return {'entity_id': condition['entity_id'], 'units': {key: value for key, value in (units or {}).items() if key in ('temperature', 'precipitation', 'wind_speed', 'pressure') and isinstance(value, str) and len(value) <= 16}, 'changes': changes[:12], 'truncated': len(changes) > 12}
+    return {'entity_id': condition['entity_id'], 'units': {key: value for key, value in (units or {}).items() if key in ('temperature', 'precipitation', 'wind_speed', 'pressure') and isinstance(value, str) and len(value) <= 16}, 'changes': changes[:48 if condition.get('_forecast_type') == 'hourly' else 12], 'truncated': len(changes) > (48 if condition.get('_forecast_type') == 'hourly' else 12), **({'forecast_type': 'hourly'} if condition.get('_forecast_type') == 'hourly' else {})}
 
 
 def timestamp(value):
@@ -87,7 +87,7 @@ def forecast_window(forecast, condition, now):
             at = timestamp(period["datetime"])
         except (KeyError, TypeError, ValueError):
             continue
-        if now - 86400 <= at <= now + condition["horizon_hours"] * 3600:
+        if now - (3600 if condition.get("_forecast_type") == "hourly" else 86400) <= at <= now + condition["horizon_hours"] * 3600:
             periods.append(period)
     return sorted(periods, key=lambda period: period["datetime"])
 
@@ -163,7 +163,7 @@ class RuleEngine:
                 if value["generation"] == old["generation"]:
                     return deepcopy(old)
                 raise ValueError("Stale rule generation")
-            rule = {**deepcopy(value), "owner": owner, "hold_until": None, "latched": False, "last_fired": value.get("last_fired"), "forecast_signature": None}
+            rule = {**deepcopy(value), "owner": owner, "hold_until": None, "latched": False, "last_fired": value.get("last_fired"), "forecast_signature": None, "last_hourly_fired": old.get("last_hourly_fired") if old else None}
             self.rules[rule["id"]] = rule
             if rule["status"] == "active" and rule["kind"] != "alert" and timestamp(rule["next_at"]) <= self.now():
                 self.advance(rule, expired=True)
@@ -257,7 +257,7 @@ class RuleEngine:
                 self.arm(rule)
         await self.deliver(event)
 
-    async def weather(self, rule_id, generation, forecast, units=None):
+    async def weather(self, rule_id, generation, forecast, units=None, forecast_type="daily"):
         if not forecast:
             return
         event = None
@@ -266,15 +266,24 @@ class RuleEngine:
             if not rule:
                 return
             signature = json.dumps(forecast, sort_keys=True, separators=(",", ":"))
-            previous = rule.get("forecast_signature")
+            if forecast_type == "hourly" and not rule["condition"].get("hourly_updates"):
+                return
+            signature_key = "hourly_forecast_signature" if forecast_type == "hourly" else "forecast_signature"
+            fired_key = "last_hourly_fired" if forecast_type == "hourly" else "last_fired"
+            condition = {**rule["condition"], "_forecast_type": forecast_type}
+            previous = rule.get(signature_key)
             if previous == signature:
                 return
-            rule["forecast_signature"] = signature
-            cooled = not rule.get("last_fired") or self.now() - timestamp(rule["last_fired"]) >= rule["cooldown_seconds"]
-            if previous is not None and cooled and not self.muted(rule) and forecast_matches(forecast, json.loads(previous), rule["condition"], self.now()):
-                evidence = weather_change(forecast, json.loads(previous), rule['condition'], self.now(), units)
+            rule[signature_key] = signature
+            cooled = not rule.get(fired_key) or self.now() - timestamp(rule[fired_key]) >= rule["cooldown_seconds"]
+            if previous is not None and cooled and not self.muted(rule) and forecast_matches(forecast, json.loads(previous), condition, self.now()):
+                evidence = weather_change(forecast, json.loads(previous), condition, self.now(), units)
                 if evidence['changes']:
+                    daily_fired = rule.get("last_fired")
                     event = self.fire(rule)
+                    if forecast_type == "hourly":
+                        rule["last_hourly_fired"] = event["fired_at"]
+                        rule["last_fired"] = daily_fired
                     event['weather'] = evidence
                     rule['last_event']['weather'] = deepcopy(evidence)
             await self.save()

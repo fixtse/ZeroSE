@@ -12,6 +12,7 @@ export interface RuleEvent {
   weather?: WeatherChange;
 }
 export interface RuleSchedulerPort {
+  supportsHourlyUpdates?(): Promise<boolean>;
   readonly identity?: string;
   ready(signal?: AbortSignal): Promise<void>;
   configure(rule: NotificationRule, signal?: AbortSignal): Promise<void>;
@@ -58,6 +59,7 @@ export class NotificationRules {
     if (!scope.enabled || !scope.scheduler)
       throw new Error('Owner weather alerts require an enabled chat and Home Assistant connection');
     await scope.scheduler.ready();
+    const hourly = (await scope.scheduler.supportsHourlyUpdates?.()) === true;
     const result = await this.repository.ownerWeather({
       managed: 'owner_weather',
       session,
@@ -69,6 +71,7 @@ export class NotificationRules {
       remaining_seconds: null,
       condition: {
         source: 'weather',
+        ...(hourly ? { hourly_updates: true } : {}),
         mode: 'any_change',
         conditions: [],
         horizon_hours: 24,
@@ -86,6 +89,20 @@ export class NotificationRules {
       scheduler_key: scope.scheduler.identity,
     });
     if (result.created) await this.install(result.rule, scope.scheduler);
+    else if (
+      hourly &&
+      result.rule.status === 'active' &&
+      result.rule.scheduler_state === 'installed' &&
+      result.rule.condition?.source === 'weather' &&
+      !result.rule.condition.hourly_updates
+    ) {
+      const rule = result.rule;
+      rule.condition = { ...result.rule.condition, hourly_updates: true };
+      rule.generation++;
+      rule.scheduler_state = 'installing';
+      rule.scheduler_key = scope.scheduler.identity;
+      if (await this.repository.apply(rule)) await this.install(rule, scope.scheduler);
+    }
     return this.repository.read(session, result.rule.id);
   }
   async canNotify(rule: NotificationRule) {
@@ -233,7 +250,10 @@ export class NotificationRules {
       }
     }
   }
-  async notification(job: Job, explainWeather?: () => Promise<string>): Promise<JobResult> {
+  async notification(
+    job: Job,
+    explainWeather?: () => Promise<string | JobResult>,
+  ): Promise<JobResult> {
     const rule = await this.repository.read(job.session, job.payload.ruleId);
     const permitted = rule && (await this.canNotify(rule));
     if (
@@ -243,8 +263,12 @@ export class NotificationRules {
       ['cancelled', 'paused', 'expired'].includes(rule.status)
     )
       return { output: '', deliver: false };
-    if (rule.condition?.source === 'weather' && explainWeather)
-      return { output: await explainWeather(), voice: false };
+    if (rule.condition?.source === 'weather' && explainWeather) {
+      const result = await explainWeather();
+      return typeof result === 'string'
+        ? { output: result, voice: false }
+        : { voice: false, ...result };
+    }
     return {
       output: `${rule.kind === 'timer' ? '⏲️ Temporizador' : rule.kind === 'alert' ? '🔔 Alerta' : '🔔 Recordatorio'}: ${rule.message}`,
       voice: false,

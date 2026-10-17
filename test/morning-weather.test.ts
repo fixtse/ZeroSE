@@ -7,7 +7,8 @@ import { HomeAssistant } from '../src/adapters/outbound/home-assistant.js';
 import { PrepareNotification } from '../src/application/use-cases/prepare-notification.js';
 import type { ConversationStore } from '../src/application/ports.js';
 
-test('wake-up briefing discovers daily weather, honors explicit configuration and handles missing forecasts', async () => {
+test('wake-up briefing discovers daily weather, matches outings, honors explicit configuration and handles missing forecasts', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-17T08:00:00Z') });
   let sources: unknown = [
     { entity_id: 'weather.forecast_home', attributes: { supported_features: 3 } },
     { entity_id: 'weather.hourly_only', attributes: { supported_features: 2 } },
@@ -62,6 +63,7 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
     },
   });
   let weather: unknown;
+  let eventContext: any;
   const expected = (entity: string) => ({
     daily: { service_response: { [entity]: forecast } },
     hourly: {
@@ -79,12 +81,21 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
     {
       run: async (_session, prompt) => {
         weather = JSON.parse(prompt).weather;
+        eventContext = JSON.parse(prompt).event_weather;
         return 'Buenos días';
       },
     },
     {
       enabled: false,
-      events: async () => [],
+      events: async () => [
+        {
+          id: 'walk',
+          summary: 'Paseo',
+          location: 'Parque',
+          start: { dateTime: '2026-10-17T12:00:00Z' },
+          end: { dateTime: '2026-10-17T13:00:00Z' },
+        },
+      ],
       tasks: async () => [],
       context: async () => '',
       cleanTasks: async () => ({ deleted: 0 }),
@@ -100,6 +111,9 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
   try {
     await run();
     assert.deepEqual(weather, expected('weather.forecast_home'));
+    assert.equal(eventContext[0].id, 'walk');
+    assert.equal(eventContext[0].forecast.length, 24);
+    assert.equal(eventContext[0].forecast_scope, 'home_area_not_verified_at_destination');
     assert.equal(requests[0], 'GET /api/states');
     assert.equal(config.homeAssistant.weatherEntity, '');
 

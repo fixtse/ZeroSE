@@ -114,6 +114,11 @@ async function canRespond(job: Job) {
   if (!address) return true; // HTTP chat already requires the administrator API key.
   const profile = await access.forSession(job.session);
   if (job.payload.kind === 'rule_notification') {
+    if (
+      job.payload.weather?.forecast_type === 'hourly' &&
+      !profile?.capabilities.includes('calendar')
+    )
+      return false;
     const rule = await ruleRepository.read(job.session, job.payload.ruleId);
     if (
       !rule ||
@@ -221,11 +226,12 @@ const codex = new Codex(config, store, tools, async (context) => (await services
           if (!change.success)
             return '🌦️ Se actualizó la previsión, pero esta notificación no incluye los valores anteriores y nuevos; no puedo precisar el cambio.';
           const scoped = await services(context);
-          return new WeatherNotification(codex).explain(
+          return new WeatherNotification(codex).update(
             change.data,
             job.payload.firedAt,
             scoped.config.timezone,
             context,
+            scoped.profile?.capabilities.includes('calendar') ? scoped.google : undefined,
           );
         }),
       reset: async (job) => {

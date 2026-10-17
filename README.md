@@ -226,6 +226,37 @@ When available, the briefing also reads up to 24 hourly forecast entries, with s
 units, to describe the rest of today's temperature, conditions, rain and wind in local
 time and suggest practical adjustments. Providers without hourly forecasts retain the
 daily summary without invented hourly detail.
+
+The briefing also pairs hourly forecasts with up to 20 upcoming timed outings:
+events with a physical location or an explicit outdoor activity. Home/virtual,
+cancelled, declined, all-day and otherwise unlocated events are excluded from this
+matching. It includes an indicative 30-minute departure margin and 15-minute return
+margin, not calculated travel time. The forecast covers the configured home area;
+it is **not a verified forecast at the event's destination**, especially another city.
+
+With the updated `assistant_rules` HA integration, the owner's built-in weather
+rule also subscribes to hourly forecast updates. Each hourly update rechecks the
+current calendar and only sends an additional notice for a material change during
+an upcoming outing or its margins. It can report worsening or improving rain,
+storms, snow, fog, wind, temperature or UV. Small changes, rotated forecast periods,
+past events and updates outside those windows do not send an event notice. Examples
+of numeric filters include a 20-point rain-probability change reaching at least 40%,
+wind crossing 30 km/h, a 5 °C temperature change, or a 2-point UV change reaching 6.
+Thresholds are relevance filters, not official warning levels.
+
+Daily alerts retain their existing behavior. Daily/hourly baselines and cooldowns
+are independent; sleep gating and the existing 30-minute cooldown still apply.
+Hourly changes are captured in HA, never reconstructed by refetching an old forecast.
+Calendar access must still be enabled when the notice is generated; the normal
+delivery gates also recheck access and sleep state. Event updates use the existing
+weather-alert text-only delivery policy.
+
+For an existing installation, deploy the updated assistant before running
+`pnpm rules:install-home-assistant` (which restarts HA), then
+`pnpm rules:enable-owner-weather`. The hourly upgrade is capability-gated and claimed
+once for an active, confirmed installation. Paused/cancelled rules and uncertain
+installations are never automatically retried. The baseline is seeded silently;
+installation does not replay old forecast changes or send a test message.
 Keep the bearer value in a private Home Assistant secret or credentials file, and
 use an authenticated HTTP action with no automatic retries. Reloading the automation does not send a briefing.
 

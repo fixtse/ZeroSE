@@ -6,6 +6,7 @@ const period = z.partialRecord(
 );
 export const weatherChangeSchema = z
   .object({
+    forecast_type: z.enum(['daily', 'hourly']).optional(),
     entity_id: z
       .string()
       .regex(/^weather\.[a-z0-9_]+$/)
@@ -29,7 +30,8 @@ export const weatherChangeSchema = z
           .strict(),
       )
       .min(1)
-      .max(12),
+      .max(48),
     truncated: z.boolean(),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.changes.length <= (value.forecast_type === 'hourly' ? 48 : 12));

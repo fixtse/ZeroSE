@@ -552,3 +552,115 @@ test('weather discovery chooses the sole daily source and rejects ambiguity befo
     await f.close();
   }
 });
+
+test('owner hourly upgrade is capability-gated, claimed once and preserves paused or uncertain installations', async () => {
+  const f = await setup();
+  try {
+    const original = (await f.rules.ensureOwnerWeather('telegram:1'))!;
+    await f.rules.ensureOwnerWeather('telegram:2');
+    await f.rules.change(
+      'telegram:2',
+      (await f.repository.list('telegram:2', 'alert', 0, 1)).items[0]!.id,
+      'pause',
+    );
+    const uncertain = (await f.rules.ensureOwnerWeather('telegram:3'))!;
+    uncertain.scheduler_state = 'uncertain';
+    assert(await f.repository.apply(uncertain));
+    const before = f.configurations.length;
+    f.scheduler.supportsHourlyUpdates = async () => true;
+    await Promise.all([
+      f.rules.ensureOwnerWeather('telegram:1'),
+      f.rules.ensureOwnerWeather('telegram:1'),
+    ]);
+    const upgraded = (await f.repository.read('telegram:1', original.id))!;
+    assert.equal(upgraded.generation, original.generation + 1);
+    assert.equal((upgraded.condition as any).hourly_updates, true);
+    assert.equal(f.configurations.length, before + 1);
+    await f.rules.ensureOwnerWeather('telegram:1');
+    await f.rules.ensureOwnerWeather('telegram:2');
+    await f.rules.ensureOwnerWeather('telegram:3');
+    assert.equal(f.configurations.length, before + 1);
+    assert.equal(
+      (await f.repository.read('telegram:3', uncertain.id))?.scheduler_state,
+      'uncertain',
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test('hourly queue receipts have independent cooldowns, reject unconfigured hourly sources and preserve suppressed delivery', async () => {
+  const f = await setup();
+  try {
+    const rule = await f.rules.create(
+      value({
+        kind: 'alert',
+        next_at: null,
+        recurring: true,
+        condition: {
+          source: 'weather',
+          hourly_updates: true,
+          mode: 'any_change',
+          horizon_hours: 24,
+          minimum_probability: 30,
+        },
+      }),
+    );
+    const fired_at = new Date().toISOString();
+    const weather = {
+      entity_id: 'weather.home',
+      units: {},
+      changes: [
+        { datetime: fired_at, before: { condition: 'sunny' }, after: { condition: 'rainy' } },
+      ],
+      truncated: false,
+    };
+    const daily = {
+      id: rule.id,
+      generation: rule.generation,
+      event_id: randomUUID(),
+      fired_at,
+      weather,
+    };
+    const hourly = {
+      ...daily,
+      event_id: randomUUID(),
+      weather: { ...weather, forecast_type: 'hourly' as const },
+    };
+    assert(await f.rules.receive(daily));
+    assert(await f.rules.receive(hourly));
+    assert(!(await f.rules.receive(hourly)));
+    assert(!(await f.rules.receive({ ...hourly, event_id: randomUUID() })));
+    const jobs = (await f.store.pool.query('SELECT * FROM jobs ORDER BY sequence')).rows;
+    assert.equal(jobs.length, 2);
+    const skipped = await f.rules.notification(jobs[1], async () => ({
+      output: '',
+      deliver: false,
+    }));
+    assert.equal(skipped.deliver, false);
+    assert.equal(skipped.output, '');
+    const legacy = await f.rules.create(
+      value({
+        kind: 'alert',
+        next_at: null,
+        recurring: true,
+        condition: {
+          source: 'weather',
+          mode: 'any_change',
+          horizon_hours: 24,
+          minimum_probability: 30,
+        },
+      }),
+    );
+    assert(
+      !(await f.rules.receive({
+        ...hourly,
+        id: legacy.id,
+        generation: legacy.generation,
+        event_id: randomUUID(),
+      })),
+    );
+  } finally {
+    await f.close();
+  }
+});

@@ -98,7 +98,7 @@ while (Date.now() < until) {
       },
       'Home Assistant event scheduler',
     );
-    if (result.protocol === 2 && result.ready) {
+    if (result.protocol === 2 && result.ready && result.hourly_updates === true) {
       ready = true;
       break;
     }
