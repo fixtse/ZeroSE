@@ -172,6 +172,7 @@ export class PostgresRules implements RuleRepository {
             kind: 'rule_notification',
             ruleId: rule.id,
             generation: rule.generation,
+            ...(event.weather ? { weather: event.weather, firedAt: event.fired_at } : {}),
             ...(chat ? { chatId: chat.chatId } : {}),
           }),
         ],

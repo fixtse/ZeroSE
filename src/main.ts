@@ -25,6 +25,8 @@ import { registerPersonalDataTools } from './adapters/inbound/personal-data-tool
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
 import { VoiceBridge, voiceOwnerSession } from './application/voice-bridge.js';
+import { WeatherNotification } from './application/weather-notification.js';
+import { weatherChangeSchema } from './adapters/inbound/weather-change-schema.js';
 import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
 import { ProcessManagedMessage } from './application/use-cases/process-managed-message.js';
 import { ConsolidateMemory } from './application/use-cases/consolidate-memory.js';
@@ -213,7 +215,19 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       },
       morning: notify,
       event_reminders: notify,
-      rule_notification: (job) => rules.notification(job),
+      rule_notification: (job, context) =>
+        rules.notification(job, async () => {
+          const change = weatherChangeSchema.safeParse(job.payload.weather);
+          if (!change.success)
+            return '🌦️ Se actualizó la previsión, pero esta notificación no incluye los valores anteriores y nuevos; no puedo precisar el cambio.';
+          const scoped = await services(context);
+          return new WeatherNotification(codex).explain(
+            change.data,
+            job.payload.firedAt,
+            scoped.config.timezone,
+            context,
+          );
+        }),
       reset: async (job) => {
         await store.reset(job.session);
         const profile = await access.forSession(job.session);

@@ -114,7 +114,10 @@ class Manager:
                 raise ValueError("Configured weather entity does not exist")
             @callback
             def changed(forecast):
-                self.task(self.dispatch(rule_id, self.engine.weather(rule_id, generation, forecast)))
+                state = self.hass.states.get(condition['entity_id'])
+                attributes = state.attributes if state else {}
+                units = {key: attributes[key + '_unit'] for key in ('temperature', 'precipitation', 'wind_speed', 'pressure') if key + '_unit' in attributes}
+                self.task(self.dispatch(rule_id, self.engine.weather(rule_id, generation, forecast, units)))
             self.listeners[rule_id] = entity.async_subscribe_forecast("daily", changed)
             # Seed the baseline without sending a callback. Subsequent updates are pushed by HA.
             await entity.async_update_listeners({"daily"})

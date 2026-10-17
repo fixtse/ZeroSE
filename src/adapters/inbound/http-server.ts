@@ -10,6 +10,7 @@ import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
 import { rulesToken } from '../../application/rules-auth.js';
 import { voiceToken, type VoiceBridge } from '../../application/voice-bridge.js';
+import { weatherChangeSchema } from './weather-change-schema.js';
 
 export function equalSecret(value: unknown, expected: string) {
   if (typeof value !== 'string' || !expected) return false;
@@ -103,6 +104,7 @@ export function createHttpServer(
             event_id: z.uuid(),
             fired_at: z.iso.datetime({ offset: true }),
             next_at: z.iso.datetime({ offset: true }).nullable().optional(),
+            weather: weatherChangeSchema.optional(),
           })
           .strict()
           .parse(await body(req));

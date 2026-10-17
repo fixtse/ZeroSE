@@ -330,6 +330,20 @@ selected Home Assistant conditions (for storms, `lightning` and `lightning-rainy
 (default 30%). That probability threshold does not filter storms or other modes.
 Persisted rules without a mode retain their original rain-only behavior.
 
+Weather callbacks now capture the changed daily periods, before/after values and
+HA's temperature, precipitation and wind units. The evidence is bounded to twelve
+periods and known weather fields, persisted with the queued event, and never
+replaced by a newer forecast at delivery time. Provider metadata alone does not
+produce an alert. Zero explains the change and practical implications directly
+in the notification, keeping simple updates brief and recommending adjustments
+only when justified. It uses an isolated, tools-disabled model turn, without
+changing the owner's conversation. If generation fails, a bounded factual
+comparison is delivered instead. There are no idle model calls: interpretation
+runs only for accepted weather events, behind the existing sleep/cooldown gates.
+Deploy the assistant before running `pnpm rules:install-home-assistant` to install
+native integration version 2.3.0. Old callbacks without evidence cannot reconstruct
+the original change and say so rather than inventing details.
+
 The selected horizon defaults to 24 hours; the current day's daily period is
 included. General/condition filters compare both forecast snapshots within the
 same window, so changes outside that window or mere dictionary/period reordering

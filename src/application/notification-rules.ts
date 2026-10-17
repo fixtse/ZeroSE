@@ -1,6 +1,7 @@
 import type { NotificationRule } from '../domain/notification-rule.js';
 import type { Job } from '../domain/models.js';
 import type { JobResult } from './use-cases/contracts.js';
+import type { WeatherChange } from '../domain/weather-change.js';
 
 export interface RuleEvent {
   id: string;
@@ -8,6 +9,7 @@ export interface RuleEvent {
   event_id: string;
   fired_at: string;
   next_at?: string | null;
+  weather?: WeatherChange;
 }
 export interface RuleSchedulerPort {
   readonly identity?: string;
@@ -231,7 +233,7 @@ export class NotificationRules {
       }
     }
   }
-  async notification(job: Job): Promise<JobResult> {
+  async notification(job: Job, explainWeather?: () => Promise<string>): Promise<JobResult> {
     const rule = await this.repository.read(job.session, job.payload.ruleId);
     const permitted = rule && (await this.canNotify(rule));
     if (
@@ -241,6 +243,8 @@ export class NotificationRules {
       ['cancelled', 'paused', 'expired'].includes(rule.status)
     )
       return { output: '', deliver: false };
+    if (rule.condition?.source === 'weather' && explainWeather)
+      return { output: await explainWeather(), voice: false };
     return {
       output: `${rule.kind === 'timer' ? '⏲️ Temporizador' : rule.kind === 'alert' ? '🔔 Alerta' : '🔔 Recordatorio'}: ${rule.message}`,
       voice: false,

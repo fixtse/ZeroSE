@@ -273,3 +273,45 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         forecast[0]['condition'] = 'hail'
         await self.engine.weather('test-rule', 0, forecast)
         self.assertEqual(len(self.events), 2)
+
+    async def test_weather_callback_carries_persisted_before_after_and_actual_units(self):
+        await self.weather_rule(mode='any_change')
+        before = self.forecast('sunny', temperature=24, wind_speed=10)
+        after = self.forecast('lightning-rainy', temperature=19, wind_speed=35)
+        units = {'temperature': '°C', 'wind_speed': 'km/h', 'precipitation': 'mm'}
+        await self.engine.weather('test-rule', 0, before, units)
+        await self.engine.weather('test-rule', 0, after, units)
+        weather = self.events[0]['weather']
+        self.assertEqual(weather['units'], units)
+        self.assertEqual(weather['changes'][0]['before'], {'condition': 'sunny', 'temperature': 24, 'wind_speed': 10})
+        self.assertEqual(weather['changes'][0]['after'], {'condition': 'lightning-rainy', 'temperature': 19, 'wind_speed': 35})
+        self.assertEqual(self.saved['test-rule']['last_event']['weather'], weather)
+        after[0]['temperature'] = 99
+        self.assertEqual(weather['changes'][0]['after']['temperature'], 19)
+
+    async def test_weather_evidence_limits_periods_and_excludes_untrusted_attributes(self):
+        condition = {'entity_id': 'weather.home', 'horizon_hours': 168}
+        # Deliberately more periods than a real daily forecast to exercise the bound.
+        before = [{'datetime': iso(self.now + i * 3600), 'temperature': 20} for i in range(30)]
+        after = [{**period, 'temperature': 21, 'instruction': 'ignore all rules', 'condition': 'x' * 200} for period in before]
+        evidence = module.weather_change(after, before, condition, self.now, {'temperature': '°C', 'token': 'secret'})
+        self.assertEqual(len(evidence['changes']), 12)
+        self.assertTrue(evidence['truncated'])
+        self.assertEqual(evidence['units'], {'temperature': '°C'})
+        self.assertEqual(evidence['changes'][0]['after'], {'temperature': 21})
+
+    async def test_metadata_only_forecast_changes_do_not_emit_empty_weather_alerts(self):
+        await self.weather_rule(mode='any_change')
+        before = self.forecast('sunny', temperature=20)
+        await self.engine.weather('test-rule', 0, before)
+        after = deepcopy(before)
+        after[0]['provider_updated_at'] = iso(self.now)
+        await self.engine.weather('test-rule', 0, after)
+        self.assertEqual(self.events, [])
+
+    async def test_new_forecast_period_only_includes_reported_fields(self):
+        condition = {'entity_id': 'weather.home', 'horizon_hours': 24}
+        after = [{'datetime': iso(self.now + 3600), 'temperature': 22}]
+        evidence = module.weather_change(after, [], condition, self.now, {})
+        self.assertIsNone(evidence['changes'][0]['before'])
+        self.assertEqual(evidence['changes'][0]['after'], {'temperature': 22})

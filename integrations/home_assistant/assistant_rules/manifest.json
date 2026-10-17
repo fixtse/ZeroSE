@@ -1,7 +1,7 @@
 {
   "domain": "assistant_rules",
   "name": "Assistant event-driven reminders and alerts",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "documentation": "https://github.com/fixtse/node-assistant",
   "dependencies": ["http", "weather"],
   "codeowners": [],

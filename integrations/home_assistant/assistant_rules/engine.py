@@ -8,6 +8,34 @@ import json
 import math
 from uuid import uuid4
 
+FORECAST_FIELDS = ('condition', 'temperature', 'templow', 'apparent_temperature', 'dew_point', 'precipitation', 'precipitation_probability', 'wind_speed', 'wind_gust_speed', 'wind_bearing', 'humidity', 'pressure', 'cloud_coverage', 'uv_index')
+
+
+def weather_change(forecast, previous, condition, now, units):
+    """Only bounded, typed weather facts cross the callback boundary."""
+    def periods(values):
+        result = {}
+        for period in forecast_window(values, condition, now):
+            fields = {}
+            for key in FORECAST_FIELDS:
+                if key not in period:
+                    continue
+                value = period.get(key)
+                if value is None or (isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)) or (isinstance(value, str) and len(value) <= 40):
+                    fields[key] = value
+            result[iso(timestamp(period['datetime']))] = fields
+        return result
+    before, after = periods(previous), periods(forecast)
+    changes = []
+    for at in sorted(before.keys() | after.keys()):
+        old, new = before.get(at), after.get(at)
+        if old == new:
+            continue
+        keys = [key for key in FORECAST_FIELDS if (key in (old or {}) or key in (new or {})) and (old is None or new is None or old.get(key) != new.get(key))]
+        if keys:
+            changes.append({'datetime': at, 'before': {key: old.get(key) for key in keys} if old is not None else None, 'after': {key: new.get(key) for key in keys} if new is not None else None})
+    return {'entity_id': condition['entity_id'], 'units': {key: value for key, value in (units or {}).items() if key in ('temperature', 'precipitation', 'wind_speed', 'pressure') and isinstance(value, str) and len(value) <= 16}, 'changes': changes[:12], 'truncated': len(changes) > 12}
+
 
 def timestamp(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
@@ -229,7 +257,7 @@ class RuleEngine:
                 self.arm(rule)
         await self.deliver(event)
 
-    async def weather(self, rule_id, generation, forecast):
+    async def weather(self, rule_id, generation, forecast, units=None):
         if not forecast:
             return
         event = None
@@ -244,7 +272,11 @@ class RuleEngine:
             rule["forecast_signature"] = signature
             cooled = not rule.get("last_fired") or self.now() - timestamp(rule["last_fired"]) >= rule["cooldown_seconds"]
             if previous is not None and cooled and not self.muted(rule) and forecast_matches(forecast, json.loads(previous), rule["condition"], self.now()):
-                event = self.fire(rule)
+                evidence = weather_change(forecast, json.loads(previous), rule['condition'], self.now(), units)
+                if evidence['changes']:
+                    event = self.fire(rule)
+                    event['weather'] = evidence
+                    rule['last_event']['weather'] = deepcopy(evidence)
             await self.save()
         await self.deliver(event)
 
