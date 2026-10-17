@@ -96,8 +96,10 @@ export function registerGoogleTools(tools: Tools, google: GoogleToolsPort) {
   };
   tools.add(
     'calendar_create',
-    'Create an event. Use a 15-minute duration for reminders.',
-    z.object(event),
+    'Create an explicitly requested event or accepted activity with agreed start/end and location. Check availability and existing events first; a suggestion alone is not acceptance. Timed reminders use reminder_create.',
+    z
+      .object(event)
+      .refine((a) => Date.parse(a.end) > Date.parse(a.start), 'Event end must follow start'),
     async (a, c) =>
       pick(await google.createEvent(a, c.signal), ['id', 'status', 'start', 'end', 'htmlLink']),
   );
@@ -300,16 +302,16 @@ export function registerHomeAssistantTools(
       return { verified: true, operation: a.operation };
     },
   );
-  if (config.weatherEntity)
-    tools.add(
-      'weather_forecast',
-      'Read the local Home Assistant weather forecast.' + pagingHelp,
-      z.object(resultOffset),
-      async (a, c) => {
-        const value = (await ha.forecast(c.signal)) as any;
-        return jsonPage(value?.service_response ?? value, a.result_offset);
-      },
-    );
+  tools.add(
+    'weather_forecast',
+    'Read the Home Assistant forecast for its configured home location, which may differ from the current user location or destination. Daily by default; hourly returns up to 24 hours and source units. If no entity is configured, discover the sole daily source; ambiguity is an error. Use web search for other destinations or dates.' +
+      pagingHelp,
+    z.object({ type: z.enum(['daily', 'hourly']).default('daily'), ...resultOffset }),
+    async (a, c) => {
+      const value = (await ha.forecast(c.signal, a.type)) as any;
+      return jsonPage(value?.service_response ?? value, a.result_offset);
+    },
+  );
 }
 export function registerMemoryTools(
   tools: Tools,

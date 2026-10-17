@@ -418,6 +418,25 @@ serialized and limited to less than one per second across chats. Set
 `ASSISTANT_PHOTON_URL` / `ASSISTANT_OSRM_URL` to self-hosted compatible endpoints
 when needed. No Google Maps API key is required.
 
+Place recommendations consult current location, previous visits/preferences and
+recent suggestions on demand, prioritizing new options rather than repeatedly
+offering the same venue. When memory is enabled, outing history uses category
+`Actividades` with `estado:recomendado`, `estado:planificado` or `estado:visitado`,
+preserving place/locality, known date and Maps link. Only a user-confirmed visit is
+recorded as attended; accepting a plan or a past calendar entry does not prove a visit.
+Disabled memory and Salem's stricter saving policy remain in force. No growing
+venue/history catalog is injected into each turn.
+
+Suggestions also consider weather at the destination and intended hours, favoring
+indoor/outdoor options appropriately. `weather_forecast` supports `type=hourly`
+(up to 24 entries with units), with daily remaining the default; it is available
+with HA credentials even when the sole source is discovered automatically.
+Other destinations or dates require web lookup, not an assumed home forecast.
+Once the user accepts a specific outing, the assistant checks availability and
+duplicates, asks only for missing schedule details, and creates the calendar event
+with agreed start/end, physical location and a Maps link. Suggestions and tentative
+interest do not create events; uncertain writes are not automatically repeated.
+
 `memory_list` browses saved facts; `memory_read` retrieves details and
 `memory_delete` erases selected saved text, summaries, tags and vectors only on an
 explicit user request. Tombstones retain IDs/source deduplication for integrity.
