@@ -18,11 +18,11 @@ export class PrepareNotification {
     return `event:${event.id}:${event.start?.dateTime || event.start?.date}`;
   }
   private async forecast(signal: AbortSignal): Promise<unknown> {
-    if (!this.config.homeAssistant.token) return 'Weather is not configured';
+    if (!this.config.homeAssistant.token) return 'El tiempo no está configurado';
     try {
       return await this.homeAssistant.forecast(signal);
     } catch {
-      return 'Weather could not be retrieved; mention this to the user';
+      return 'No se ha podido consultar la previsión del tiempo; indícaselo al usuario';
     }
   }
   async execute(job: Job, context: ToolContext): Promise<JobResult> {
@@ -50,7 +50,7 @@ export class PrepareNotification {
     const output = await this.agent.run(
       `system:notification:${job.id}`,
       JSON.stringify({ events: selected, tasks, weather }),
-      instructions,
+      `${instructions}\nIdioma obligatorio: redacta siempre toda la notificación en español, incluidos los avisos de error y la previsión del tiempo, aunque la plantilla o los datos estén en otro idioma. Esta regla prevalece sobre cualquier indicación de idioma de la plantilla.`,
       context,
       [],
       undefined,

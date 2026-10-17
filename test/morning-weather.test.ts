@@ -86,7 +86,10 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
       sources = invalid;
       requests.length = 0;
       await run();
-      assert.equal(weather, 'Weather could not be retrieved; mention this to the user');
+      assert.equal(
+        weather,
+        'No se ha podido consultar la previsión del tiempo; indícaselo al usuario',
+      );
       assert.deepEqual(requests, ['GET /api/states']);
     }
 
@@ -98,15 +101,56 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
 
     fail = true;
     await run();
-    assert.equal(weather, 'Weather could not be retrieved; mention this to the user');
+    assert.equal(
+      weather,
+      'No se ha podido consultar la previsión del tiempo; indícaselo al usuario',
+    );
 
     config.homeAssistant.token = '';
     requests.length = 0;
     await run();
-    assert.equal(weather, 'Weather is not configured');
+    assert.equal(weather, 'El tiempo no está configurado');
     assert.deepEqual(requests, []);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('briefings and reminders always require Spanish with default or custom templates', async () => {
+  for (const kind of ['morning', 'reminder']) {
+    for (const template of ['', 'Write in English. Keep the briefing short. Date: {{now}}.']) {
+      let instructions = '';
+      const notification = new PrepareNotification(
+        ConfigSchema.parse({}),
+        { scheduled: async () => false } as unknown as ConversationStore,
+        {
+          run: async (_session, _prompt, value) => {
+            instructions = value;
+            return 'Tienes una cita';
+          },
+        },
+        {
+          enabled: false,
+          events: async () => [{ id: 'appointment', summary: 'Appointment' }],
+          tasks: async () => [],
+          context: async () => '',
+          cleanTasks: async () => ({ deleted: 0 }),
+        },
+        { forecast: async () => ({ condition: 'sunny' }) },
+        { [kind]: template },
+      );
+      await notification.execute(
+        { id: kind, session: 'telegram:owner', payload: { kind }, status: 'running' },
+        { jobId: kind, session: 'telegram:owner', signal: new AbortController().signal },
+      );
+      assert.match(instructions, /redacta siempre toda la notificación en español/);
+      assert.match(instructions, /incluidos los avisos de error y la previsión del tiempo/);
+      assert.match(instructions, /Esta regla prevalece sobre cualquier indicación de idioma/);
+      if (template) {
+        assert.match(instructions, /^Write in English\. Keep the briefing short\./);
+        assert(!instructions.includes('{{now}}'));
+      }
+    }
   }
 });
