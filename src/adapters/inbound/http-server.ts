@@ -9,6 +9,7 @@ import type { Admin } from './admin.js';
 import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
 import { rulesToken } from '../../application/rules-auth.js';
+import { voiceToken, type VoiceBridge } from '../../application/voice-bridge.js';
 
 export function equalSecret(value: unknown, expected: string) {
   if (typeof value !== 'string' || !expected) return false;
@@ -40,6 +41,7 @@ export function createHttpServer(
   rules?: {
     receive(event: import('../../application/notification-rules.js').RuleEvent): Promise<boolean>;
   },
+  voice?: VoiceBridge,
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -64,6 +66,33 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
+      if (path === '/v1/voice/turns' || path.startsWith('/v1/voice/turns/')) {
+        if (!voice) return send(503, { error: 'Voice bridge unavailable' });
+        if (!equalSecret(req.headers.authorization, `Bearer ${voiceToken(config.apiKey)}`))
+          return send(401, { error: 'Unauthorized' });
+        if (req.method === 'POST' && path === '/v1/voice/turns') {
+          const value = z
+            .object({
+              request_id: z.uuid(),
+              satellite_id: z.string().min(1).max(200),
+              text: z.string().trim().min(1).max(16000),
+            })
+            .strict()
+            .parse(await body(req));
+          const job = await voice.submit(value);
+          return job
+            ? send(202, { jobId: job.id, status: job.status })
+            : send(403, { error: 'Voice device or owner is not enabled' });
+        }
+        if (req.method === 'GET' && path.startsWith('/v1/voice/turns/')) {
+          const id = z.uuid().parse(path.slice('/v1/voice/turns/'.length));
+          const job = await voice.result(id);
+          return job
+            ? send(200, { id: job.id, status: job.status, output: job.output })
+            : send(404, { error: 'Voice turn not found' });
+        }
+        return send(404, { error: 'Not found' });
+      }
       if (req.method === 'POST' && path === '/v1/triggers/rule-events' && rules) {
         if (!equalSecret(req.headers.authorization, `Bearer ${rulesToken(config.apiKey)}`))
           return send(401, { error: 'Unauthorized' });

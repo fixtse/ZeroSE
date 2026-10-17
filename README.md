@@ -669,3 +669,44 @@ administration. No runtime secrets belong in source control or Docker images.
 - [Home Assistant REST API](https://developers.home-assistant.io/docs/api/rest/)
 - [Home Assistant to-do actions](https://www.home-assistant.io/integrations/todo/)
 - [Google Docs API](https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/get)
+
+### Home Assistant Voice → Zero
+
+The `assistant_zero` custom integration adds a separate `conversation.zero` agent.
+Assist handles the microphone, wake word, speech recognition and TTS; the bridge
+sends the recognized text to Zero's existing durable worker. Voice uses the original
+owner's profile, permissions, tools, memories and conversation, sharing session
+ordering with Telegram. Its response goes back to Assist and is not sent to Telegram.
+The separate Codex conversation agent and preferred pipeline remain available.
+
+To install on this host:
+
+```sh
+pnpm voice:install-home-assistant --prepare
+# Deploy the assistant image containing the voice API through GitHub Actions.
+pnpm voice:install-home-assistant
+```
+
+Preparation privately backs up `config.json` and sets `homeAssistant.voiceSatellite`.
+The default satellite is `assist_satellite.home_assistant_voice_09ee50_assist_satellite`;
+set `ASSISTANT_VOICE_SATELLITE` for another device. The callback defaults to the
+assistant's localhost port; `ASSISTANT_VOICE_CALLBACK_URL` can override its HTTP
+origin when HA has a different network namespace. Both sides must use the same
+satellite binding. An empty binding disables voice access.
+
+Installation backs up HA configuration and pipelines inside its container, installs
+the integration with a dedicated voice-only credential, validates configuration,
+and restarts HA to load the new Python code. It clones the preferred pipeline's
+STT/TTS settings into a `Zero` pipeline and assigns only the selected device to it.
+Wake words, volume, other devices and the global preferred pipeline are preserved.
+Existing conflicting Zero pipelines cause installation to stop for inspection.
+
+The agent accepts its configured satellite/device or an authenticated HA
+administrator using Assist directly. Physical access to the enabled microphone
+therefore grants access to the owner's Zero tools; mute it when needed. The
+voice credential only permits bounded turn submission and reading that device's
+voice results, not the admin API, Telegram jobs or arbitrary session selection.
+Requests are deduplicated by utterance ID. After one submission, the integration
+only reads status for up to 290 seconds; failed or uncertain actions are never
+automatically repeated. Idle operation uses no model tokens or heartbeat; each
+spoken request is a normal Zero model turn. Status polling uses no model tokens.

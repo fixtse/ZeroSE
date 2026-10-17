@@ -85,6 +85,10 @@ export const ConfigSchema = z.object({
     }),
   homeAssistant: z
     .object({
+      voiceSatellite: z
+        .string()
+        .regex(/^assist_satellite\.[a-z0-9_]+$|^$/)
+        .default(''),
       url: z.string().default('http://127.0.0.1:8123'),
       token: secret,
       shoppingListEntity: z.string().default('todo.shopping_list'),
@@ -101,6 +105,7 @@ export const ConfigSchema = z.object({
     })
     .default({
       url: 'http://127.0.0.1:8123',
+      voiceSatellite: '',
       token: '',
       shoppingListEntity: 'todo.shopping_list',
       sensorEntities: [],

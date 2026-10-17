@@ -24,6 +24,7 @@ import { registerPlacesTools } from './adapters/inbound/places-tools.js';
 import { registerPersonalDataTools } from './adapters/inbound/personal-data-tools.js';
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
+import { VoiceBridge } from './application/voice-bridge.js';
 import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
 import { ProcessManagedMessage } from './application/use-cases/process-managed-message.js';
 import { ConsolidateMemory } from './application/use-cases/consolidate-memory.js';
@@ -276,6 +277,14 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       ? new DeploymentWebhookProxy(process.env.ASSISTANT_DEPLOY_WEBHOOK_URL)
       : undefined,
     rules,
+    new VoiceBridge(store, config.homeAssistant.voiceSatellite || '', async () => {
+      const chat = config.telegram.allowedUsers[0] || config.telegram.notificationChatId;
+      if (!chat) return undefined;
+      const session = 'telegram:' + chat;
+      const profile = await access.forSession(session);
+      const bot = (await access.repository.bots()).find((bot) => bot.id === 'zero');
+      return profile?.owner && profile.enabled && bot?.enabled ? session : undefined;
+    }),
   );
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {
