@@ -368,3 +368,55 @@ test('per-chat voice preferences are checked at delivery and text replies remain
     await f.close();
   }
 });
+
+test('delivery rechecks capabilities required by calendar-enriched weather but permits general weather', async () => {
+  const f = await fixture();
+  let calendarEnabled = true;
+  const sent: string[] = [];
+  const contextual = await f.store.enqueue('telegram:1', {
+    kind: 'contextual_weather',
+    chatId: '1',
+  });
+  const general = await f.store.enqueue('telegram:1', { kind: 'general_weather', chatId: '1' });
+  const worker = new Assistant(
+    f.config,
+    f.store,
+    {
+      contextual_weather: async () => {
+        calendarEnabled = false;
+        return {
+          output: 'Private event details',
+          requiredCapabilities: ['calendar'],
+          voice: false,
+        };
+      },
+      general_weather: async () => ({ output: 'Rain now expected at 17:00', voice: false }),
+    },
+    { cleanup: async () => {} },
+    {
+      send: async (_chat, text) => {
+        sent.push(text);
+      },
+      sendImage: async () => {},
+      sendVoice: async () => {},
+      typing: async () => {},
+      input: async () => {
+        throw new Error('unused');
+      },
+    },
+    undefined,
+    async (_job, result) => !result?.requiredCapabilities?.includes('calendar') || calendarEnabled,
+  );
+  try {
+    worker.start();
+    await until(
+      async () =>
+        (await f.store.job(contextual.id))?.status === 'done' &&
+        (await f.store.job(general.id))?.status === 'done',
+    );
+    assert.deepEqual(sent, ['Rain now expected at 17:00']);
+  } finally {
+    await worker.close();
+    await f.close();
+  }
+});

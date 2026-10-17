@@ -109,16 +109,15 @@ registerPersonalDataTools(
   config.memory.mode !== 'none',
   config.memory.sharedProfile,
 );
-async function canRespond(job: Job) {
+async function canRespond(job: Job, result?: JobResult) {
   const address = sessionAddress(job.session);
   if (!address) return true; // HTTP chat already requires the administrator API key.
   const profile = await access.forSession(job.session);
+  if (
+    result?.requiredCapabilities?.some((capability) => !profile?.capabilities.includes(capability))
+  )
+    return false;
   if (job.payload.kind === 'rule_notification') {
-    if (
-      job.payload.weather?.forecast_type === 'hourly' &&
-      !profile?.capabilities.includes('calendar')
-    )
-      return false;
     const rule = await ruleRepository.read(job.session, job.payload.ruleId);
     if (
       !rule ||

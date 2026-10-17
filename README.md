@@ -235,11 +235,13 @@ margin, not calculated travel time. The forecast covers the configured home area
 it is **not a verified forecast at the event's destination**, especially another city.
 
 With the updated `assistant_rules` HA integration, the owner's built-in weather
-rule also subscribes to hourly forecast updates. Each hourly update rechecks the
-current calendar and only sends an additional notice for a material change during
-an upcoming outing or its margins. It can report worsening or improving rain,
+rule also subscribes to hourly forecast updates. Material hourly changes in the
+next 24 hours send a notice even without a calendar event or calendar access.
+When available, the current calendar adds context about affected outings and their
+margins; missing, cancelled, unrelated events or a failed calendar read do not block
+the weather notice. It can report worsening or improving rain,
 storms, snow, fog, wind, temperature or UV. Small changes, rotated forecast periods,
-past events and updates outside those windows do not send an event notice. Examples
+past forecast hours and updates beyond that horizon do not send a notice. Examples
 of numeric filters include a 20-point rain-probability change reaching at least 40%,
 wind crossing 30 km/h, a 5 °C temperature change, or a 2-point UV change reaching 6.
 Thresholds are relevance filters, not official warning levels.
@@ -247,8 +249,9 @@ Thresholds are relevance filters, not official warning levels.
 Daily alerts retain their existing behavior. Daily/hourly baselines and cooldowns
 are independent; sleep gating and the existing 30-minute cooldown still apply.
 Hourly changes are captured in HA, never reconstructed by refetching an old forecast.
-Calendar access must still be enabled when the notice is generated; the normal
-delivery gates also recheck access and sleep state. Event updates use the existing
+Calendar access is required only for optional event context. Notices containing
+calendar details recheck that permission before delivery; the normal delivery gates
+also recheck access and sleep state. Hourly updates use the existing
 weather-alert text-only delivery policy.
 
 For an existing installation, deploy the updated assistant before running

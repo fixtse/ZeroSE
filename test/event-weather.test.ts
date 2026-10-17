@@ -126,17 +126,15 @@ test('event impact requires a material before/after change at an overlapping fut
   );
 });
 
-test('hourly update rechecks current agenda, scopes captured evidence, suppresses irrelevant updates and retains event details on model failure', async (t) => {
+test('material hourly weather is delivered without events or calendar access, with optional current event context', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now });
   let events = [event],
-    calls = 0,
     reads = 0;
+  const prompts: any[] = [];
   const calendar: GooglePort = {
     enabled: true,
-    events: async (start, end) => {
+    events: async () => {
       reads++;
-      assert.equal(start, now.toISOString());
-      assert.equal(end, '2026-10-26T00:00:00.000Z');
       return events;
     },
     tasks: async () => [],
@@ -149,49 +147,129 @@ test('hourly update rechecks current agenda, scopes captured evidence, suppresse
     signal: new AbortController().signal,
   };
   const service = new WeatherNotification({
-    run: async (_session, prompt, instructions, _context, _images, _schema, tools) => {
-      calls++;
-      const data = JSON.parse(prompt);
-      assert.equal(data.affected_events[0].title, 'Paseo');
-      assert.equal(data.evidence.changes.length, 1);
-      assert.equal(data.forecast_type, 'hourly');
-      assert.match(instructions, /no está verificada en el destino/);
+    run: async (_session, prompt, _instructions, _context, _images, _schema, tools) => {
+      prompts.push(JSON.parse(prompt));
       assert.equal(tools, false);
-      return 'Para tu paseo de las 2:30, ahora se espera lluvia en la zona de casa; lleva impermeable.';
+      return 'Ahora se prevé lluvia a las 2:00 en la zona de casa; lleva impermeable.';
     },
   });
-  assert.equal(
-    (await service.update(rain, now.toISOString(), 'Europe/Madrid', context)).deliver,
-    false,
-  );
+  const general = await service.update(rain, now.toISOString(), 'Europe/Madrid', context);
+  assert.match(general.output, /lluvia/);
+  assert.notEqual(general.deliver, false);
+  assert.equal(general.requiredCapabilities, undefined);
+  assert.deepEqual(prompts.at(-1).affected_events, []);
   assert.equal(reads, 0);
-  const result = await service.update(rain, now.toISOString(), 'Europe/Madrid', context, calendar);
-  assert.match(result.output, /paseo/);
-  assert.equal(calls, 1);
-  events = [{ ...event, status: 'cancelled' } as typeof event];
-  assert.equal(
+
+  const contextual = await service.update(
+    rain,
+    now.toISOString(),
+    'Europe/Madrid',
+    context,
+    calendar,
+  );
+  assert.deepEqual(contextual.requiredCapabilities, ['calendar']);
+  assert.equal(prompts.at(-1).affected_events[0].title, 'Paseo');
+  events = [];
+  assert.notEqual(
     (await service.update(rain, now.toISOString(), 'Europe/Madrid', context, calendar)).deliver,
     false,
   );
-  assert.equal(calls, 1);
-  events = [event];
-  const minor = {
-    ...rain,
-    changes: [{ ...rain.changes[0]!, before: { temperature: 20 }, after: { temperature: 21 } }],
-  };
-  assert.equal(
-    (await service.update(minor, now.toISOString(), 'Europe/Madrid', context, calendar)).deliver,
+  assert.deepEqual(prompts.at(-1).affected_events, []);
+  events = [{ ...event, status: 'cancelled' } as typeof event];
+  assert.notEqual(
+    (await service.update(rain, now.toISOString(), 'Europe/Madrid', context, calendar)).deliver,
     false,
   );
-  assert.equal(reads, 2);
+  assert.deepEqual(prompts.at(-1).affected_events, []);
+
+  const failedCalendar = {
+    ...calendar,
+    events: async () => {
+      throw new Error('Calendar unavailable');
+    },
+  };
+  assert.notEqual(
+    (await service.update(rain, now.toISOString(), 'Europe/Madrid', context, failedCalendar))
+      .deliver,
+    false,
+  );
+  assert.deepEqual(prompts.at(-1).affected_events, []);
+
+  const callsBefore = prompts.length,
+    readsBefore = reads;
+  for (const changes of [
+    [{ ...rain.changes[0]!, before: { temperature: 20 }, after: { temperature: 21 } }],
+    [{ ...rain.changes[0]!, datetime: '2026-10-24T20:00:00Z' }],
+    [{ ...rain.changes[0]!, datetime: '2026-10-26T01:00:00Z' }],
+    [{ ...rain.changes[0]!, before: null }],
+  ]) {
+    assert.equal(
+      (
+        await service.update(
+          { ...rain, changes },
+          now.toISOString(),
+          'Europe/Madrid',
+          context,
+          calendar,
+        )
+      ).deliver,
+      false,
+    );
+  }
+  assert.equal(prompts.length, callsBefore);
+  assert.equal(reads, readsBefore);
+
   const failed = new WeatherNotification({
     run: async () => {
       throw new Error('unavailable');
     },
   });
-  const fallback = await failed.update(rain, now.toISOString(), 'Europe/Madrid', context, calendar);
-  assert.match(fallback.output, /Paseo.*2:30/);
-  assert.match(fallback.output, /destino sin verificar/);
+  const fallback = await failed.update(rain, now.toISOString(), 'Europe/Madrid', context);
+  assert.match(fallback.output, /soleado → lluvia/);
+  events = [event];
+  assert.match(
+    (await failed.update(rain, now.toISOString(), 'Europe/Madrid', context, calendar)).output,
+    /Paseo.*2:30/,
+  );
+});
+
+test('rain moving into 17:00 is notified without a matching activity, while retaining other relevant hours', async (t) => {
+  const at = new Date('2026-10-17T14:03:55Z');
+  t.mock.timers.enable({ apis: ['Date'], now: at });
+  const change: WeatherChange = {
+    ...rain,
+    changes: [
+      {
+        datetime: '2026-10-17T15:00:00Z',
+        before: { condition: 'cloudy', precipitation: 0 },
+        after: { condition: 'rainy', precipitation: 0.3 },
+      },
+      {
+        datetime: '2026-10-17T16:00:00Z',
+        before: { condition: 'partlycloudy', precipitation: 0 },
+        after: { condition: 'rainy', precipitation: 0.1 },
+      },
+      { datetime: '2026-10-17T14:00:00Z', before: { temperature: 25 }, after: null },
+    ],
+  };
+  const service = new WeatherNotification({
+    run: async (_session, prompt) => {
+      const data = JSON.parse(prompt);
+      assert.deepEqual(data.evidence.changes, change.changes.slice(0, 2));
+      assert.deepEqual(data.affected_events, []);
+      assert.match(data.facts, /17:00/);
+      assert.match(data.facts, /18:00/);
+      return 'Ahora se prevé lluvia a las 17:00 y 18:00; antes esas horas aparecían secas.';
+    },
+  });
+  const result = await service.update(change, at.toISOString(), 'Europe/Madrid', {
+    session: 'owner',
+    jobId: 'rain-advance',
+    signal: new AbortController().signal,
+  });
+  assert.match(result.output, /17:00 y 18:00/);
+  assert.notEqual(result.deliver, false);
+  assert.equal(result.requiredCapabilities, undefined);
   assert.match(
     weatherFacts(
       {
