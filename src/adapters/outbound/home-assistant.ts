@@ -177,14 +177,28 @@ export class HomeAssistant {
       throw new Error('Shopping-list update could not be verified; inspect before retrying');
     return after;
   }
-  async forecast(signal?: AbortSignal) {
+  async forecast(signal?: AbortSignal, type: 'daily' | 'hourly' = 'daily') {
     const entity =
       this.config.weatherEntity ||
       dailyWeatherEntity(await this.request('states', undefined, signal));
-    return this.request(
+    const result = await this.request(
       'services/weather/get_forecasts?return_response',
-      { entity_id: entity, type: 'daily' },
+      { entity_id: entity, type },
       signal,
     );
+    if (type === 'daily') return result;
+    const state = await this.request('states/' + encodeURIComponent(entity), undefined, signal);
+    const forecast = result?.service_response?.[entity]?.forecast;
+    if (!Array.isArray(forecast) || !forecast.length)
+      throw new Error('Home Assistant did not return an hourly forecast');
+    return {
+      entity_id: entity,
+      units: {
+        temperature: state?.attributes?.temperature_unit,
+        wind_speed: state?.attributes?.wind_speed_unit,
+        precipitation: state?.attributes?.precipitation_unit,
+      },
+      forecast: forecast.slice(0, 24),
+    };
   }
 }

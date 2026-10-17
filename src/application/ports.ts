@@ -100,7 +100,7 @@ export interface GooglePort {
   tasks(includeCompleted?: boolean, signal?: AbortSignal): Promise<any[]>;
 }
 export interface HomeAssistantPort {
-  forecast(signal?: AbortSignal): Promise<unknown>;
+  forecast(signal?: AbortSignal, type?: 'daily' | 'hourly'): Promise<unknown>;
 }
 export interface HomeAssistantToolsPort extends HomeAssistantPort {
   location(signal?: AbortSignal): Promise<unknown>;

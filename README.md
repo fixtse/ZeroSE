@@ -222,6 +222,10 @@ The endpoint requires `schedules.enabled` and a configured notification recipien
 The briefing reads Home Assistant's daily weather forecast. If `homeAssistant.weatherEntity`
 is empty, it discovers the source when exactly one weather entity supports daily forecasts;
 otherwise, set that field explicitly to select the location.
+When available, the briefing also reads up to 24 hourly forecast entries, with source
+units, to describe the rest of today's temperature, conditions, rain and wind in local
+time and suggest practical adjustments. Providers without hourly forecasts retain the
+daily summary without invented hourly detail.
 Keep the bearer value in a private Home Assistant secret or credentials file, and
 use an authenticated HTTP action with no automatic retries. Reloading the automation does not send a briefing.
 

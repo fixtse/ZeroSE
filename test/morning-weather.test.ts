@@ -14,6 +14,7 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
     { entity_id: 'sensor.temperature', attributes: { supported_features: 1 } },
   ];
   let fail = false;
+  let failHourly = false;
   const requests: string[] = [];
   const forecast = { forecast: [{ datetime: '2026-10-17T12:00:00Z', temperature: 23 }] };
   const server = createServer(async (req, res) => {
@@ -24,17 +25,32 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
       res.end(JSON.stringify(sources));
       return;
     }
+    if (req.url?.startsWith('/api/states/weather.')) {
+      res.end(
+        JSON.stringify({
+          attributes: { temperature_unit: '°C', wind_speed_unit: 'km/h', precipitation_unit: 'mm' },
+        }),
+      );
+      return;
+    }
     assert.equal(req.url, '/api/services/weather/get_forecasts?return_response');
     assert.equal(req.method, 'POST');
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
-    assert.equal(body.type, 'daily');
-    if (fail) {
+    assert(['daily', 'hourly'].includes(body.type));
+    if (fail || (failHourly && body.type === 'hourly')) {
       res.writeHead(503).end('{}');
       return;
     }
-    res.end(JSON.stringify({ service_response: { [body.entity_id]: forecast } }));
+    res.end(
+      JSON.stringify({
+        service_response: {
+          [body.entity_id]:
+            body.type === 'daily' ? forecast : { forecast: Array(48).fill(forecast.forecast[0]) },
+        },
+      }),
+    );
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -46,6 +62,17 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
     },
   });
   let weather: unknown;
+  const expected = (entity: string) => ({
+    daily: { service_response: { [entity]: forecast } },
+    hourly: {
+      entity_id: entity,
+      units: { temperature: '°C', wind_speed: 'km/h', precipitation: 'mm' },
+      forecast: Array(24).fill({
+        ...forecast.forecast[0],
+        local_time: '17/10/26, 14:00',
+      }),
+    },
+  });
   const briefing = new PrepareNotification(
     config,
     {} as ConversationStore,
@@ -72,7 +99,7 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
     );
   try {
     await run();
-    assert.deepEqual(weather, { service_response: { 'weather.forecast_home': forecast } });
+    assert.deepEqual(weather, expected('weather.forecast_home'));
     assert.equal(requests[0], 'GET /api/states');
     assert.equal(config.homeAssistant.weatherEntity, '');
 
@@ -96,8 +123,16 @@ test('wake-up briefing discovers daily weather, honors explicit configuration an
     config.homeAssistant.weatherEntity = 'weather.selected';
     requests.length = 0;
     await run();
-    assert.deepEqual(weather, { service_response: { 'weather.selected': forecast } });
-    assert.deepEqual(requests, ['POST /api/services/weather/get_forecasts?return_response']);
+    assert.deepEqual(weather, expected('weather.selected'));
+    assert.deepEqual(requests, [
+      'POST /api/services/weather/get_forecasts?return_response',
+      'POST /api/services/weather/get_forecasts?return_response',
+      'GET /api/states/weather.selected',
+    ]);
+
+    failHourly = true;
+    await run();
+    assert.deepEqual(weather, { daily: expected('weather.selected').daily });
 
     fail = true;
     await run();
@@ -147,6 +182,11 @@ test('briefings and reminders always require Spanish with default or custom temp
       assert.match(instructions, /redacta siempre toda la notificación en español/);
       assert.match(instructions, /incluidos los avisos de error y la previsión del tiempo/);
       assert.match(instructions, /Esta regla prevalece sobre cualquier indicación de idioma/);
+      if (kind === 'morning') {
+        assert.match(instructions, /describe cómo evolucionan las condiciones y la temperatura/);
+        assert.match(instructions, /Si solo hay datos diarios/);
+        assert.match(instructions, /no presentes datos de mañana como si fueran de hoy/);
+      }
       if (template) {
         assert.match(instructions, /^Write in English\. Keep the briefing short\./);
         assert(!instructions.includes('{{now}}'));
