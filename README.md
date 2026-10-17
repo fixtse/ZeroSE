@@ -219,6 +219,9 @@ queues the usual morning briefing for `telegram.notificationChatId`, using the
 same session ordering and daily deduplication key as the timed schedule. Repeated
 calls return the existing job, including failed jobs, without replaying delivery.
 The endpoint requires `schedules.enabled` and a configured notification recipient.
+The briefing reads Home Assistant's daily weather forecast. If `homeAssistant.weatherEntity`
+is empty, it discovers the source when exactly one weather entity supports daily forecasts;
+otherwise, set that field explicitly to select the location.
 Keep the bearer value in a private Home Assistant secret or credentials file, and
 use an authenticated HTTP action with no automatic retries. Reloading the automation does not send a briefing.
 

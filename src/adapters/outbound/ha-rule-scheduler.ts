@@ -3,6 +3,7 @@ import type { Config } from '../../domain/config.js';
 import type { NotificationRule } from '../../domain/notification-rule.js';
 import type { RuleSchedulerPort } from '../../application/notification-rules.js';
 import { jsonRequest, jsonBody } from './http.js';
+import { dailyWeatherEntity } from './weather-entity.js';
 
 export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
   readonly identity: string;
@@ -50,14 +51,7 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
         },
         'Home Assistant weather discovery',
       );
-      const candidates = (states as any[]).filter(
-        (s) => /^weather\.[a-z0-9_]+$/.test(s.entity_id) && s.attributes?.supported_features & 1,
-      );
-      if (candidates.length !== 1)
-        throw new Error(
-          'Configure homeAssistant.weatherEntity when there is not exactly one daily forecast source',
-        );
-      weatherEntity = candidates[0].entity_id;
+      weatherEntity = dailyWeatherEntity(states);
     }
     const condition =
       rule.condition?.source === 'weather'

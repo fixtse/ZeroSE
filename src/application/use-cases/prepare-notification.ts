@@ -18,8 +18,7 @@ export class PrepareNotification {
     return `event:${event.id}:${event.start?.dateTime || event.start?.date}`;
   }
   private async forecast(signal: AbortSignal): Promise<unknown> {
-    if (!this.config.homeAssistant.token || !this.config.homeAssistant.weatherEntity)
-      return 'Weather is not configured';
+    if (!this.config.homeAssistant.token) return 'Weather is not configured';
     try {
       return await this.homeAssistant.forecast(signal);
     } catch {

@@ -1,4 +1,5 @@
 import { jsonRequest, jsonBody } from './http.js';
+import { dailyWeatherEntity } from './weather-entity.js';
 import type { Config } from '../../domain/config.js';
 
 export class HomeAssistant {
@@ -177,11 +178,12 @@ export class HomeAssistant {
     return after;
   }
   async forecast(signal?: AbortSignal) {
-    if (!this.config.weatherEntity)
-      throw new Error('Home Assistant weather entity is not configured');
+    const entity =
+      this.config.weatherEntity ||
+      dailyWeatherEntity(await this.request('states', undefined, signal));
     return this.request(
       'services/weather/get_forecasts?return_response',
-      { entity_id: this.config.weatherEntity, type: 'daily' },
+      { entity_id: entity, type: 'daily' },
       signal,
     );
   }
