@@ -6,7 +6,10 @@ import { Telegram } from '../src/adapters/outbound/telegram.js';
 import { PostgresAccess } from '../src/adapters/outbound/postgres-access.js';
 import { PostgresDeployments } from '../src/adapters/outbound/postgres-deployments.js';
 import { DockerDeployment } from '../src/adapters/outbound/docker-deployment.js';
-import { createDeploymentServer } from '../src/adapters/inbound/deployment-webhook.js';
+import {
+  createDeploymentServer,
+  DeploymentWebhookProxy,
+} from '../src/adapters/inbound/deployment-webhook.js';
 import { DeployBuild } from '../src/application/deploy-build.js';
 
 process.umask(0o077);
@@ -57,7 +60,21 @@ const worker = new DeployBuild(
   },
   repository,
 );
-const server = createDeploymentServer(secret, repository, store);
+const forwardRepository = process.env.ASSISTANT_DEPLOY_FORWARD_REPOSITORY;
+const forwardUrl = process.env.ASSISTANT_DEPLOY_FORWARD_URL;
+if (
+  !!forwardRepository !== !!forwardUrl ||
+  (forwardRepository && !/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(forwardRepository))
+)
+  throw new Error('Configure both a valid forwarding repository and a loopback webhook URL');
+const server = createDeploymentServer(
+  secret,
+  repository,
+  store,
+  forwardRepository && forwardUrl
+    ? { repository: forwardRepository, proxy: new DeploymentWebhookProxy(forwardUrl) }
+    : undefined,
+);
 server.listen(port, '127.0.0.1', () => {
   console.log(JSON.stringify({ event: 'deployment_webhook_started', port, repository }));
   worker.start();

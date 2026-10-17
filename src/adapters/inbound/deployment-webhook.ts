@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage } from 'node:http';
+import { createServer, type IncomingMessage, type IncomingHttpHeaders } from 'node:http';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { successfulBuild } from '../../domain/deployment.js';
 import type { DeploymentStore } from '../../application/deploy-build.js';
@@ -19,7 +19,12 @@ export function validDeploymentSignature(body: Buffer, signature: unknown, secre
   const expected = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
   return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }
-export function createDeploymentServer(secret: string, repository: string, store: DeploymentStore) {
+export function createDeploymentServer(
+  secret: string,
+  repository: string,
+  store: DeploymentStore,
+  forward?: { repository: string; proxy: DeploymentWebhookProxy },
+) {
   if (secret.length < 32)
     throw new Error('Deployment webhook secret must have at least 32 characters');
   return createServer(async (req, res) => {
@@ -32,6 +37,15 @@ export function createDeploymentServer(secret: string, repository: string, store
       return send(404, { error: 'Not found' });
     try {
       const raw = await deploymentBody(req);
+      // A fixed, host-configured repository may use its own authenticated receiver.
+      // Preserve its bytes and signature; the receiver owns validation and deduplication.
+      if (
+        forward &&
+        JSON.parse(raw.toString('utf8'))?.repository?.full_name === forward.repository
+      ) {
+        const response = await forward.proxy.forwardBody(raw, req.headers);
+        return send(response.status, response.body);
+      }
       if (!validDeploymentSignature(raw, req.headers['x-hub-signature-256'], secret))
         return send(401, { error: 'Invalid signature' });
       if (req.headers['x-github-event'] === 'ping') return send(200, { ok: true });
@@ -63,9 +77,15 @@ export class DeploymentWebhookProxy {
   }
   async forward(req: IncomingMessage): Promise<{ status: number; body: unknown }> {
     const raw = await deploymentBody(req);
+    return this.forwardBody(raw, req.headers);
+  }
+  async forwardBody(
+    raw: Buffer,
+    incoming: IncomingHttpHeaders,
+  ): Promise<{ status: number; body: unknown }> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     for (const name of ['x-hub-signature-256', 'x-github-event', 'x-github-delivery']) {
-      const value = req.headers[name];
+      const value = incoming[name];
       if (typeof value === 'string') headers[name] = value;
     }
     const response = await fetch(this.url, {

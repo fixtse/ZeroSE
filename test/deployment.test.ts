@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { writeFile, readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { successfulBuild, type BuildRelease } from '../src/domain/deployment.js';
@@ -14,6 +15,7 @@ import {
 import {
   createDeploymentServer,
   DeploymentWebhookProxy,
+  validDeploymentSignature,
 } from '../src/adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from '../src/adapters/inbound/http-server.js';
 import { fixture, until } from './helpers.js';
@@ -42,6 +44,77 @@ const payload = () => ({
     path: '.github/workflows/images.yaml',
     head_repository: { full_name: repository },
   },
+});
+
+test('an allowlisted repository forwards unchanged with independent authentication and never enters the assistant queue', async () => {
+  const forwardedSecret = 'independent-tradeese-secret-at-least-32-characters';
+  let forwarded = 0,
+    enqueued = 0;
+  const target = createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks);
+    assert.equal(req.headers['x-github-event'], 'tradeese_deploy');
+    const valid = validDeploymentSignature(
+      raw,
+      req.headers['x-hub-signature-256'],
+      forwardedSecret,
+    );
+    if (valid) forwarded++;
+    res.writeHead(valid ? 202 : 401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(valid ? { status: 'accepted' } : { error: 'Invalid signature' }));
+  });
+  target.listen(0, '127.0.0.1');
+  await once(target, 'listening');
+  const receiver = createDeploymentServer(
+    secret,
+    repository,
+    {
+      async enqueue() {
+        enqueued++;
+        return 'accepted';
+      },
+      async claim() {
+        return undefined;
+      },
+      async finish() {},
+    },
+    {
+      repository: 'fixtse/tradeeSE',
+      proxy: new DeploymentWebhookProxy(
+        `http://127.0.0.1:${(target.address() as any).port}/github/deploy`,
+      ),
+    },
+  );
+  receiver.listen(0, '127.0.0.1');
+  await once(receiver, 'listening');
+  try {
+    const body = ' { "repository": {"full_name":"fixtse/tradeeSE"}, "sha":"test" } ';
+    for (const signingSecret of [forwardedSecret, secret]) {
+      const response = await fetch(
+        `http://127.0.0.1:${(receiver.address() as any).port}/github/deploy`,
+        {
+          method: 'POST',
+          body,
+          headers: {
+            'X-GitHub-Event': 'tradeese_deploy',
+            'X-Hub-Signature-256':
+              'sha256=' + createHmac('sha256', signingSecret).update(body).digest('hex'),
+          },
+        },
+      );
+      assert.equal(response.status, signingSecret === forwardedSecret ? 202 : 401);
+    }
+    assert.equal(forwarded, 1);
+    assert.equal(enqueued, 0);
+  } finally {
+    receiver.closeAllConnections();
+    target.closeAllConnections();
+    await Promise.all([
+      new Promise<void>((r) => receiver.close(() => r())),
+      new Promise<void>((r) => target.close(() => r())),
+    ]);
+  }
 });
 
 test('only successful trusted main image builds may become deployment requests', () => {

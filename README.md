@@ -165,6 +165,15 @@ The controller and Compose definitions are host-managed; image deployment does n
 or pull the host Git checkout. Stop automatic deployment with
 `systemctl --user disable --now assistant-deploy.service` and deactivate the GitHub hook.
 
+The host controller can also forward one explicitly configured repository to a separate
+loopback receiver through the same public endpoint. Set
+`ASSISTANT_DEPLOY_FORWARD_REPOSITORY=fixtse/tradeeSE` and
+`ASSISTANT_DEPLOY_FORWARD_URL=http://127.0.0.1:8791/github/deploy` in `.env.deploy`.
+Rebuild and restart only `assistant-deploy.service` to apply host controller changes.
+Forwarded bodies and signatures remain unchanged; the destination authenticates them
+with its own secret and owns its deployment queue. This grants no Docker access to
+the assistant application and does not change its own deployment behavior.
+
 For a local source build:
 
 ```sh
