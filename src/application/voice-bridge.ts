@@ -1,5 +1,19 @@
 import { createHmac } from 'node:crypto';
 import type { ConversationStore } from './ports.js';
+import type { Access } from './access.js';
+import type { BotId } from '../domain/access.js';
+
+/** Zero is configured by the original transport, not the managed-bot table. */
+export async function voiceOwnerSession(
+  chat: string | undefined,
+  access: Pick<Access, 'forSession'>,
+  bots: { isEnabled(bot: BotId): Promise<boolean> },
+) {
+  if (!chat) return undefined;
+  const session = 'telegram:' + chat;
+  const profile = await access.forSession(session);
+  return profile?.owner && profile.enabled && (await bots.isEnabled('zero')) ? session : undefined;
+}
 
 /** HA receives a voice-only credential, never the administrator API key. */
 export function voiceToken(apiKey: string) {

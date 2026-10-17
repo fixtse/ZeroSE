@@ -3,9 +3,39 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { createHttpServer } from '../src/adapters/inbound/http-server.js';
-import { VoiceBridge, voiceToken } from '../src/application/voice-bridge.js';
+import { VoiceBridge, voiceToken, voiceOwnerSession } from '../src/application/voice-bridge.js';
 import { Assistant } from '../src/application/assistant.js';
+import { PostgresAccess } from '../src/adapters/outbound/postgres-access.js';
+import { Access } from '../src/application/access.js';
 import { fixture, until } from './helpers.js';
+
+test('voice owner uses configured Zero availability without requiring a managed-bot record', async () => {
+  const f = await fixture();
+  const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
+  f.config.telegram.allowedUsers = ['1234'];
+  await repository.initialize(f.config);
+  const access = new Access(repository, f.store);
+  let enabled = true;
+  const bots = {
+    async isEnabled(bot: string) {
+      assert.equal(bot, 'zero');
+      return enabled;
+    },
+  };
+  try {
+    assert.equal(
+      (await repository.bots()).some((bot) => bot.id === 'zero'),
+      false,
+    );
+    assert.equal(await voiceOwnerSession('1234', access, bots), 'telegram:1234');
+    assert.equal(await voiceOwnerSession('other', access, bots), undefined);
+    assert.equal(await voiceOwnerSession(undefined, access, bots), undefined);
+    enabled = false;
+    assert.equal(await voiceOwnerSession('1234', access, bots), undefined);
+  } finally {
+    await f.close();
+  }
+});
 
 test('voice bridge scopes credentials, owner session and jobs; duplicate requests never replay', async () => {
   const f = await fixture();
