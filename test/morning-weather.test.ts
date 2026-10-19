@@ -208,3 +208,60 @@ test('briefings and reminders always require Spanish with default or custom temp
     }
   }
 });
+
+test('wake reminders are appended only to wake-up briefings and consumed only after delivery', async () => {
+  const config = ConfigSchema.parse({ timezone: 'Europe/Madrid' });
+  let reads = 0,
+    completed = 0;
+  const rules = {
+    async wakeReminders(session: string, date: string) {
+      assert.equal(session, 'telegram:owner');
+      assert.equal(
+        date,
+        new Intl.DateTimeFormat('en-CA', { timeZone: config.timezone }).format(new Date()),
+      );
+      reads++;
+      return [{ message: 'Comprar pollo' }] as any;
+    },
+    async completeWakeReminders() {
+      completed++;
+    },
+  };
+  const notification = new PrepareNotification(
+    config,
+    { scheduled: async () => false } as unknown as ConversationStore,
+    { run: async () => 'Buenos días' },
+    {
+      enabled: false,
+      events: async () => [],
+      tasks: async () => [],
+      context: async () => '',
+      cleanTasks: async () => ({ deleted: 0 }),
+    },
+    { forecast: async () => ({}) },
+    {},
+    rules,
+  );
+  const context = {
+    jobId: 'wake',
+    session: 'telegram:owner',
+    signal: new AbortController().signal,
+  };
+  const job = {
+    id: 'wake',
+    session: context.session,
+    payload: { kind: 'morning', wakeUp: false },
+    status: 'running',
+  } as const;
+  const scheduled = await notification.execute(job, context);
+  assert.equal(scheduled.output, 'Buenos días');
+  assert.equal(reads, 0);
+  const wake = await notification.execute(
+    { ...job, payload: { kind: 'morning', wakeUp: true } },
+    context,
+  );
+  assert.match(wake.output, /Comprar pollo/);
+  assert.equal(completed, 0);
+  await wake.afterDelivery!();
+  assert.equal(completed, 1);
+});

@@ -181,9 +181,13 @@ export function createHttpServer(
           return send(503, { error: 'Morning notifications are disabled or have no recipient' });
         const profile = await management?.access.forSession('telegram:' + chat);
         const { day } = localClock(new Date(), profile?.timezone || config.timezone);
-        const key = 'morning:' + day;
-        const job = await store.enqueue('telegram:' + chat, { kind: 'morning', chatId: chat }, key);
-        await store.markScheduled(key);
+        const key = 'wake-up:' + day;
+        const job = await store.enqueue(
+          'telegram:' + chat,
+          { kind: 'morning', chatId: chat, wakeUp: true },
+          key,
+        );
+        await store.markScheduled('morning:' + day);
         return send(202, { jobId: job.id, status: job.status });
       }
       if (req.method === 'POST' && path === '/v1/chat') {

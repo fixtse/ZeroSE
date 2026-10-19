@@ -664,3 +664,67 @@ test('hourly queue receipts have independent cooldowns, reject unconfigured hour
     await f.close();
   }
 });
+
+test('wake reminders use local dates, stay scoped, and never install a timed HA rule', async () => {
+  const f = await setup();
+  try {
+    const rules = new NotificationRules(
+      f.repository,
+      async () => ({ enabled: true, scheduler: f.scheduler }),
+      'telegram:1',
+      () => '2026-10-19',
+    );
+    const tools = new Tools(f.store);
+    registerNotificationTools(tools, rules);
+    const context = {
+      session: 'telegram:1',
+      jobId: 'wake-test',
+      signal: new AbortController().signal,
+    };
+    const receipt = (await tools.call(
+      'wake_reminder_create',
+      { message: 'Buy chicken', date: '2026-10-21' },
+      context,
+    )) as any;
+    assert.equal(receipt.wake_date, '2026-10-21');
+    assert.equal(receipt.next_at, null);
+    assert.equal(f.configurations.length, 0);
+    assert.equal((await f.repository.wakeReminders('telegram:1', '2026-10-20')).length, 0);
+    assert.equal((await f.repository.wakeReminders('telegram:2', '2026-10-21')).length, 0);
+    const due = await f.repository.wakeReminders('telegram:1', '2026-10-21');
+    assert.equal(due.length, 1);
+    assert.equal(
+      await rules.receive({
+        id: receipt.id,
+        generation: 0,
+        event_id: randomUUID(),
+        fired_at: new Date().toISOString(),
+      }),
+      false,
+    );
+    await assert.rejects(() =>
+      tools.call('wake_reminder_create', { message: 'past', date: '2026-10-18' }, context),
+    );
+    await assert.rejects(() =>
+      tools.call(
+        'wake_reminder_create',
+        { message: 'other', date: '2026-10-21' },
+        { ...context, session: 'telegram:2' },
+      ),
+    );
+    await rules.change(context.session, receipt.id, 'pause');
+    assert.equal((await f.repository.wakeReminders(context.session, '2026-10-21')).length, 0);
+    await rules.change(context.session, receipt.id, 'resume');
+    await assert.rejects(() => rules.change(context.session, receipt.id, 'snooze', 60));
+    assert.equal((await f.repository.read(context.session, receipt.id))?.next_at, null);
+    // A stale delivery receipt must not complete a changed rule.
+    await f.repository.completeWakeReminders(context.session, due);
+    const resumed = await f.repository.wakeReminders(context.session, '2026-10-21');
+    assert.equal(resumed.length, 1);
+    await f.repository.completeWakeReminders(context.session, resumed);
+    assert.equal((await f.repository.read(context.session, receipt.id))?.status, 'completed');
+    assert.equal(f.configurations.length, 0);
+  } finally {
+    await f.close();
+  }
+});

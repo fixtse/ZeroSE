@@ -24,9 +24,11 @@ export function registerNotificationTools(
     const next =
       kind === 'alert'
         ? null
-        : kind === 'timer'
-          ? new Date(Date.now() + a.duration_seconds * 1000).toISOString()
-          : a.at;
+        : a.wake_date
+          ? null
+          : kind === 'timer'
+            ? new Date(Date.now() + a.duration_seconds * 1000).toISOString()
+            : a.at;
     if (next && Date.parse(next) <= Date.now())
       throw new Error('Choose a future deadline with an explicit timezone offset');
     if (kind === 'alert' && a.condition.source !== 'weather')
@@ -36,6 +38,7 @@ export function registerNotificationTools(
         session: c.session,
         kind,
         message: a.message,
+        ...(a.wake_date ? { wake_date: a.wake_date } : {}),
         status: 'active',
         next_at: next,
         repeat_seconds: a.repeat_seconds || null,
@@ -51,18 +54,30 @@ export function registerNotificationTools(
       },
       c.signal,
     );
-    return { id: rule.id, status: rule.status, next_at: rule.next_at };
+    return { id: rule.id, status: rule.status, next_at: rule.next_at, wake_date: rule.wake_date };
   };
   const message = z.string().trim().min(1).max(1000);
   tools.add(
     'reminder_create',
-    'Schedule a dedicated Telegram reminder, using an ISO datetime with timezone offset. Optional repeat_seconds repeats at a fixed elapsed interval (not local calendar days). Home Assistant owns the persistent deadline and calls back only when due. Missed deadlines are not replayed after restart.',
+    'Schedule a dedicated Telegram reminder at a clock time, using an ISO datetime with timezone offset. For wake-up briefing requests use wake_reminder_create instead. Optional repeat_seconds repeats at a fixed elapsed interval (not local calendar days). Home Assistant owns the persistent deadline and calls back only when due. Missed deadlines are not replayed after restart.',
     z.object({
       message,
       at: z.iso.datetime({ offset: true }),
       repeat_seconds: seconds.min(60).optional(),
     }),
     (a, c) => create('reminder', a, c),
+  );
+  tools.add(
+    'wake_reminder_create',
+    'Include a reminder in the wake-up briefing triggered by input_boolean.dormir turning off on a local YYYY-MM-DD date. Use for “at wake up / when I wake up / al despertar”, including relative dates. Never guess a clock time. One-shot; not sent on other dates or as a separate notification.',
+    z.object({ message, date: z.iso.date() }),
+    async (a, c) => {
+      if (c.session !== rules.wakeSession)
+        throw new Error('Wake-up briefings are only configured for the owner notification chat');
+      if (a.date < (await rules.localDate()))
+        throw new Error('Choose today or a future local date');
+      return create('reminder', { message: a.message, wake_date: a.date }, c);
+    },
   );
   tools.add(
     'timer_start',
@@ -79,12 +94,13 @@ export function registerNotificationTools(
       return jsonPage(
         {
           ...result,
-          items: result.items.map(({ id, kind, message, status, next_at }) => ({
+          items: result.items.map(({ id, kind, message, status, next_at, wake_date }) => ({
             id,
             kind,
             message,
             status,
             next_at,
+            wake_date,
           })),
         },
         a.result_offset,
@@ -104,6 +120,7 @@ export function registerNotificationTools(
         message,
         status,
         next_at,
+        wake_date,
         remaining_seconds,
         repeat_seconds,
         condition,
@@ -120,6 +137,7 @@ export function registerNotificationTools(
           message,
           status,
           next_at,
+          wake_date,
           remaining_seconds,
           repeat_seconds,
           condition,

@@ -38,6 +38,7 @@ import { PostgresAccess } from './adapters/outbound/postgres-access.js';
 import { Access, scopedConfig } from './application/access.js';
 import { AdminAuth } from './adapters/inbound/admin-auth.js';
 import { Admin } from './adapters/inbound/admin.js';
+import { localClock } from './domain/time.js';
 import { isMemoryTool } from './domain/memory.js';
 import { sessionAddress, toolCapability } from './domain/access.js';
 import type { Job, ToolContext } from './domain/models.js';
@@ -82,25 +83,35 @@ const places = new OpenStreetMapPlaces(
   process.env.ASSISTANT_OSRM_URL,
 );
 const personalData = new PostgresPersonalData(store.pool);
-const rules = new NotificationRules(ruleRepository, async (session, kind) => {
-  const address = sessionAddress(session);
-  const profile = await access.forSession(session);
-  const scoped = profile ? scopedConfig(config, profile) : config;
-  return {
-    enabled:
-      !!address &&
-      !!profile?.enabled &&
-      (await bots.isEnabled(address.bot)) &&
-      (kind !== 'alert' ||
-        (profile.capabilities.includes('homeAssistant') && !!scoped.homeAssistant.token)),
-    scheduler:
-      kind !== 'alert'
-        ? new HomeAssistantRuleScheduler(config.homeAssistant)
-        : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
-          ? new HomeAssistantRuleScheduler(scoped.homeAssistant)
-          : undefined,
-  };
-});
+const rules = new NotificationRules(
+  ruleRepository,
+  async (session, kind) => {
+    const address = sessionAddress(session);
+    const profile = await access.forSession(session);
+    const scoped = profile ? scopedConfig(config, profile) : config;
+    return {
+      enabled:
+        !!address &&
+        !!profile?.enabled &&
+        (await bots.isEnabled(address.bot)) &&
+        (kind !== 'alert' ||
+          (profile.capabilities.includes('homeAssistant') && !!scoped.homeAssistant.token)),
+      scheduler:
+        kind !== 'alert'
+          ? new HomeAssistantRuleScheduler(config.homeAssistant)
+          : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
+            ? new HomeAssistantRuleScheduler(scoped.homeAssistant)
+            : undefined,
+    };
+  },
+  config.schedules.enabled && config.telegram.notificationChatId
+    ? 'telegram:' + config.telegram.notificationChatId
+    : undefined,
+  async () => {
+    const profile = await access.forSession('telegram:' + config.telegram.notificationChatId);
+    return localClock(new Date(), profile?.timezone || config.timezone).day;
+  },
+);
 registerNotificationTools(tools, rules, config.homeAssistant.token ? ha : undefined);
 registerPlacesTools(tools, places);
 registerPersonalDataTools(
@@ -322,6 +333,7 @@ async function notify(job: Job, context: ToolContext): Promise<JobResult> {
     scope.google,
     scope.ha,
     prompts,
+    ruleRepository,
   ).execute(job, context);
 }
 

@@ -16,6 +16,7 @@ export interface WeatherCondition {
 }
 export interface NotificationRule {
   managed?: 'owner_weather';
+  wake_date?: string;
   id: string;
   session: string;
   kind: 'reminder' | 'timer' | 'alert';

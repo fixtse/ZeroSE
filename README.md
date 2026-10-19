@@ -220,13 +220,21 @@ independent user/group access policy. Neither transport registers or removes a w
 
 ## Wake-up briefing
 
+Wake-up reminders such as “remind me in two days when I wake up” use
+`wake_reminder_create` with a local calendar date. They are appended to that
+owner chat’s briefing when the wake-up webhook runs (the `input_boolean.dormir`
+on → off automation), without guessing a clock time or sending a separate alert.
+They are completed only after successful delivery and are not replayed on later
+dates. Fixed-time briefings do not consume them. Wake-ups are deduplicated per
+local date independently of an earlier fixed-time briefing.
+
 Set `schedules.morning` to `""` to disable the fixed morning time while keeping
 reset and memory-consolidation schedules enabled. Home Assistant can call
 `POST /v1/triggers/morning` with `Authorization: Bearer <config.apiKey>` when
 `input_boolean.dormir` changes from `on` to `off`. No body is required. This
 queues the usual morning briefing for `telegram.notificationChatId`, using the
-same session ordering and daily deduplication key as the timed schedule. Repeated
-calls return the existing job, including failed jobs, without replaying delivery.
+same session ordering, with its own daily deduplication key. A wake-up also
+suppresses a later timed briefing that day. Repeated calls return the existing job, including failed jobs, without replaying delivery.
 The endpoint requires `schedules.enabled` and a configured notification recipient.
 The briefing reads Home Assistant's daily weather forecast. If `homeAssistant.weatherEntity`
 is empty, it discovers the source when exactly one weather entity supports daily forecasts;

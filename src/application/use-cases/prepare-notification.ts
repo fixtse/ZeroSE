@@ -1,7 +1,8 @@
 import type { Config } from '../../domain/config.js';
 import type { Job, ToolContext } from '../../domain/models.js';
 import type { AgentPort, GooglePort, HomeAssistantPort, ConversationStore } from '../ports.js';
-import { dayRange } from '../../domain/time.js';
+import type { RuleRepository } from '../notification-rules.js';
+import { localClock, dayRange } from '../../domain/time.js';
 import { renderPrompt } from '../prompts.js';
 import type { JobResult } from './contracts.js';
 import { eventWeatherContext } from '../../domain/event-weather.js';
@@ -14,6 +15,7 @@ export class PrepareNotification {
     private google: GooglePort,
     private homeAssistant: HomeAssistantPort,
     private prompts: Record<string, string>,
+    private rules?: Pick<RuleRepository, 'wakeReminders' | 'completeWakeReminders'>,
   ) {}
   private eventKey(event: any) {
     return `event:${event.id}:${event.start?.dateTime || event.start?.date}`;
@@ -52,6 +54,13 @@ export class PrepareNotification {
   }
   async execute(job: Job, context: ToolContext): Promise<JobResult> {
     const morning = job.payload.kind === 'morning';
+    const wakeReminders =
+      morning && job.payload.wakeUp && this.rules
+        ? await this.rules.wakeReminders(
+            job.session,
+            localClock(new Date(), this.config.timezone).day,
+          )
+        : [];
     const range = dayRange(new Date(), this.config.timezone);
     const events = await this.google.events(
       morning ? range.start : new Date().toISOString(),
@@ -97,8 +106,12 @@ export class PrepareNotification {
     );
     if (!output.trim()) throw new Error('Codex returned no notification text');
     return {
-      output,
+      output: wakeReminders.length
+        ? `${output}\n\n🔔 Recordatorios al despertar:\n${wakeReminders.map((rule) => `• ${rule.message}`).join('\n')}`
+        : output,
       afterDelivery: async () => {
+        if (wakeReminders.length)
+          await this.rules!.completeWakeReminders(job.session, wakeReminders);
         if (!morning)
           for (const event of selected) await this.store.markScheduled(this.eventKey(event));
       },

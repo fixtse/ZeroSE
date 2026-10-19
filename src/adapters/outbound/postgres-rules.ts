@@ -86,6 +86,21 @@ export class PostgresRules implements RuleRepository {
     const { rows } = await this.pool.query('SELECT * FROM notification_rules WHERE id=$1', [id]);
     return rows[0] ? this.decode(rows[0]) : undefined;
   }
+  async wakeReminders(session: string, date: string) {
+    const { rows } = await this.pool.query(
+      "SELECT * FROM notification_rules WHERE session=$1 AND value->>'status'='active' AND value->>'wake_date'=$2 ORDER BY created,id",
+      [session, date],
+    );
+    return rows.map((row) => this.decode(row));
+  }
+  async completeWakeReminders(session: string, rules: NotificationRule[]) {
+    for (const rule of rules)
+      await this.pool.query(
+        `UPDATE notification_rules SET value=jsonb_set(value,'{status}','"completed"'::jsonb),version=version+1
+        WHERE session=$1 AND id=$2 AND version=$3 AND value->>'status'='active'`,
+        [session, rule.id, rule.version],
+      );
+  }
   async legacy() {
     const { rows } = await this.pool.query(
       "SELECT * FROM notification_rules WHERE value->>'scheduler_state' IS NULL AND value->>'status' IN ('active','paused') ORDER BY created,id",
@@ -119,6 +134,7 @@ export class PostgresRules implements RuleRepository {
       const lastFired = hourly ? rule?.last_hourly_fired : rule?.last_fired;
       if (
         !rule ||
+        rule.wake_date ||
         rule.generation !== event.generation ||
         rule.status !== 'active' ||
         (hourly && (rule.condition?.source !== 'weather' || !rule.condition.hourly_updates)) ||
