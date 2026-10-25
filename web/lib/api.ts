@@ -38,8 +38,17 @@ export interface Profile {
   capabilities: string[];
   hasHomeAssistant: boolean;
   assistantId?: string;
+  voiceReplies?: boolean;
+  timezone?: string;
+  memoryMode?: 'advanced' | 'simple' | 'none';
+  speech?: SpeechSettings;
+  hasGoogle?: boolean;
+  google?: GoogleSettings;
+
   homeAssistant?: {
     url: string;
+    taskProvider?: 'google' | 'home_assistant';
+    taskListEntity?: string;
     shoppingListEntity: string;
     weatherEntity: string;
     locationEntity: string;
@@ -69,4 +78,30 @@ export interface Pairing {
   userId: string;
   expiresAt: string;
   state: string;
+}
+
+export interface SpeechSettings {
+  stt: string;
+  sttLanguage: string;
+  tts: string;
+  ttsLanguage: string;
+  voice: string;
+}
+export interface GoogleCredential {
+  clientId: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  configured?: boolean;
+}
+export interface GoogleSettings extends GoogleCredential {
+  calendarId: string;
+  taskListId: string;
+  contextDocumentId: string;
+  documentFolderId: string;
+  credentials: Partial<Record<'calendar' | 'tasks' | 'docs' | 'drive', GoogleCredential>>;
+}
+export interface CatalogPage<T> {
+  items: T[];
+  total: number;
+  next_offset?: number | null;
 }

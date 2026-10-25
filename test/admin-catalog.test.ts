@@ -134,6 +134,58 @@ test('service credential edits preserve blank secrets and other services without
   assert(!JSON.stringify(result.value).includes('drive-refresh'));
 });
 
+test('task provider changes require explicit confirmation and retain direct credentials', async () => {
+  const f = setup();
+  const admin = new Admin(f.config, f.repository, async () => {});
+  const input = {
+    kind: 'user',
+    label: 'Test',
+    enabled: true,
+    capabilities: ['tasks', 'homeAssistant'],
+    homeAssistant: {
+      url: 'https://ha.example',
+      taskProvider: 'home_assistant',
+      taskListEntity: 'todo.personal',
+    },
+    confirmTaskProviderChange: false,
+  };
+  assert.equal((await request(admin, 'salem/123', 'PUT', input)).status, 400);
+  assert.equal(f.profile.homeAssistant?.taskProvider, undefined);
+  input.confirmTaskProviderChange = true;
+  assert.equal((await request(admin, 'salem/123', 'PUT', input)).status, 200);
+  assert.equal(f.profile.homeAssistant?.taskProvider, 'home_assistant');
+  assert.equal(f.profile.homeAssistant?.token, 'private-ha-token');
+  assert.equal(f.profile.google?.credentials.drive?.refreshToken, 'drive-refresh');
+  const result = await request(admin, 'salem/123');
+  assert.equal(result.value.homeAssistant.taskListEntity, 'todo.personal');
+  assert(!JSON.stringify(result.value).includes('private-ha-token'));
+  input.homeAssistant.taskProvider = 'google';
+  input.confirmTaskProviderChange = false;
+  assert.equal((await request(admin, 'salem/123', 'PUT', input)).status, 400);
+  input.homeAssistant.taskProvider = 'home_assistant';
+  assert.equal(
+    (
+      await request(admin, 'salem/123', 'PUT', {
+        ...input,
+        homeAssistant: { ...input.homeAssistant, taskListEntity: '' },
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(admin, 'salem/123', 'PUT', {
+        ...input,
+        clearHomeAssistant: true,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(f.profile.homeAssistant?.taskProvider, 'home_assistant');
+  assert.equal(f.profile.homeAssistant?.token, '');
+  assert.equal(f.profile.google?.credentials.drive?.refreshToken, 'drive-refresh');
+});
+
 test('embedded admin script parses with the alert and catalog controls', () => {
   new Script(adminPage.split('<script>')[1].split('</script>')[0]);
   for (const id of ['rulesList', 'ruleKind', 'haCatalogList', 'serviceCredentials'])

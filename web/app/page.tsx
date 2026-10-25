@@ -18,6 +18,11 @@ import { Badge } from '../components/ui/badge';
 import { RevokeToken } from '../components/revoke-token';
 import { AssistantCatalog } from '../components/assistant-catalog';
 import { AssistantAssignment } from '../components/assistant-assignment';
+import { ProfileEditor } from '../components/profile-editor';
+import { AccountSettings } from '../components/account-settings';
+import { BotSettings } from '../components/bot-settings';
+import { CheckField } from '../components/settings-fields';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Link2, Users, Sparkles, ShieldCheck, House } from 'lucide-react';
 const base = '/v1/admin/setup';
 const navigation = [
@@ -42,11 +47,18 @@ export default function Home() {
     [tokenOffset, setTokenOffset] = useState(0),
     [issued, setIssued] = useState<Credential>();
   const [settings, setSettings] = useState<Settings>(),
-    [connection, setConnection] = useState<{ url: string; callbackUrl: string }>();
+    [connection, setConnection] = useState<{
+      url: string;
+      callbackUrl: string;
+      homeAssistantConnected: boolean;
+    }>();
   const [pairing, setPairing] = useState<Pairing>(),
     [pairingId, setPairingId] = useState(''),
     [selected, setSelected] = useState('');
   const [recovery, setRecovery] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<Profile | null | undefined>();
+  const [defaultTimezone, setDefaultTimezone] = useState('Europe/Madrid');
+  const [pending, setPending] = useState(false);
   const running = useRef(false);
   function lock() {
     setAuthenticated(false);
@@ -55,6 +67,7 @@ export default function Home() {
     setIssued(undefined);
     setSettings(undefined);
     setPairing(undefined);
+    setEditingProfile(undefined);
   }
   async function run(work: () => Promise<void>) {
     if (running.current) return;
@@ -71,11 +84,17 @@ export default function Home() {
       setBusy(false);
     }
   }
-  async function loadProfiles(query = search, start = offset) {
-    const result = await api<{ items: Profile[]; total: number }>(
-      '/v1/admin/profiles?limit=20&offset=' + start + '&search=' + encodeURIComponent(query),
+  async function loadProfiles(query = search, start = offset, onlyPending = pending) {
+    const result = await api<{ items: Profile[]; total: number; timezone: string }>(
+      '/v1/admin/profiles?limit=20&offset=' +
+        start +
+        '&pending=' +
+        onlyPending +
+        '&search=' +
+        encodeURIComponent(query),
     );
     setProfiles(result.items);
+    setDefaultTimezone(result.timezone);
     setTotal(result.total);
     setOffset(start);
   }
@@ -88,10 +107,13 @@ export default function Home() {
     setTokenOffset(start);
   }
   async function open(id: string) {
-    setConnection(await api(base + '/connection'));
+    const status = await api<{ url: string; callbackUrl: string; homeAssistantConnected: boolean }>(
+      base + '/connection',
+    );
+    setConnection(status);
     setSettings(await api(base + '/settings'));
     await loadProfiles('', 0);
-    await loadTokens(0);
+    if (status.homeAssistantConnected) await loadTokens(0);
     setAuthenticated(true);
     if (id) {
       try {
@@ -101,6 +123,10 @@ export default function Home() {
       }
     }
   }
+  useEffect(() => {
+    window.addEventListener('zero-session-expired', lock);
+    return () => window.removeEventListener('zero-session-expired', lock);
+  }, []);
   useEffect(() => {
     const id = new URLSearchParams(location.search).get('pairing') || '';
     setPairingId(id);
@@ -150,7 +176,7 @@ export default function Home() {
             <br />
             Todas tus conversaciones.
           </p>
-          <a href="/admin/advanced">Administración avanzada ↗</a>
+          <small>Configuración de tus asistentes y conexiones.</small>
         </div>
       </aside>
       <main>
@@ -331,17 +357,28 @@ export default function Home() {
                       className="quiet"
                       onClick={() => {
                         setPairing(undefined);
+                        setEditingProfile(undefined);
                         history.replaceState(null, '', '/admin/');
                       }}
                     >
                       Ahora no
                     </Button>
                   </form>
-                  <small>
-                    Si tu perfil no aparece, búscalo en Personas o créalo en la administración
-                    avanzada.
-                  </small>
+                  <small>Si tu perfil no aparece, búscalo o créalo en Personas.</small>
                 </Card>
+              )}
+              {editingProfile !== undefined && (
+                <ProfileEditor
+                  key={editingProfile ? editingProfile.bot + editingProfile.chatId : 'new'}
+                  profile={editingProfile}
+                  timezone={defaultTimezone}
+                  onClose={() => setEditingProfile(undefined)}
+                  onChanged={async (message) => {
+                    await loadProfiles();
+                    setConnection(await api(base + '/connection'));
+                    if (message) setNotice(message);
+                  }}
+                />
               )}
               {tab === 'connections' && (
                 <>
@@ -353,68 +390,74 @@ export default function Home() {
                     </div>
                     <span className="pill">Configuración de Zero</span>
                   </div>
-                  <Card className="hero panel">
-                    <div className="ha-mark">
-                      <House size={32} />
-                    </div>
-                    <div>
-                      <span className="eyebrow">HOME ASSISTANT</span>
-                      <h2>Tu casa. Una conversación.</h2>
-                      <p>
-                        Añade la instancia de Zero descubierta en Home Assistant. El asistente de
-                        configuración te traerá aquí para aprobar la conexión y compartirá las
-                        credenciales automáticamente.
-                      </p>
-                      <div className="steps">
-                        <span>
-                          <b>01</b> Descubre Zero
-                        </span>
-                        <span>
-                          <b>02</b> Aprueba la conexión
-                        </span>
-                        <span>
-                          <b>03</b> Empieza a hablar
-                        </span>
+
+                      <Card className="hero panel">
+                        <div className="ha-mark">
+                          <House size={32} />
+                        </div>
+                        <div>
+                          <span className="eyebrow">HOME ASSISTANT</span>
+                          <h2>Tu casa. Una conversación.</h2>
+                          <p>
+                            Añade la instancia de Zero descubierta en Home Assistant. El asistente
+                            de configuración te traerá aquí para aprobar la conexión y compartirá
+                            las credenciales automáticamente.
+                          </p>
+                          <div className="steps">
+                            <span>
+                              <b>01</b> Descubre Zero
+                            </span>
+                            <span>
+                              <b>02</b> Aprueba la conexión
+                            </span>
+                            <span>
+                              <b>03</b> Empieza a hablar
+                            </span>
+                          </div>
+                          <a
+                            className="button"
+                            href="https://my.home-assistant.io/redirect/integrations/"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Abrir Home Assistant ↗
+                          </a>
+                        </div>
+                      </Card>
+                      <div className="two-columns">
+                        <Card className="panel">
+                          <span className="eyebrow">CONEXIÓN LOCAL</span>
+                          <h2>Zero ya sabe presentarse.</h2>
+                          <p>
+                            Home Assistant detecta Zero mediante mDNS en la misma red. Comprueba que
+                            esta URL es accesible desde Home Assistant.
+                          </p>
+                          <Label>
+                            URL de Zero
+                            <Input readOnly value={connection?.url || ''} />
+                          </Label>
+                          <small>
+                            La detección anuncia la dirección del servidor. La aprobación comparte
+                            las credenciales por separado.
+                          </small>
+                        </Card>
+                        <Card className="panel">
+                          <span className="eyebrow">TUS OTRAS CONEXIONES</span>
+                          <h2>Cada persona, su espacio.</h2>
+                          <p>
+                            Gestiona Google, Telegram, entidades de tu casa y voz por perfil. Los
+                            secretos guardados se conservan cuando dejas sus campos vacíos.
+                          </p>
+                          <Button
+                            variant="link"
+                            className="text-link"
+                            onClick={() => setTab('people')}
+                          >
+                            Configurar servicios y perfiles →
+                          </Button>
+                        </Card>
                       </div>
-                      <a
-                        className="button"
-                        href="https://my.home-assistant.io/redirect/integrations/"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Abrir Home Assistant ↗
-                      </a>
-                    </div>
-                  </Card>
-                  <div className="two-columns">
-                    <Card className="panel">
-                      <span className="eyebrow">CONEXIÓN LOCAL</span>
-                      <h2>Zero ya sabe presentarse.</h2>
-                      <p>
-                        Home Assistant detecta Zero mediante mDNS en la misma red. Comprueba que
-                        esta URL es accesible desde Home Assistant.
-                      </p>
-                      <Label>
-                        URL de Zero
-                        <Input readOnly value={connection?.url || ''} />
-                      </Label>
-                      <small>
-                        La detección anuncia la dirección del servidor. La aprobación comparte las
-                        credenciales por separado.
-                      </small>
-                    </Card>
-                    <Card className="panel">
-                      <span className="eyebrow">TUS OTRAS CONEXIONES</span>
-                      <h2>Cada persona, su espacio.</h2>
-                      <p>
-                        Gestiona Google, Telegram, entidades de tu casa y voz por perfil. Los
-                        secretos guardados se conservan cuando dejas sus campos vacíos.
-                      </p>
-                      <a className="text-link" href="/admin/advanced">
-                        Configurar servicios y perfiles ↗
-                      </a>
-                    </Card>
-                  </div>
+
                 </>
               )}
               {tab === 'people' && (
@@ -428,9 +471,7 @@ export default function Home() {
                         conversaciones de Zero.
                       </p>
                     </div>
-                    <a className="button" href="/admin/advanced">
-                      Gestionar perfiles ↗
-                    </a>
+                    <Button onClick={() => setEditingProfile(null)}>Añadir usuario o grupo</Button>
                   </div>
                   <Card className="panel">
                     <form
@@ -450,23 +491,45 @@ export default function Home() {
                         Buscar
                       </Button>
                     </form>
+                    <CheckField
+                      id="people-pending"
+                      label="Solo pendientes"
+                      checked={pending}
+                      disabled={busy}
+                      onCheckedChange={(value) => {
+                        const enabled = value === true;
+                        setPending(enabled);
+                        void run(() => loadProfiles(search, 0, enabled));
+                      }}
+                    />
                     <div className="profile-list">
                       {profiles.map((p) => (
-                        <div className="profile-row" key={p.bot + p.chatId}>
+                        <div className="profile-row person-row" key={p.bot + p.chatId}>
+                          <div className="person-summary">
                           <span className="avatar">{p.label.slice(0, 1).toUpperCase()}</span>
-                          <div>
+                          <div className="person-details">
                             <strong>{p.label}</strong>
                             <small>
                               {p.bot} · {p.chatId} · {p.kind === 'user' ? 'Privado' : 'Grupo'}
                             </small>
                           </div>
+                          </div>
+                          <div className="person-actions">
                           <Badge variant="outline" className="pill">
                             {p.enabled ? 'Activo' : 'Pendiente'}
                           </Badge>
                           <AssistantAssignment profile={p} onAssigned={() => loadProfiles()} />
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingProfile(p)}
+                            aria-label={'Editar perfil de ' + p.label}
+                          >
+                            Editar perfil
+                          </Button>
                           {p.hasHomeAssistant && (
                             <span className="pill connected">Home Assistant</span>
                           )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -493,7 +556,7 @@ export default function Home() {
                       </Button>
                     </div>
                   </Card>
-                  {settings && (
+                  {settings && connection?.homeAssistantConnected && (
                     <Card className="panel">
                       <h2>Usuarios de Home Assistant</h2>
                       {Object.entries(settings.homeAssistantUsers || {}).map(([user, chat]) => (
@@ -532,69 +595,77 @@ export default function Home() {
                   <AssistantCatalog
                     onZeroChanged={async () => setSettings(await api(base + '/settings'))}
                   />
-                  <h2>Permisos compartidos de Home Assistant</h2>
-                  <p>
-                    Estos ajustes de acceso se conservan en Zero y también se pueden gestionar desde
-                    Home Assistant.
-                  </p>
-                  <form
-                    className="panel"
-                    onSubmit={submit(async (data) => {
-                      const saved = await api<Settings>(base + '/settings', 'PUT', {
-                        revision: settings.revision,
-                        prompt: settings.prompt,
-                        homeAssistant: data.has('homeAssistant'),
-                        assist: data.has('assist'),
-                        frigate: data.has('frigate'),
-                        services: String(data.get('services') || '')
-                          .split('\n')
-                          .map((v) => v.trim())
-                          .filter(Boolean),
-                      });
-                      setSettings(saved);
-                      setNotice('Configuración guardada.');
-                    })}
-                    key={settings.revision}
-                  >
-                    <div className="toggle-list">
-                      {[
-                        ['homeAssistant', 'Herramientas de Home Assistant'],
-                        ['assist', 'Delegación a Assist'],
-                        ['frigate', 'Servicios de Frigate'],
-                      ].map(([id, label]) => (
-                        <Label className="check" key={id}>
-                          <Checkbox name={id} defaultChecked={!!settings[id as keyof Settings]} />
-                          {label}
-                        </Label>
-                      ))}
-                    </div>
-                    <Label>
-                      Servicios permitidos
-                      <Textarea
-                        name="services"
-                        defaultValue={settings.services.join('\n')}
-                        rows={4}
-                        placeholder="light.turn_on"
-                      />
-                    </Label>
-                    <small>
-                      Un servicio domain.service por línea. Los recordatorios existentes conservan
-                      sus horarios.
-                    </small>
-                    <div className="form-actions">
-                      <Button disabled={busy}>Guardar ajustes →</Button>
-                      <Button
-                        type="button"
-                        className="quiet"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(async () => setSettings(await api(base + '/settings')))
-                        }
+                  <BotSettings />
+                  {connection?.homeAssistantConnected && (
+                    <>
+                      <h2>Permisos compartidos de Home Assistant</h2>
+                      <p>
+                        Estos ajustes de acceso se conservan en Zero y también se pueden gestionar
+                        desde Home Assistant.
+                      </p>
+                      <form
+                        className="panel"
+                        onSubmit={submit(async (data) => {
+                          const saved = await api<Settings>(base + '/settings', 'PUT', {
+                            revision: settings.revision,
+                            prompt: settings.prompt,
+                            homeAssistant: data.has('homeAssistant'),
+                            assist: data.has('assist'),
+                            frigate: data.has('frigate'),
+                            services: String(data.get('services') || '')
+                              .split('\n')
+                              .map((v) => v.trim())
+                              .filter(Boolean),
+                          });
+                          setSettings(saved);
+                          setNotice('Configuración guardada.');
+                        })}
+                        key={settings.revision}
                       >
-                        Recargar
-                      </Button>
-                    </div>
-                  </form>
+                        <div className="toggle-list">
+                          {[
+                            ['homeAssistant', 'Herramientas de Home Assistant'],
+                            ['assist', 'Delegación a Assist'],
+                            ['frigate', 'Servicios de Frigate'],
+                          ].map(([id, label]) => (
+                            <Label className="check" key={id}>
+                              <Checkbox
+                                name={id}
+                                defaultChecked={!!settings[id as keyof Settings]}
+                              />
+                              {label}
+                            </Label>
+                          ))}
+                        </div>
+                        <Label>
+                          Servicios permitidos
+                          <Textarea
+                            name="services"
+                            defaultValue={settings.services.join('\n')}
+                            rows={4}
+                            placeholder="light.turn_on"
+                          />
+                        </Label>
+                        <small>
+                          Un servicio domain.service por línea. Los recordatorios existentes
+                          conservan sus horarios.
+                        </small>
+                        <div className="form-actions">
+                          <Button disabled={busy}>Guardar ajustes →</Button>
+                          <Button
+                            type="button"
+                            className="quiet"
+                            disabled={busy}
+                            onClick={() =>
+                              void run(async () => setSettings(await api(base + '/settings')))
+                            }
+                          >
+                            Recargar
+                          </Button>
+                        </div>
+                      </form>
+                    </>
+                  )}
                 </>
               )}
               {tab === 'security' && (
@@ -606,105 +677,113 @@ export default function Home() {
                       <p>Consulta y revoca los tokens de tus integraciones cuando lo necesites.</p>
                     </div>
                   </div>
-                  <Card className="panel">
-                    <h2>Tokens de Home Assistant</h2>
-                    <p>
-                      La configuración guiada los genera automáticamente. También puedes crear uno
-                      para una conexión manual. Solo permite voz, ajustes y eventos de alertas.
-                    </p>
-                    <form
-                      className="search-row"
-                      onSubmit={submit(async (data) => {
-                        setIssued(
-                          await api<Credential>(base + '/tokens', 'POST', {
-                            name: data.get('name'),
-                            days: Number(data.get('days')),
-                          }),
-                        );
-                        await loadTokens(0);
-                      })}
-                    >
-                      <Input
-                        name="name"
-                        aria-label="Nombre del token"
-                        placeholder="Nombre de la conexión"
-                        maxLength={100}
-                        required
-                      />
-                      <select name="days" aria-label="Validez">
-                        <option value="365">1 año</option>
-                        <option value="3650">10 años</option>
-                        <option value="30">30 días</option>
-                      </select>
-                      <Button disabled={busy}>Crear token</Button>
-                    </form>
-                    {issued?.token && (
-                      <div className="secret">
-                        <strong>Guárdalo ahora. Solo se muestra una vez.</strong>
-                        <p>
-                          Pega este token en los campos de voz, ajustes y callback de la conexión
-                          manual.
-                        </p>
-                        <Textarea readOnly aria-label="Nuevo token" value={issued.token} />
-                        <Button className="quiet" onClick={() => setIssued(undefined)}>
-                          Ocultar token
-                        </Button>
-                      </div>
-                    )}
-                    {tokens.map((token) => (
-                      <div className="profile-row" key={token.id}>
-                        <div>
-                          <strong>{token.name}</strong>
+                  <Tabs defaultValue="zero" className="provider-settings">
+                    <TabsList aria-label="Proveedor de seguridad" className="provider-tabs-list">
+                      {connection?.homeAssistantConnected && (
+                        <TabsTrigger value="home-assistant">Home Assistant</TabsTrigger>
+                      )}
+                      <TabsTrigger value="zero">Cuenta de Zero</TabsTrigger>
+                    </TabsList>
+                    {connection?.homeAssistantConnected && (
+                      <TabsContent value="home-assistant" forceMount>
+                        <Card className="panel">
+                          <h2>Tokens de Home Assistant</h2>
+                          <p>
+                            La configuración guiada los genera automáticamente. También puedes crear
+                            uno para una conexión manual. Solo permite voz, ajustes y eventos de
+                            alertas.
+                          </p>
+                          <form
+                            className="search-row"
+                            onSubmit={submit(async (data) => {
+                              setIssued(
+                                await api<Credential>(base + '/tokens', 'POST', {
+                                  name: data.get('name'),
+                                  days: Number(data.get('days')),
+                                }),
+                              );
+                              await loadTokens(0);
+                            })}
+                          >
+                            <Input
+                              name="name"
+                              aria-label="Nombre del token"
+                              placeholder="Nombre de la conexión"
+                              maxLength={100}
+                              required
+                            />
+                            <select name="days" aria-label="Validez">
+                              <option value="365">1 año</option>
+                              <option value="3650">10 años</option>
+                              <option value="30">30 días</option>
+                            </select>
+                            <Button disabled={busy}>Crear token</Button>
+                          </form>
+                          {issued?.token && (
+                            <div className="secret">
+                              <strong>Guárdalo ahora. Solo se muestra una vez.</strong>
+                              <p>
+                                Pega este token en los campos de voz, ajustes y callback de la
+                                conexión manual.
+                              </p>
+                              <Textarea readOnly aria-label="Nuevo token" value={issued.token} />
+                              <Button className="quiet" onClick={() => setIssued(undefined)}>
+                                Ocultar token
+                              </Button>
+                            </div>
+                          )}
+                          {tokens.map((token) => (
+                            <div className="profile-row" key={token.id}>
+                              <div>
+                                <strong>{token.name}</strong>
+                                <small>
+                                  Caduca {date(token.expiresAt)} ·{' '}
+                                  {token.revokedAt ? 'Revocado' : 'Emitido'}
+                                </small>
+                              </div>
+                              <RevokeToken
+                                name={token.name}
+                                disabled={busy || !!token.revokedAt}
+                                onRevoke={() =>
+                                  void run(async () => {
+                                    await api(base + '/tokens/' + token.id, 'DELETE');
+                                    setIssued(undefined);
+                                    await loadTokens();
+                                  })
+                                }
+                              />
+                            </div>
+                          ))}
+                          <div className="pager">
+                            <Button
+                              className="quiet"
+                              disabled={busy || !tokenOffset}
+                              onClick={() =>
+                                void run(() => loadTokens(Math.max(0, tokenOffset - 20)))
+                              }
+                            >
+                              ← Anterior
+                            </Button>
+                            <small>{tokenTotal} tokens</small>
+                            <Button
+                              className="quiet"
+                              disabled={busy || tokenOffset + 20 >= tokenTotal}
+                              onClick={() => void run(() => loadTokens(tokenOffset + 20))}
+                            >
+                              Siguiente →
+                            </Button>
+                          </div>
                           <small>
-                            Caduca {date(token.expiresAt)} ·{' '}
-                            {token.revokedAt ? 'Revocado' : 'Emitido'}
+                            Los tokens anteriores a esta pantalla se mantienen para conservar las
+                            conexiones existentes.
                           </small>
-                        </div>
-                        <RevokeToken
-                          name={token.name}
-                          disabled={busy || !!token.revokedAt}
-                          onRevoke={() =>
-                            void run(async () => {
-                              await api(base + '/tokens/' + token.id, 'DELETE');
-                              setIssued(undefined);
-                              await loadTokens();
-                            })
-                          }
-                        />
-                      </div>
-                    ))}
-                    <div className="pager">
-                      <Button
-                        className="quiet"
-                        disabled={busy || !tokenOffset}
-                        onClick={() => void run(() => loadTokens(Math.max(0, tokenOffset - 20)))}
-                      >
-                        ← Anterior
-                      </Button>
-                      <small>{tokenTotal} tokens</small>
-                      <Button
-                        className="quiet"
-                        disabled={busy || tokenOffset + 20 >= tokenTotal}
-                        onClick={() => void run(() => loadTokens(tokenOffset + 20))}
-                      >
-                        Siguiente →
-                      </Button>
-                    </div>
-                    <small>
-                      Los tokens anteriores a esta pantalla se mantienen para conservar las
-                      conexiones existentes.
-                    </small>
-                  </Card>
-                  <Card className="panel">
-                    <h2>Contraseña y recuperación</h2>
-                    <p>
-                      Actualiza tu contraseña o configura la recuperación por Telegram en los
-                      ajustes de cuenta.
-                    </p>
-                    <a className="text-link" href="/admin/advanced">
-                      Abrir ajustes de cuenta ↗
-                    </a>
-                  </Card>
+                        </Card>
+                      </TabsContent>
+                    )}
+                    <TabsContent value="zero" forceMount>
+                      <AccountSettings />
+                    </TabsContent>
+                  </Tabs>
                 </>
               )}
             </>

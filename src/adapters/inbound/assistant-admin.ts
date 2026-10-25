@@ -1,3 +1,4 @@
+import type { AssistantImageAdmin } from './assistant-image-admin.js';
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { AssistantDefinitions } from '../../application/assistant-definitions.js';
@@ -8,6 +9,7 @@ export class AssistantAdmin {
   constructor(
     private definitions: AssistantDefinitions,
     private profiles: AccessRepository,
+    private images?: AssistantImageAdmin,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -15,6 +17,7 @@ export class AssistantAdmin {
     read: () => Promise<unknown>,
     send: (status: number, value: unknown) => void,
   ) {
+    if (await this.images?.handle(req, path, read, send)) return true;
     const root = '/v1/admin/setup/assistants';
     if (path === root && req.method === 'GET') {
       const query = new URL(req.url || '/', 'http://localhost').searchParams;

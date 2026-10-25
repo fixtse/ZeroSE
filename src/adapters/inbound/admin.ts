@@ -61,10 +61,12 @@ const profileSchema = z.object({
         .default(''),
     })
     .optional(),
+  confirmTaskProviderChange: z.boolean().default(false),
   clearGoogle: z.boolean().default(false),
   clearHomeAssistant: z.boolean().default(false),
 });
-function publicProfile(p: AccessProfile, timezone: string) {
+function publicProfile(p: AccessProfile, timezone: string, ownerHA?: Config['homeAssistant']) {
+  const homeAssistant = p.homeAssistant || (p.owner ? ownerHA : undefined);
   return {
     bot: p.bot,
     chatId: p.chatId,
@@ -89,7 +91,7 @@ function publicProfile(p: AccessProfile, timezone: string) {
       p.google?.refreshToken ||
       Object.values(p.google?.credentials || {}).some((c) => !!c?.refreshToken)
     ),
-    hasHomeAssistant: !!p.homeAssistant?.token,
+    hasHomeAssistant: !!homeAssistant?.token,
     google: p.google
       ? {
           clientId: p.google.clientId,
@@ -108,7 +110,7 @@ function publicProfile(p: AccessProfile, timezone: string) {
           ),
         }
       : undefined,
-    homeAssistant: p.homeAssistant ? { ...p.homeAssistant, token: undefined } : undefined,
+    homeAssistant: homeAssistant ? { ...homeAssistant, token: undefined } : undefined,
   };
 }
 export class Admin {
@@ -297,7 +299,9 @@ export class Admin {
           reset: this.config.schedules.reset,
           consolidate: this.config.schedules.consolidate,
         },
-        items: result.items.map((profile) => publicProfile(profile, this.config.timezone)),
+        items: result.items.map((profile) =>
+          publicProfile(profile, this.config.timezone, this.config.homeAssistant),
+        ),
         total: result.total,
         offset,
         limit,
@@ -461,7 +465,7 @@ export class Admin {
         send(
           previous ? 200 : 404,
           previous
-            ? publicProfile(previous, this.config.timezone)
+            ? publicProfile(previous, this.config.timezone, this.config.homeAssistant)
             : { error: 'Chat no encontrado.' },
         );
         return true;
@@ -510,11 +514,37 @@ export class Admin {
             };
           }
         }
+        const provider = input.homeAssistant?.taskProvider || previousHA?.taskProvider || 'google';
+        if (
+          provider !== (previousHA?.taskProvider || 'google') &&
+          !input.confirmTaskProviderChange
+        ) {
+          send(400, { error: 'Confirma el cambio de proveedor de tareas.' });
+          return true;
+        }
+        if (
+          provider === 'home_assistant' &&
+          !input.clearHomeAssistant &&
+          (!(input.homeAssistant?.taskListEntity ?? previousHA?.taskListEntity) ||
+            !(input.homeAssistant?.token || previousHA?.token) ||
+            !input.capabilities.includes('homeAssistant'))
+        ) {
+          send(400, {
+            error: 'Selecciona una lista to-do y una conexión Home Assistant con permiso.',
+          });
+          return true;
+        }
         let homeAssistant = previous?.homeAssistant;
         if (input.clearHomeAssistant)
-          homeAssistant = { ...ConfigSchema.parse({}).homeAssistant, token: '' };
+          homeAssistant = {
+            ...ConfigSchema.parse({}).homeAssistant,
+            token: '',
+            taskProvider: provider,
+            taskListEntity: input.homeAssistant?.taskListEntity ?? previousHA?.taskListEntity,
+          };
         else if (input.homeAssistant)
           homeAssistant = {
+            ...previousHA,
             ...input.homeAssistant,
             token: input.homeAssistant.token || previousHA?.token || '',
           };

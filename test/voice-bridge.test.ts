@@ -14,6 +14,35 @@ import { PostgresAccess } from '../src/adapters/outbound/postgres-access.js';
 import { PostgresZeroSettings } from '../src/adapters/outbound/postgres-zero-settings.js';
 import { Access } from '../src/application/access.js';
 import { fixture, until } from './helpers.js';
+import { PostgresAssistantDefinitions } from '../src/adapters/outbound/postgres-assistant-definitions.js';
+import { AssistantDefinitions } from '../src/application/assistant-definitions.js';
+
+test('HA discovers all assistant names without prompts and selects an agent without changing user assignment',async()=>{
+  const f=await fixture();
+  await new PostgresAccess(f.store.pool,f.config.apiKey).initialize(f.config);
+  await new PostgresZeroSettings(f.store.pool).initialize('Private Zero prompt');
+  const definitions=new AssistantDefinitions(new PostgresAssistantDefinitions(f.store.pool),randomUUID);
+  const custom=await definitions.create({name:'Planner',prompt:'Private planner instructions'});
+  const voice=new VoiceBridge(f.store,'assist_satellite.fixture',async()=>'telegram:1',async()=>'telegram:1',definitions);
+  const server=createHttpServer(f.config,f.store,undefined,undefined,undefined,undefined,voice);
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  const base=`http://127.0.0.1:${(server.address() as any).port}`;
+  try {
+    assert.equal((await fetch(base+'/v1/voice/assistants')).status,401);
+    const headers={Authorization:`Bearer ${voiceToken(f.config.apiKey)}`,'Content-Type':'application/json'};
+    const page=await (await fetch(base+'/v1/voice/assistants?limit=2',{headers})).json() as any;
+    assert.equal(page.items.length,2);assert.equal(page.total,4);
+    assert(!JSON.stringify(page).includes('prompt'));
+    const input={request_id:randomUUID(),ha_user_id:'a'.repeat(32),assistant_id:custom.id,text:'Plan my day'};
+    const accepted=await (await fetch(base+'/v1/voice/turns',{method:'POST',headers,body:JSON.stringify(input)})).json() as any;
+    const job=await f.store.job(accepted.jobId);
+    assert.equal(job?.session,'telegram:1');assert.equal(job?.payload.assistantId,custom.id);
+    const again=await (await fetch(base+'/v1/voice/turns',{method:'POST',headers,body:JSON.stringify(input)})).json() as any;
+    assert.equal(again.jobId,accepted.jobId);
+    assert.equal((await fetch(base+'/v1/voice/turns',{method:'POST',headers,body:JSON.stringify({...input,assistant_id:randomUUID()})})).status,403);
+    assert.equal((await definitions.resolve(undefined,'zero')).id,'zero');
+  } finally {await new Promise<void>(resolve=>server.close(()=>resolve()));await f.close();}
+});
 
 test('voice owner uses configured Zero availability without requiring a managed-bot record', async () => {
   const f = await fixture();

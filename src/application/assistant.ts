@@ -109,7 +109,14 @@ export class Assistant {
     const controller = new AbortController();
     this.controllers.add(controller);
     const deadline = setTimeout(() => controller.abort(), this.config.codex.timeoutMs);
-    const context: ToolContext = { session: job.session, jobId: job.id, signal: controller.signal };
+    const context: ToolContext = {
+      session: job.session,
+      jobId: job.id,
+      signal: controller.signal,
+      ...(job.payload.source === 'home_assistant_voice'
+        ? { source: 'home_assistant_voice' as const }
+        : {}),
+    };
     let typing: NodeJS.Timeout | undefined;
     let telegram: TelegramPort | undefined;
     try {

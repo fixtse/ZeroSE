@@ -141,7 +141,13 @@ export function scopedConfig(base: Config, profile: AccessProfile): Config {
       : blankGoogle,
     homeAssistant: profile.capabilities.includes('homeAssistant')
       ? structuredClone(profile.homeAssistant || (profile.owner ? base.homeAssistant : blankHA))
-      : blankHA,
+      : {
+          ...blankHA,
+          taskProvider:
+            profile.homeAssistant?.taskProvider ||
+            (profile.owner ? base.homeAssistant.taskProvider : undefined),
+          taskListEntity: profile.homeAssistant?.taskListEntity,
+        },
     memory: {
       ...base.memory,
       mode: memoryMode,

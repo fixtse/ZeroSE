@@ -24,7 +24,15 @@ async def main():
         Path(directory, "configuration.yaml").write_text("homeassistant:\n  name: Integration validation\n  latitude: 0\n  longitude: 0\n  elevation: 0\n  unit_system: metric\n  time_zone: UTC\n  currency: EUR\n  country: ES\nhttp:\n  server_port: 18123\n")
         hass = await async_setup_hass(RuntimeConfig(config_dir=directory))
         assert hass is not None
+        catalog_patch = None
         try:
+            conversation_module = importlib.import_module("custom_components.assistant_zero.conversation")
+            catalog_items = [{"id": "zero", "name": "Zero"}, {"id": "salem", "name": "Salem"}, {"id": "00000000-0000-4000-8000-000000000001", "name": "Planner"}]
+            async def catalog_request(hass_arg, settings, method, path, data=None):
+                assert method == "GET" and path.startswith("/v1/voice/assistants?"), (method, path)
+                return {"items": list(catalog_items), "total": len(catalog_items)}
+            catalog_patch = patch.object(conversation_module, "bridge_request", new=AsyncMock(side_effect=catalog_request))
+            catalog_patch.start()
             assert await async_setup_component(hass, "assistant_zero", {})
             zero = importlib.import_module("custom_components.assistant_zero.config_flow")
             current = {"revision": 4, "prompt": "Same Zero identity", "homeAssistant": True, "assist": False, "frigate": False, "services": []}
@@ -120,6 +128,21 @@ async def main():
                 device = dr.async_get(hass).async_get(entities.async_get(entity_id).device_id)
                 assert device.configuration_url == "http://zero.invalid:8788/admin", device
                 device_id = device.id
+                salem_id = entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero_salem")
+                planner_id = entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero_00000000-0000-4000-8000-000000000001")
+                assert salem_id and planner_id
+                from homeassistant.components import conversation as conversation_component
+                coordinator = conversation_component.async_get_agent(hass, entity_id)._coordinator
+                catalog_items.append({"id": "standard", "name": "Standard"})
+                await coordinator.async_request_refresh()
+                await hass.async_block_till_done()
+                assert entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero_standard")
+                assert entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero") == entity_id
+                catalog_items[:] = [item for item in catalog_items if item["id"] != "standard"]
+                await coordinator.async_request_refresh()
+                await hass.async_block_till_done()
+                standard_id = entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero_standard")
+                assert not conversation_component.async_get_agent(hass, standard_id).available
                 options = await hass.config_entries.options.async_init(entry.entry_id)
                 assert options["type"] == "menu", options
                 options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "assistant"})
@@ -159,6 +182,12 @@ async def main():
             with patch.object(conversation_module, "converse", new=AsyncMock(return_value="Personal reply")) as converse:
                 result = await entity.async_process(phone_input)
                 assert result.response.speech["plain"]["speech"] == "Personal reply", result
+                assert converse.call_args.kwargs["ha_user_id"] == admin_user.id
+                assert converse.call_args.kwargs["assistant_id"] == "zero"
+                salem = conversation_module.ZeroConversation(entry, "salem", "Salem")
+                salem.hass = hass
+                await salem.async_process(phone_input)
+                assert converse.call_args.kwargs["assistant_id"] == "salem"
                 assert converse.call_args.kwargs["ha_user_id"] == admin_user.id
             with patch.object(conversation_module, "converse", new=AsyncMock(side_effect=conversation_module.AccessDenied())) as converse:
                 result = await entity.async_process(phone_input)
@@ -213,6 +242,8 @@ async def main():
             print("Real Home Assistant: Android admin routing, inactive/unbound phone denial, user binding/unlink options, setup, both config/options flows, shared prompt PUT, no cached prompt, import preservation, callback update, discovery, admin link, retained voice/device identities and icons passed")
         finally:
             await hass.async_stop(force=True)
+            if catalog_patch:
+                catalog_patch.stop()
 
 
 asyncio.run(main())

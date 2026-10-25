@@ -1,3 +1,9 @@
+import { PostgresAssistantImages } from './adapters/outbound/postgres-assistant-images.js';
+import { AssistantImageAdmin } from './adapters/inbound/assistant-image-admin.js';
+import { TelegramAssistantPhoto } from './adapters/outbound/telegram-assistant-photo.js';
+import type { Config } from './domain/config.js';
+import { withTaskProvider } from './application/task-provider.js';
+import { HomeAssistantTasks } from './adapters/outbound/home-assistant-tasks.js';
 import { AssistantDefinitions } from './application/assistant-definitions.js';
 import { PostgresAssistantDefinitions } from './adapters/outbound/postgres-assistant-definitions.js';
 import { AssistantAdmin } from './adapters/inbound/assistant-admin.js';
@@ -64,12 +70,19 @@ import {
   registerMemoryTools,
 } from './adapters/inbound/integration-tools.js';
 
+function taskServices(value: Config) {
+  const direct = new Google(value.google, value.timezone);
+  return value.homeAssistant.taskProvider === 'home_assistant'
+    ? withTaskProvider(direct, new HomeAssistantTasks(value.homeAssistant))
+    : direct;
+}
+
 process.umask(0o077);
 const config = loadConfig();
 mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
 const store = await Store.open(config.database.url, config.memory.embeddingDimensions),
   tools = new Tools(store),
-  google = new Google(config.google, config.timezone),
+  google = taskServices(config),
   ha = new HomeAssistant(config.homeAssistant),
   memory = new Memory(config.memory, store, new GeminiEmbeddings(config.memory)),
   media = new Media(config),
@@ -83,6 +96,8 @@ const accessRepository = new PostgresAccess(
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
 );
 await accessRepository.initialize(config);
+const assistantImages = new PostgresAssistantImages(store.pool);
+await assistantImages.initialize();
 const assistantDefinitions = new AssistantDefinitions(
   new PostgresAssistantDefinitions(store.pool),
   randomUUID,
@@ -178,13 +193,15 @@ registerPersonalDataTools(
   config.memory.mode !== 'none',
   config.memory.sharedProfile,
 );
+const haClient = { isEnabled: async (bot: string) => bot === 'zero' };
 async function canRespond(job: Job, result?: JobResult) {
   const address = sessionAddress(job.session);
   if (
     job.payload.source === 'home_assistant_voice' &&
     job.payload.haUserId !== undefined &&
     (typeof job.payload.haUserId !== 'string' ||
-      (await voiceUserSession(job.payload.haUserId, zeroSettings, access, bots)) !== job.session)
+      (await voiceUserSession(job.payload.haUserId, zeroSettings, access, haClient)) !==
+        job.session)
   )
     return false;
   if (!address) return true; // HTTP chat already requires the administrator API key.
@@ -209,7 +226,11 @@ async function canRespond(job: Job, result?: JobResult) {
       return false;
     if (!(await rules.canNotify(rule))) return false;
   }
-  return !!profile?.enabled && (await bots.isEnabled(address.bot));
+  return (
+    !!profile?.enabled &&
+    ((job.payload.source === 'home_assistant_voice' && address.bot === 'zero') ||
+      (await bots.isEnabled(address.bot)))
+  );
 }
 async function services(context: ToolContext) {
   const address = sessionAddress(context.session);
@@ -218,12 +239,18 @@ async function services(context: ToolContext) {
   const scoped = profile ? scopedConfig(config, profile) : config;
   context.capabilities = profile?.capabilities;
   context.memoryMode = scoped.memory.mode || 'advanced';
-  const google = new Google(scoped.google, scoped.timezone);
+  const google = taskServices(scoped);
   const ha = new HomeAssistant(scoped.homeAssistant);
   const memory = new Memory(scoped.memory, store, new GeminiEmbeddings(scoped.memory));
   const settings = await zeroSettings.read();
   const permitted = (name: string) => {
-    if (profile?.owner && !settings.homeAssistant && toolCapability(name) === 'homeAssistant')
+    if (
+      profile?.owner &&
+      !settings.homeAssistant &&
+      (toolCapability(name) === 'homeAssistant' ||
+        (toolCapability(name) === 'tasks' &&
+          scoped.homeAssistant.taskProvider === 'home_assistant'))
+    )
       return false;
     if (isMemoryTool(name) && scoped.memory.mode === 'none') return false;
     const capability = toolCapability(name);
@@ -234,17 +261,37 @@ async function services(context: ToolContext) {
     async (name) => {
       if (
         profile?.owner &&
-        toolCapability(name) === 'homeAssistant' &&
+        (toolCapability(name) === 'homeAssistant' ||
+          (toolCapability(name) === 'tasks' &&
+            scoped.homeAssistant.taskProvider === 'home_assistant')) &&
         !(await zeroSettings.read()).homeAssistant
       )
         return false;
       if (!address) return true;
       const current = await access.forSession(context.session);
       const capability = toolCapability(name);
+      if (capability === 'tasks' && current) {
+        const currentHA = scopedConfig(config, current).homeAssistant;
+        if (
+          (currentHA.taskProvider || 'google') !==
+            (scoped.homeAssistant.taskProvider || 'google') ||
+          currentHA.taskListEntity !== scoped.homeAssistant.taskListEntity
+        )
+          return false;
+        if (
+          currentHA.taskProvider === 'home_assistant' &&
+          (!current.capabilities.includes('homeAssistant') ||
+            !currentHA.token ||
+            currentHA.token !== scoped.homeAssistant.token ||
+            currentHA.url !== scoped.homeAssistant.url)
+        )
+          return false;
+      }
       return (
         !!current?.enabled &&
         !(isMemoryTool(name) && current.memoryMode === 'none') &&
-        (await bots.isEnabled(address.bot)) &&
+        ((context.source === 'home_assistant_voice' && address.bot === 'zero') ||
+          (await bots.isEnabled(address.bot))) &&
         (!capability || current.capabilities.includes(capability))
       );
     },
@@ -409,9 +456,10 @@ const codex = new Codex(config, store, tools, async (context) => (await services
         voiceOwnerSession(
           config.telegram.allowedUsers[0] || config.telegram.notificationChatId,
           access,
-          bots,
+          haClient,
         ),
-      (userId) => voiceUserSession(userId, zeroSettings, access, bots),
+      (userId) => voiceUserSession(userId, zeroSettings, access, haClient),
+      assistantDefinitions,
     ),
     zeroSettings,
     integrationAccess,
@@ -422,7 +470,18 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       zeroSettings,
       accessRepository,
       adminAuth.origin,
-      new AssistantAdmin(assistantDefinitions, accessRepository),
+      new AssistantAdmin(assistantDefinitions, accessRepository,
+        new AssistantImageAdmin(assistantDefinitions, assistantImages,
+          new TelegramAssistantPhoto(async id => id === 'zero' ? config.telegram.token : id === 'salem' ? (await accessRepository.bots()).find(bot=>bot.id==='salem')?.token : undefined))),
+      async () => {
+        if (config.homeAssistant.token) return true;
+        // This discovery is admin-only, never part of a conversation's instructions.
+        for (let offset = 0; ; offset += 50) {
+          const page = await accessRepository.profiles('', offset, 50);
+          if (page.items.some((profile) => !!profile.homeAssistant?.token)) return true;
+          if (offset + page.items.length >= page.total || !page.items.length) return false;
+        }
+      },
     ),
   );
 

@@ -3,6 +3,7 @@ import type { ConversationStore } from './ports.js';
 import type { Access } from './access.js';
 import type { ZeroSettingsPort } from './zero-settings.js';
 import type { BotId } from '../domain/access.js';
+import type { AssistantDefinitions } from './assistant-definitions.js';
 
 /** Zero is configured by the original transport, not the managed-bot table. */
 export async function voiceOwnerSession(
@@ -47,6 +48,7 @@ export class VoiceBridge {
     private satellite: string,
     private ownerSession: () => Promise<string | undefined>,
     private userSession?: (userId: string) => Promise<string | undefined>,
+    private definitions?: Pick<AssistantDefinitions, 'get' | 'list'>,
   ) {}
 
   private async session(userId?: string) {
@@ -58,7 +60,9 @@ export class VoiceBridge {
     satellite_id?: string;
     ha_user_id?: string;
     text: string;
+    assistant_id?: string;
   }) {
+    if (value.assistant_id && !await this.definitions?.get(value.assistant_id)) return undefined;
     const session = await this.session(value.ha_user_id);
     if (
       !session ||
@@ -72,11 +76,19 @@ export class VoiceBridge {
         source: 'home_assistant_voice',
         satellite: value.ha_user_id === undefined ? this.satellite : undefined,
         haUserId: value.ha_user_id,
+        ...(value.assistant_id ? { assistantId: value.assistant_id } : {}),
         text: value.text,
         name: 'usuario',
       },
-      `voice:${value.ha_user_id === undefined ? this.satellite : 'user:' + value.ha_user_id}:${value.request_id}`,
+      `voice:${value.ha_user_id === undefined ? this.satellite : 'user:' + value.ha_user_id}:${value.request_id}${value.assistant_id ? ":assistant:" + value.assistant_id : ""}`,
     );
+  }
+
+  async assistants(search: string, offset: number, limit: number) {
+    const page = this.definitions ? await this.definitions.list(search,offset,limit)
+      : { items:[{ id:'zero',name:'Zero' }],total:1 };
+    // HA discovers names and stable identities only; never expose prompts or credentials.
+    return { items:page.items.map(item=>({id:item.id,name:item.name})),total:page.total,offset,limit };
   }
 
   async result(id: string, userId?: string) {

@@ -1014,3 +1014,220 @@ textarea:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Flex children must shrink inside the padded Home Assistant card. */
+.hero > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+.hero h2,
+.hero p {
+  overflow-wrap: anywhere;
+}
+.hero .steps {
+  flex-wrap: wrap;
+}
+.hero .button {
+  max-width: 100%;
+  white-space: normal;
+}
+.two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 1000px) {
+  .two-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.hero {
+  gap: clamp(16px, 3vw, 32px);
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 20px;
+}
+.settings-field {
+  min-width: 0;
+}
+.settings-field label {
+  margin-bottom: 7px;
+}
+.settings-field input,
+.settings-field select {
+  margin-top: 0;
+}
+.settings-section {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 22px;
+}
+.settings-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-bottom: 12px;
+}
+.settings-heading {
+  margin-top: 24px;
+  font-weight: 600;
+}
+.settings-help {
+  margin: 24px 0 0;
+}
+.profile-editor {
+  width: min(1040px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.profile-editor .form-actions {
+  flex-wrap: wrap;
+}
+.profile-editor fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.catalog-results {
+  margin-top: 20px;
+}
+.catalog-row {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.catalog-row small {
+  display: block;
+}
+.catalog-row p {
+  margin: 8px 0;
+}
+.speech-preview {
+  display: block;
+  width: 100%;
+  max-width: 450px;
+  margin-top: 16px;
+}
+.two-columns + [data-slot='card'] {
+  margin-top: 24px;
+}
+@media (max-width: 650px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero .ha-mark {
+    margin-bottom: 0;
+  }
+  .profile-editor {
+    padding: 20px;
+  }
+}
+
+.form-actions {
+  flex-wrap: wrap;
+}
+.page-heading {
+  flex-wrap: wrap;
+}
+.page-heading > div {
+  min-width: 0;
+}
+.profile-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .hero {
+    display: flex;
+  }
+}
+
+.provider-settings {
+  min-width: 0;
+}
+.provider-settings [data-slot='tabs-content'][data-state='inactive'] {
+  display: none;
+}
+.provider-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 18px;
+  gap: 4px;
+}
+.provider-tabs-list [role='tab'] {
+  min-height: 36px;
+  padding: 8px 14px;
+}
+.provider-settings [data-slot='tabs-content'] {
+  min-width: 0;
+}
+
+
+/* Let each profile's identity keep a readable width before moving its actions below it. */
+.person-row > .person-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.person-summary .avatar {
+  flex: none;
+}
+.person-details {
+  min-width: 0;
+  flex: 1;
+}
+.person-details strong {
+  display: block;
+  line-height: 1.45;
+}
+.person-row > .person-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+.person-actions > button {
+  min-width: 0;
+  max-width: 100%;
+}
+.person-actions .assistant-assignment {
+  height: auto;
+  min-height: 34px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.account-password-form {
+  display: grid;
+  gap: 20px;
+}
+.account-password-form > button {
+  justify-self: start;
+  max-width: 100%;
+  min-height: 40px;
+  height: auto;
+  white-space: normal;
+}
+@media (max-width: 650px) {
+  .account-password-form > button {
+    width: 100%;
+  }
+}
+
+.assistant-photo { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.assistant-image-settings { margin: 0 0 24px; }
+.assistant-image-preview { width: 96px; height: 96px; border-radius: 20px; overflow: hidden; margin: 16px 0; display: grid; place-items: center; background: var(--secondary); }
+.assistant-image-preview img { width: 100%; height: 100%; object-fit: cover; }
+.assistant-image-settings .form-actions { margin-top: 16px; }
+.assistant-image-settings input[type='file'] { max-width: 100%; height: auto; min-height: 40px; white-space: normal; }

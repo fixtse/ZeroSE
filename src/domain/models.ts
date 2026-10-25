@@ -18,6 +18,7 @@ export interface ToolContext {
   capabilities?: string[];
   memoryMode?: MemoryMode;
   generatedImages?: GeneratedImage[];
+  source?: 'home_assistant_voice';
 }
 export interface MemoryFragment {
   text: string;

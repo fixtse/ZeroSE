@@ -13,6 +13,7 @@ export class SetupAdmin {
     private profiles: AccessRepository,
     private publicUrl: string,
     private assistants?: AssistantAdmin,
+    private homeAssistantConnected: () => Promise<boolean> = async () => false,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -24,6 +25,7 @@ export class SetupAdmin {
     if (await this.assistants?.handle(req, path, read, send)) return true;
     if (path === '/v1/admin/setup/connection' && req.method === 'GET') {
       send(200, {
+        homeAssistantConnected: await this.homeAssistantConnected(),
         url: this.publicUrl,
         callbackUrl: this.publicUrl + '/v1/triggers/rule-events',
         discovery: '_zero-assistant._tcp',

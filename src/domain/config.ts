@@ -39,6 +39,8 @@ export interface Config {
   schedulerSE?: { url: string; token: string; callbackUrl?: string; enabled: boolean };
   homeAssistant: {
     voiceSatellite?: string;
+    taskProvider?: 'google' | 'home_assistant';
+    taskListEntity?: string;
     url: string;
     token: string;
     shoppingListEntity: string;

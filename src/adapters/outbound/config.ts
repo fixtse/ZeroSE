@@ -99,6 +99,11 @@ export const ConfigSchema = z.object({
         .default(''),
       url: z.string().default('http://127.0.0.1:8123'),
       token: secret,
+      taskProvider: z.enum(['google', 'home_assistant']).optional(),
+      taskListEntity: z
+        .string()
+        .regex(/^(?:todo\.[a-z0-9_]+)?$/)
+        .optional(),
       shoppingListEntity: z.string().default('todo.shopping_list'),
       sensorEntities: z.array(z.string()).default([]),
       weatherEntity: secret,

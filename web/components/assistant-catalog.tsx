@@ -1,6 +1,7 @@
 'use client';
+import { AssistantAvatar, AssistantImageSettings } from './assistant-image';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Plus, Bot, Pencil, Search } from 'lucide-react';
+import { Plus, Pencil, Search } from 'lucide-react';
 import { api, type AssistantDefinition, type AssistantSummary } from '../lib/api';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -136,7 +137,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
               onClick={() => void run(async () => setEditor(await api(endpoint + '/' + item.id)))}
             >
               <span className="assistant-avatar">
-                <Bot size={20} />
+                <AssistantAvatar id={item.id}/>
               </span>
               <span>
                 <strong>{item.name}</strong>
@@ -185,6 +186,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                 <h2>{editor ? 'Editar asistente' : 'Un nuevo asistente'}</h2>
                 {editor?.builtin && <Badge variant="outline">Integrado</Badge>}
               </div>
+              {editor && <AssistantImageSettings key={editor.id} id={editor.id} name={editor.name}/>}
               <Label htmlFor="assistant-name">Nombre</Label>
               <Input
                 id="assistant-name"

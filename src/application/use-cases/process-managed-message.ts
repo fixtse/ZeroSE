@@ -53,7 +53,8 @@ export class ProcessManagedMessage {
         payload: { ...job.payload, message: { text: message.text || message.caption } },
       };
     }
-    const selected = await this.definitions?.resolve(scope.profile, address?.bot);
+    const selected = await this.definitions?.resolve(scope.profile, address?.bot,
+      job.payload.source === 'home_assistant_voice' ? job.payload.assistantId : undefined);
     if (selected && selected.id !== 'standard') identity = selected.name;
     const preset =
       selected?.preset ||

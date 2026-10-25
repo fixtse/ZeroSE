@@ -52,8 +52,8 @@ export class AssistantDefinitions {
     if (!(await this.repository.get(id))) return false;
     return this.repository.assign(bot, chatId, id);
   }
-  async resolve(profile?: AccessProfile, bot: BotId = 'zero') {
-    const value = await this.repository.get(defaultAssistantId(profile, bot));
+  async resolve(profile?: AccessProfile, bot: BotId = 'zero', assistantId?: string) {
+    const value = await this.repository.get(assistantId || defaultAssistantId(profile, bot));
     if (!value) throw new Error('Assigned assistant is unavailable');
     return value;
   }
