@@ -51,3 +51,26 @@ command sessions; that redundant polling did not follow the webhook-first policy
 HACS's GitHub validator and an actual HACS download remain unverified because
 HACS does not support private repositories. Both repositories remain private.
 No live installer, pipeline registration, deployment, or service restart was run.
+
+## Public repositories and project icon update
+
+Run `zero-brand-public-20261025-r2` completed successfully in the same dedicated
+Codespace. Its immutable result is
+`/workspaces/zero-brand-public-20261025-r2/result.json`; its log is
+`/tmp/zero-brand-public-20261025-r2.log`. The callback arrived in this thread and
+was checked against those files. No progress polling was used for this run.
+
+The assistant checkout remained `/workspaces/assistant-ha-validation` on
+`feat/ha-integration-settings`, based on `53b6928` with synchronized task sources.
+Independent repositories were cloned under the run directory from `9596b76`
+(Zero) and `2dbbdea` (rules), then overlaid with the exact README/icon changes.
+Both package test suites and compilation checks passed. The run also passed
+`pnpm format:check`, `pnpm check`, `pnpm test` (118 TypeScript and 31 Python tests),
+`pnpm build`, both Compose config checks, and the real Home Assistant lifecycle
+smoke check. Zero's icon was compared byte-for-byte with `assets/icon.png`.
+
+Both integration repositories are now public, as explicitly authorized. The
+assistant backend remains private. The READMEs contain concise HACS install/setup
+steps. Zero version 1.1.1 uses the project icon. Updated source revisions are in
+`repositories.json`. No live integration was deployed or restarted. Actual
+installation through a live HACS instance was not performed.

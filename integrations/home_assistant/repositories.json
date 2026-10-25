@@ -1,12 +1,12 @@
 {
   "assistant_zero": {
     "repository": "https://github.com/fixtse/ha-zero-assistant",
-    "revision": "9596b764a0063c8f28cb4a8fa7009824c3280fc8",
-    "version": "1.1.0"
+    "revision": "a8e0a94a56698a1620b729f816dad5cd5f375006",
+    "version": "1.1.1"
   },
   "assistant_rules": {
     "repository": "https://github.com/fixtse/ha-assistant-rules",
-    "revision": "2dbbdeae63faa559ce45d2f7208a7c7d9112b184",
+    "revision": "02cdd3173c32a94939e513871bb21b16daa80088",
     "version": "2.5.0"
   }
 }
