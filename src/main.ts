@@ -76,6 +76,27 @@ const adminAuth = new AdminAuth(
   store.pool,
   process.env.ASSISTANT_ADMIN_URL || `http://127.0.0.1:${config.port}`,
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
+  {
+    async recipient() {
+      const chat = config.telegram.allowedUsers[0];
+      if (!config.telegram.token || !chat || !/^[1-9]\d*$/.test(chat)) return undefined;
+      const profile = await accessRepository.profile('zero', chat);
+      return profile?.owner && profile.enabled && profile.kind === 'user' ? chat : undefined;
+    },
+    async send(chat, code) {
+      await telegram.call(
+        'sendMessage',
+        {
+          chat_id: chat,
+          text:
+            'Código para restablecer la contraseña de administración de Zero: ' +
+            code +
+            '\nCaduca en 10 minutos. Si no lo has solicitado, ignora este mensaje.',
+        },
+        AbortSignal.timeout(10000),
+      );
+    },
+  },
 );
 await adminAuth.initialize();
 const access: Access = new Access(accessRepository, store, () => bots.salemUsername());

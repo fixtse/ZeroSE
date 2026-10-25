@@ -258,3 +258,120 @@ test('login attempts are rate-limited in PostgreSQL', async () => {
     await s.close();
   }
 });
+
+test('Telegram recovery is opt-in, origin protected, limited, single-use and revokes sessions', async () => {
+  const s = await setup();
+  let code = '';
+  try {
+    const auth = new AdminAuth(s.f.store.pool, s.base, s.f.config.apiKey, {
+      recipient: async () => '1',
+      send: async (chat, value) => {
+        assert.equal(chat, '1');
+        code = value;
+      },
+    });
+    await auth.initialize();
+    s.management.auth = auth;
+    const login = await s.post('/api/auth/sign-in/username', { username: 'fixt', password });
+    const session = cookie(login);
+    assert.equal((await s.post('/api/auth/recovery/settings', { enabled: true })).status, 401);
+    assert.equal(
+      (
+        await fetch(s.base + '/api/auth/recovery/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' },
+          body: JSON.stringify({ username: 'fixt' }),
+        })
+      ).status,
+      403,
+    );
+    await s.post('/api/auth/recovery/request', { username: 'fixt' });
+    assert.equal(code, '');
+    assert.equal(
+      (await s.post('/api/auth/recovery/settings', { enabled: true }, session)).status,
+      200,
+    );
+    await s.f.store.pool.query(
+      "UPDATE admin_password_recovery SET requested_at=now()-interval '2 minutes'",
+    );
+    assert.equal((await s.post('/api/auth/recovery/request', { username: 'fixt' })).status, 200);
+    assert.match(code, /^[0-9]{8}$/);
+    const row = (await s.f.store.pool.query('SELECT digest FROM admin_password_recovery')).rows[0];
+    assert.notEqual(row.digest, code);
+    assert.equal((await s.post('/api/auth/recovery/request', { username: 'fixt' })).status, 429);
+    for (let i = 0; i < 5; i++)
+      assert.equal(
+        (await s.post('/api/auth/recovery/reset', { code: '00000000', password: nextPassword }))
+          .status,
+        400,
+      );
+    assert.equal(
+      (await s.post('/api/auth/recovery/reset', { code, password: nextPassword })).status,
+      400,
+    );
+    await s.f.store.pool.query(
+      "UPDATE admin_password_recovery SET requested_at=now()-interval '2 minutes'",
+    );
+    await s.post('/api/auth/recovery/request', { username: 'fixt' });
+    await s.f.store.pool.query(
+      "UPDATE admin_password_recovery SET expires_at=now()-interval '1 second'",
+    );
+    assert.equal(
+      (await s.post('/api/auth/recovery/reset', { code, password: nextPassword })).status,
+      400,
+    );
+    await s.f.store.pool.query(
+      "UPDATE admin_password_recovery SET requested_at=now()-interval '2 minutes'",
+    );
+    await s.post('/api/auth/recovery/request', { username: 'fixt' });
+    assert.equal(
+      (await s.post('/api/auth/recovery/reset', { code, password: nextPassword })).status,
+      200,
+    );
+    assert.equal(
+      (await s.post('/api/auth/recovery/reset', { code, password: nextPassword })).status,
+      400,
+    );
+    assert.equal(
+      (await fetch(s.base + '/v1/admin/profiles', { headers: { Cookie: session } })).status,
+      401,
+    );
+    assert.equal(
+      (await s.post('/api/auth/sign-in/username', { username: 'fixt', password: nextPassword }))
+        .status,
+      200,
+    );
+  } finally {
+    await s.close();
+  }
+});
+
+test('failed Telegram delivery invalidates the code without retrying', async () => {
+  const s = await setup();
+  let code = '',
+    deliveries = 0;
+  try {
+    const auth = new AdminAuth(s.f.store.pool, s.base, s.f.config.apiKey, {
+      recipient: async () => '1',
+      send: async (_chat, value) => {
+        code = value;
+        deliveries++;
+        throw new Error('uncertain delivery');
+      },
+    });
+    await auth.initialize();
+    s.management.auth = auth;
+    const login = await s.post('/api/auth/sign-in/username', { username: 'fixt', password });
+    await s.post('/api/auth/recovery/settings', { enabled: true }, cookie(login));
+    assert.equal((await s.post('/api/auth/recovery/request', { username: 'fixt' })).status, 502);
+    assert.equal(deliveries, 1);
+    assert.equal(
+      (await s.post('/api/auth/recovery/reset', { code, password: nextPassword })).status,
+      400,
+    );
+    assert.equal((await s.post('/api/auth/recovery/request', { username: 'fixt' })).status, 429);
+    assert.equal(deliveries, 1);
+  } finally {
+    await s.close();
+  }
+});

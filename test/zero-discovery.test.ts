@@ -21,9 +21,11 @@ test('wildcard listeners use the discovered address, and specific listeners reta
   for (const host of ['0.0.0.0', '::'])
     assert.deepEqual(zeroAdvertisement(host, 8788)?.txt, { version: '1' });
   assert.deepEqual(zeroAdvertisement('192.0.2.10', 8788)?.txt, {
-    version: '1', url: 'http://192.0.2.10:8788',
+    version: '1',
+    url: 'http://192.0.2.10:8788',
   });
   assert.deepEqual(zeroAdvertisement('2001:db8::10', 8788)?.txt, {
-    version: '1', url: 'http://[2001:db8::10]:8788',
+    version: '1',
+    url: 'http://[2001:db8::10]:8788',
   });
 });

@@ -7,7 +7,10 @@ const publisher = new ZeroDiscovery();
 const browser = new Bonjour();
 try {
   const found = new Promise<void>((resolve, reject) => {
-    const deadline = setTimeout(() => reject(new Error('Zero mDNS announcement not received')), 15000);
+    const deadline = setTimeout(
+      () => reject(new Error('Zero mDNS announcement not received')),
+      15000,
+    );
     browser.find({ type: 'zero-assistant' }, (service) => {
       if (service.port !== 18788) return;
       try {

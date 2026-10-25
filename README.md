@@ -624,6 +624,15 @@ Use **Cambiar contraseña** in the header to change the password: the current br
 signed in and other sessions are revoked. Login attempts are rate-limited, registration is
 disabled, and browser sessions use HttpOnly cookies with Secure enabled for HTTPS.
 
+To enable password recovery, sign in and enable **Recuperación por Telegram**. It uses
+the existing Zero bot and the first configured Telegram allowed user, which must still
+be an enabled owner with a private user profile. On the login page, choose
+**He olvidado mi contraseña** and request a code for **fixt**. Enter the eight-digit code
+and a new password (12–128 characters). Codes expire after ten minutes, allow five
+attempts, and can only be used once; requests are limited to one per minute. A successful
+reset signs out every admin session. Recovery is off by default, and delivery failures
+are never retried automatically. No separate bot token or chat ID is entered in the panel.
+
 Set `ASSISTANT_ADMIN_URL` to the exact public origin (production Compose defaults to
 `https://twk.kcta.cc`); this controls trusted origins, CSRF checks and secure cookies.
 For local development, set it to your local HTTP origin. Provision the first account with
