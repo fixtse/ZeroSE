@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.bootstrap import async_setup_hass
 from homeassistant.runner import RuntimeConfig
 from homeassistant.setup import async_setup_component
+from homeassistant.helpers.data_entry_flow import FlowManagerResourceView
 
 
 async def main():
@@ -28,6 +29,7 @@ async def main():
             with patch.object(zero, "settings_request", new=AsyncMock(return_value=current)) as request:
                 result = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "user"})
                 assert result["type"] == "form", result
+                FlowManagerResourceView(hass.config_entries.flow)._prepare_result_json(result)
                 result = await hass.config_entries.flow.async_configure(result["flow_id"], connection)
                 assert result["type"] == "create_entry", result
                 entry = result["result"]
@@ -51,6 +53,8 @@ async def main():
             # Delivery is configured under the same Zero config entry.
             options = await hass.config_entries.options.async_init(entry.entry_id)
             options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "delivery"})
+            assert options["type"] == "form", options
+            FlowManagerResourceView(hass.config_entries.options)._prepare_result_json(options)
             credentials = {"callback_url": "http://zero.invalid/v1/triggers/rule-events", "callback_token": "test-only-callback-credential-long-enough"}
             result = await hass.config_entries.options.async_configure(options["flow_id"], credentials)
             assert result["type"] == "create_entry", result

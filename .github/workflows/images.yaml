@@ -140,3 +140,38 @@ jobs:
           done
           echo '::error::Could not confirm private package visibility after publishing.'
           exit 1
+
+  notify:
+    needs: [verify, image]
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Notify validation completion
+        env:
+          CALLBACK_URL: ${{ secrets.ASSISTANT_IMAGE_VALIDATION_CALLBACK }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          callback = os.environ['CALLBACK_URL']
+          if not callback:
+              raise SystemExit('Missing ASSISTANT_IMAGE_VALIDATION_CALLBACK secret')
+          jobs = json.loads(os.environ['JOB_RESULTS'])
+          results = [job['result'] for job in jobs.values()]
+          status = 'succeeded' if all(result == 'success' for result in results) else 'cancelled' if 'cancelled' in results else 'failed'
+          payload = dict(task='assistant-image-validation', status=status,
+                         repository=os.environ['GITHUB_REPOSITORY'],
+                         branch=os.environ['GITHUB_REF_NAME'], revision=os.environ['GITHUB_SHA'],
+                         runId=os.environ['GITHUB_RUN_ID'], attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+                         jobs={name: job['result'] for name, job in jobs.items()},
+                         runUrl=f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+          request = urllib.request.Request(callback, data=json.dumps(payload).encode(),
+                      headers={'User-Agent': 'assistant-image-validation/1.0', 'Content-Type': 'application/json'})
+          try:
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  print('Completion callback HTTP', response.status)
+          except Exception as error:
+              print('Callback failed:', type(error).__name__, getattr(error, 'code', 'no HTTP status'))
+              raise SystemExit(1) from None
+          PY
