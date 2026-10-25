@@ -92,7 +92,9 @@ const rules = new NotificationRules(
     const address = sessionAddress(session);
     const profile = await access.forSession(session);
     const scoped = profile ? scopedConfig(config, profile) : config;
-    const external = profile?.owner && config.schedulerSE &&
+    const external =
+      profile?.owner &&
+      config.schedulerSE &&
       (schedulerKey ? schedulerKey.startsWith('schedulerse:') : config.schedulerSE.enabled);
     return {
       enabled:
@@ -104,7 +106,15 @@ const rules = new NotificationRules(
       scheduler:
         kind !== 'alert'
           ? external && config.schedulerSE
-            ? new SchedulerSE({ ...config.schedulerSE, callbackUrl: config.schedulerSE.callbackUrl || `http://127.0.0.1:${config.port}/v1/triggers/schedulerse-events` }, (id) => ruleRepository.byId(id))
+            ? new SchedulerSE(
+                {
+                  ...config.schedulerSE,
+                  callbackUrl:
+                    config.schedulerSE.callbackUrl ||
+                    `http://127.0.0.1:${config.port}/v1/triggers/schedulerse-events`,
+                },
+                (id) => ruleRepository.byId(id),
+              )
             : new HomeAssistantRuleScheduler(config.homeAssistant)
           : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
             ? new HomeAssistantRuleScheduler(scoped.homeAssistant)

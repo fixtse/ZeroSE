@@ -126,16 +126,31 @@ export function createHttpServer(
         return send(404, { error: 'Not found' });
       }
       if (req.method === 'POST' && path === '/v1/triggers/schedulerse-events' && rules) {
-        if (!equalSecret(req.headers.authorization, `Bearer ${schedulerSeCallbackToken(config.apiKey)}`))
+        if (
+          !equalSecret(
+            req.headers.authorization,
+            `Bearer ${schedulerSeCallbackToken(config.apiKey)}`,
+          )
+        )
           return send(401, { error: 'Unauthorized' });
-        const value = z.object({
-          event: z.literal('schedule.due'), event_id: z.string().min(1).max(200),
-          scheduled_at: z.iso.datetime({ offset: true }),
-          task: z.object({
-            id: z.string().max(64), interval_seconds: z.number().int().min(0).max(31536000),
-            context: z.object({ integration: z.literal('zero'), rule_id: z.uuid(), generation: z.number().int().min(0) }).strict(),
-          }),
-        }).parse(await body(req));
+        const value = z
+          .object({
+            event: z.literal('schedule.due'),
+            event_id: z.string().min(1).max(200),
+            scheduled_at: z.iso.datetime({ offset: true }),
+            task: z.object({
+              id: z.string().max(64),
+              interval_seconds: z.number().int().min(0).max(31536000),
+              context: z
+                .object({
+                  integration: z.literal('zero'),
+                  rule_id: z.uuid(),
+                  generation: z.number().int().min(0),
+                })
+                .strict(),
+            }),
+          })
+          .parse(await body(req));
         const accepted = await rules.receive(schedulerSeEvent(value));
         return send(202, { accepted });
       }

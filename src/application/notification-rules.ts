@@ -54,7 +54,11 @@ export interface RuleScope {
 export class NotificationRules {
   constructor(
     readonly repository: RuleRepository,
-    private scope: (session: string, kind: NotificationRule['kind'], schedulerKey?: string) => Promise<RuleScope>,
+    private scope: (
+      session: string,
+      kind: NotificationRule['kind'],
+      schedulerKey?: string,
+    ) => Promise<RuleScope>,
     readonly wakeSession?: string,
     readonly localDate: () => string | Promise<string> = () =>
       new Date().toISOString().slice(0, 10),
@@ -234,7 +238,11 @@ export class NotificationRules {
   /** One-time upgrade only. Claim before the remote write; interrupted installs are never replayed. */
   async migrateLegacy() {
     for (const rule of await this.repository.legacy()) {
-      const scope = await this.scope(rule.session, rule.kind, rule.scheduler_key);
+      const scope = await this.scope(
+        rule.session,
+        rule.kind,
+        rule.scheduler_key || 'legacy-home-assistant',
+      );
       rule.generation++;
       rule.scheduler_state = 'installing';
       rule.scheduler_key = scope.scheduler?.identity;
