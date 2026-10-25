@@ -17,7 +17,6 @@
     "format": "prettier --write src scripts test",
     "format:check": "prettier --check src scripts test",
     "doctor": "tsx scripts/doctor.ts",
-    "rules:install-home-assistant": "tsx scripts/install-ha-rules.ts",
     "rules:enable-owner-weather": "tsx scripts/enable-owner-weather.ts",
     "voice:install-home-assistant": "tsx scripts/install-ha-voice.ts",
     "migrate:sqlite": "tsx scripts/migrate-sqlite.ts",

@@ -16,7 +16,6 @@ async def main():
     with tempfile.TemporaryDirectory(prefix="ha-integration-check-") as directory:
         components = Path(directory) / "custom_components"
         shutil.copytree(Path("integrations/home_assistant/assistant_zero"), components / "assistant_zero")
-        shutil.copytree(Path("integrations/home_assistant/assistant_rules"), components / "assistant_rules")
         components.joinpath("__init__.py").touch()
         Path(directory, "configuration.yaml").write_text("homeassistant:\n  name: Integration validation\n  latitude: 0\n  longitude: 0\n  elevation: 0\n  unit_system: metric\n  time_zone: UTC\n  currency: EUR\n  country: ES\nhttp:\n  server_port: 18123\n")
         hass = await async_setup_hass(RuntimeConfig(config_dir=directory))
@@ -65,7 +64,7 @@ async def main():
             assert manager.engine.rules == before
             assert len(hass.config_entries.async_entries("assistant_zero")) == 1
             assert not hass.config_entries.async_entries("assistant_rules")
-            for domain in ("assistant_zero", "assistant_rules"):
+            for domain in ("assistant_zero",):
                 assert (components / domain / "brand/icon.png").read_bytes().startswith(b"\x89PNG")
                 assert json.loads((components / domain / "strings.json").read_text())["options"]
             print("Real Home Assistant: setup, both config/options flows, shared prompt PUT, no cached prompt, import preservation, callback update and icons passed")

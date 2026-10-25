@@ -36,7 +36,7 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
   async ready(signal?: AbortSignal) {
     const response = await this.request('', 'GET', undefined, signal);
     if (response?.protocol !== 2 || response?.ready !== true)
-      throw new Error('Install/start the event-driven assistant_rules Home Assistant integration');
+      throw new Error('Install/start the unified Zero Assistant Home Assistant integration');
   }
   async supportsHourlyUpdates() {
     return (await this.request('', 'GET'))?.hourly_updates === true;

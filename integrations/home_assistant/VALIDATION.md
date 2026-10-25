@@ -120,3 +120,21 @@ No reminder deadline was resubmitted and no test utterance/action was sent to Ze
 The standalone rules repository is now deprecated and archived; its releases remain
 available. SchedulerSE remains optional and unconfigured, with its backend code on
 the feature branch. No live SchedulerSE schedules or connection settings changed.
+
+## Agent policy and retired-source cleanup
+
+Run `zero-integration-agent-policy-cleanup-20261025-r1` passed in the dedicated
+Codespace. Result: `/workspaces/zero-integration-agent-policy-cleanup-20261025-r1/result.json`;
+log: `/tmp/zero-integration-agent-policy-cleanup-20261025-r1.log`. Both were checked
+after the completion callback. The tested checkout was
+`/workspaces/assistant-ha-validation`, branch `feat/ha-integration-settings`,
+base `53b6928` with the synchronized cleanup changes.
+
+Passed `pnpm format:check`, `pnpm check`, `pnpm test` (120 TypeScript and 32 Python
+tests), `pnpm build`, both Compose configuration checks and the real HA runtime
+smoke check. The standalone component and installer were absent during validation;
+the runtime smoke check installed only `assistant_zero`. Legacy rule storage/API
+keys and offline migration support remain. Project `AGENTS.md` now documents the
+integration source/release workflow, compatibility boundaries, private credentials,
+optional SchedulerSE backend, validation, and authorized live upgrades.
+No live service was modified or restarted for this cleanup.

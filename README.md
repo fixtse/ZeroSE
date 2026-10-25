@@ -251,7 +251,7 @@ matching. It includes an indicative 30-minute departure margin and 15-minute ret
 margin, not calculated travel time. The forecast covers the configured home area;
 it is **not a verified forecast at the event's destination**, especially another city.
 
-With the updated `assistant_rules` HA integration, the owner's built-in weather
+With the unified `assistant_zero` HA integration, the owner's built-in weather
 rule also subscribes to hourly forecast updates. Material hourly changes in the
 next 24 hours send a notice even without a calendar event or calendar access.
 When available, the current calendar adds context about affected outings and their
@@ -303,24 +303,16 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 
 ### Reminders, timers and conditional alerts
 
-Install the event-driven Home Assistant integration explicitly from the host checkout:
+Install [Zero Assistant](https://github.com/fixtse/ha-zero-assistant) through its
+README's HACS button. The single `assistant_zero` integration includes conversation,
+shared settings, reminders, and conditional alerts. Configure callback delivery
+under that integration; do not install a separate `assistant_rules` component.
 
-```sh
-pnpm rules:install-home-assistant
-```
-
-The installer reads private `config.json`, backs up affected files **inside** the
-`home-assistant` container, installs the small HA-native Python integration under
-`/config/custom_components/assistant_rules`, validates Home Assistant configuration,
-and restarts **Home Assistant only** to load it. The assistant remains running.
-It removes the previous ten-second heartbeat automation, shell command and curl
-credential file while preserving other automations. Overrides:
-`ASSISTANT_HA_CONTAINER` and `ASSISTANT_RULES_CALLBACK_URL` (default
-`http://127.0.0.1:8788/v1/triggers/rule-events`, using the configured assistant port).
-The callback URL must be reachable from Home Assistant. A private included YAML
-file holds a derived, purpose-specific bearer credential; it cannot access the
-chat or administrator APIs. Reinstall after rotating `config.apiKey`. Install the
-integration in each separate HA instance used for conditional alerts.
+For existing standalone installations, follow the offline migration in
+[integration notes](integrations/home_assistant/README.md). It preserves rule
+storage and voice identities and requires a private backup and HA restart.
+SchedulerSE is an optional timed-reminder backend; sensor/weather conditions
+continue to use Home Assistant.
 
 **There is no heartbeat or periodic assistant callback.** The TypeScript assistant
 creates/changes rules through the integration's authenticated API. Home Assistant
