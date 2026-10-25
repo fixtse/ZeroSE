@@ -10,6 +10,7 @@ import type { AgentPort, ConversationStore, GooglePort, TelegramPort } from '../
 import { ProcessMessage } from './process-message.js';
 import type { JobResult } from './contracts.js';
 import { salemPrompt } from '../prompts.js';
+import type { AssistantDefinitions } from '../assistant-definitions.js';
 
 export interface ProfileScope {
   config: Config;
@@ -26,10 +27,11 @@ export class ProcessManagedMessage {
     private telegram: (bot: BotId, session?: string) => Promise<TelegramPort>,
     private permitted: (job: Job) => Promise<boolean>,
     private ownerPrompt: string | (() => Promise<string>),
+    private definitions?: Pick<AssistantDefinitions, 'resolve'>,
   ) {}
   async execute(job: Job, context: ToolContext): Promise<JobResult> {
     const address = sessionAddress(job.session);
-    const identity = address?.bot === 'salem' ? 'Salem' : 'Zero';
+    let identity = address?.bot === 'salem' ? 'Salem' : 'Zero';
     const telegram = await this.telegram(address?.bot || 'zero', job.session);
     if (job.payload.kind === 'telegram' && membershipEvent(job.payload.message)) {
       const input = await telegram.input(job.payload.message, job.id, context.signal);
@@ -51,9 +53,15 @@ export class ProcessManagedMessage {
         payload: { ...job.payload, message: { text: message.text || message.caption } },
       };
     }
-    const preset = scope.profile?.promptPreset || (address?.bot === 'salem' ? 'salem' : 'standard');
-    const prompt =
-      preset === 'salem'
+    const selected = await this.definitions?.resolve(scope.profile, address?.bot);
+    if (selected && selected.id !== 'standard') identity = selected.name;
+    const preset =
+      selected?.preset ||
+      scope.profile?.promptPreset ||
+      (address?.bot === 'salem' ? 'salem' : 'standard');
+    const prompt = selected
+      ? selected.prompt
+      : preset === 'salem'
         ? salemPrompt
         : scope.profile && !scope.profile.owner
           ? ''

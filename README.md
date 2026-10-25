@@ -816,3 +816,9 @@ In Home Assistant, select the mDNS-discovered Zero instance, confirm both server
 Requests expire after ten minutes, require administrator approval in Zero and a separate one-use exchange secret, and do not survive a Zero restart. Failed or uncertain exchanges are never retried. Inspect both servers' token lists before beginning another attempt. Zero tokens are shown only at manual creation, stored as digests and revocable in Security; revoke HA tokens from the HA user's profile. Older dedicated credentials and manual/reconfigure flows remain compatible.
 
 Run `pnpm dev:admin` in Codespaces for the UI; authenticated setup uses `pnpm build` and the normal assistant listener on port 8788. Never use production configuration or credentials for development. `pnpm build` builds both TypeScript and the static UI. No separate Next.js runtime or production port is needed.
+
+### Multiple assistants
+
+Open `/admin` → **Asistentes** to create and edit named assistants with individual prompts. Zero and Salem are imported automatically on initialization; existing edited prompts are never overwritten. **Estándar** preserves the original generic behavior for non-owner profiles. Zero's prompt uses the same settings record and revision as the Home Assistant settings client, so it has no second prompt store.
+
+In **Personas**, choose an assistant for a profile. One assistant can serve multiple profiles; each profile retains its own permissions, credentials, memory and conversation/session identity. Home Assistant uses the assistant assigned to its linked Zero profile. Prompt changes and new assignments apply on the next permitted conversational turn, without resetting history. The catalog is searched and paginated; only the selected assistant's prompt enters a turn. Integrated assistants cannot be deleted, and custom assistants must be unassigned before deletion. Salem's transport, webhook, existing session IDs and imported memory behavior remain compatible.

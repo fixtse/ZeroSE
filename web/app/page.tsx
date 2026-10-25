@@ -16,12 +16,14 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { RevokeToken } from '../components/revoke-token';
+import { AssistantCatalog } from '../components/assistant-catalog';
+import { AssistantAssignment } from '../components/assistant-assignment';
 import { Link2, Users, Sparkles, ShieldCheck, House } from 'lucide-react';
 const base = '/v1/admin/setup';
 const navigation = [
   { id: 'connections', label: 'Conexiones', Icon: Link2 },
   { id: 'people', label: 'Personas', Icon: Users },
-  { id: 'settings', label: 'Asistente', Icon: Sparkles },
+  { id: 'settings', label: 'Asistentes', Icon: Sparkles },
   { id: 'security', label: 'Seguridad', Icon: ShieldCheck },
 ];
 const date = (value: string) => new Date(value).toLocaleDateString('es-ES');
@@ -160,7 +162,7 @@ export default function Home() {
               : tab === 'people'
                 ? 'Personas'
                 : tab === 'settings'
-                  ? 'Asistente'
+                  ? 'Asistentes'
                   : 'Seguridad'}
           </span>
           {authenticated && (
@@ -461,6 +463,7 @@ export default function Home() {
                           <Badge variant="outline" className="pill">
                             {p.enabled ? 'Activo' : 'Pendiente'}
                           </Badge>
+                          <AssistantAssignment profile={p} onAssigned={() => loadProfiles()} />
                           {p.hasHomeAssistant && (
                             <span className="pill connected">Home Assistant</span>
                           )}
@@ -526,21 +529,20 @@ export default function Home() {
               )}
               {tab === 'settings' && settings && (
                 <>
-                  <div className="page-heading">
-                    <div>
-                      <div className="eyebrow">LA IDENTIDAD DE ZERO</div>
-                      <h1>Tu asistente, a tu manera.</h1>
-                      <p>
-                        Una configuración compartida entre Telegram, Assist y tus demás clientes.
-                      </p>
-                    </div>
-                  </div>
+                  <AssistantCatalog
+                    onZeroChanged={async () => setSettings(await api(base + '/settings'))}
+                  />
+                  <h2>Permisos compartidos de Home Assistant</h2>
+                  <p>
+                    Estos ajustes de acceso se conservan en Zero y también se pueden gestionar desde
+                    Home Assistant.
+                  </p>
                   <form
                     className="panel"
                     onSubmit={submit(async (data) => {
                       const saved = await api<Settings>(base + '/settings', 'PUT', {
                         revision: settings.revision,
-                        prompt: data.get('prompt'),
+                        prompt: settings.prompt,
                         homeAssistant: data.has('homeAssistant'),
                         assist: data.has('assist'),
                         frigate: data.has('frigate'),
@@ -554,15 +556,6 @@ export default function Home() {
                     })}
                     key={settings.revision}
                   >
-                    <Label>
-                      Identidad e instrucciones
-                      <Textarea
-                        name="prompt"
-                        defaultValue={settings.prompt}
-                        rows={12}
-                        maxLength={100000}
-                      />
-                    </Label>
                     <div className="toggle-list">
                       {[
                         ['homeAssistant', 'Herramientas de Home Assistant'],

@@ -21,6 +21,7 @@ import type { SpeechPort } from '../../application/ports.js';
 import { ConfigSchema } from '../outbound/config.js';
 import type { AdminCatalogFactory } from '../../application/admin-catalog.js';
 import type { RuleRepository } from '../../application/notification-rules.js';
+import { defaultAssistantId } from '../../domain/assistant-definition.js';
 import { adminPage } from './admin-page.js';
 
 const speechSchema = z.object({
@@ -78,6 +79,7 @@ function publicProfile(p: AccessProfile, timezone: string) {
       ttsLanguage: 'es-ES',
       voice: '',
     },
+    assistantId: defaultAssistantId(p, p.bot),
     promptPreset: p.promptPreset || (p.bot === 'salem' ? 'salem' : 'standard'),
     owner: p.owner,
     memoryMode: p.memoryMode || 'advanced',
@@ -525,6 +527,12 @@ export class Admin {
           voiceReplies: input.voiceReplies ?? previous?.voiceReplies ?? true,
           speech: input.speech ?? previous?.speech,
           promptPreset: input.promptPreset ?? previous?.promptPreset,
+          assistantId:
+            input.promptPreset &&
+            input.promptPreset !==
+              (previous?.promptPreset || (bot === 'salem' ? 'salem' : 'standard'))
+              ? undefined
+              : previous?.assistantId,
           capabilities: [...new Set(input.capabilities)],
           owner: previous?.owner || false,
           memoryMode: input.memoryMode ?? previous?.memoryMode ?? 'advanced',

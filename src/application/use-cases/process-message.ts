@@ -30,6 +30,7 @@ export class ProcessMessage {
         ? template
         : template + (enabled ? '\nMemory categories: {{categories}}.' : ''),
       {
+        identity: this.identity,
         now: new Date().toLocaleString('es-ES', { timeZone: this.config.timezone }),
         timezone: this.config.timezone,
         name: job.payload.name || job.payload.message?.from?.first_name || 'usuario',

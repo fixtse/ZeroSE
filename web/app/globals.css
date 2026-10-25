@@ -928,3 +928,89 @@ textarea:focus-visible {
   padding: 0;
   margin: 0;
 }
+
+.assistant-columns {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.65fr) minmax(0, 1.35fr);
+  gap: 24px;
+  align-items: start;
+}
+.assistant-option {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  height: auto;
+  padding: 15px 12px;
+  gap: 12px;
+  white-space: normal;
+}
+.assistant-option > span:nth-child(2) {
+  flex: 1;
+}
+.assistant-option small {
+  display: block;
+  margin-top: 5px;
+}
+.assistant-option.selected {
+  background: rgb(249 115 22 / 0.1);
+  color: var(--primary);
+}
+.assistant-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.assistant-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.assistant-assignment-hint {
+  margin: 24px 0 0;
+  font-size: 12px;
+}
+.assignment-options {
+  max-height: 40vh;
+  overflow: auto;
+}
+.assistant-workspace .page-heading {
+  align-items: flex-end;
+}
+.assistant-workspace .page-heading .button {
+  flex: none;
+}
+.assistant-assignment {
+  font-size: 12px;
+}
+.nav {
+  justify-content: flex-start;
+}
+@media (max-width: 1000px) {
+  .assistant-columns {
+    grid-template-columns: 1fr;
+  }
+  .assistant-workspace .page-heading {
+    flex-wrap: wrap;
+  }
+}
+
+.assistant-columns > * {
+  min-width: 0;
+}
+.assistant-columns .form-actions {
+  flex-wrap: wrap;
+}
+.assistant-option > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1000px) {
+  .assistant-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

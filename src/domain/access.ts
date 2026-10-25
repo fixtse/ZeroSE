@@ -25,6 +25,7 @@ export interface AccessProfile {
   voiceReplies?: boolean;
   speech?: SpeechSettings;
   promptPreset?: 'salem' | 'standard';
+  assistantId?: string;
   google?: Config['google'];
   homeAssistant?: Config['homeAssistant'];
 }

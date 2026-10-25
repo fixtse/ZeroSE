@@ -1,3 +1,6 @@
+import { AssistantDefinitions } from './application/assistant-definitions.js';
+import { PostgresAssistantDefinitions } from './adapters/outbound/postgres-assistant-definitions.js';
+import { AssistantAdmin } from './adapters/inbound/assistant-admin.js';
 import { PostgresPairing } from './adapters/outbound/postgres-pairing.js';
 import { IntegrationAccess } from './application/integration-access.js';
 import { HomeAssistantPairing } from './application/home-assistant-pairing.js';
@@ -80,6 +83,10 @@ const accessRepository = new PostgresAccess(
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
 );
 await accessRepository.initialize(config);
+const assistantDefinitions = new AssistantDefinitions(
+  new PostgresAssistantDefinitions(store.pool),
+  randomUUID,
+);
 const adminAuth = new AdminAuth(
   store.pool,
   process.env.ASSISTANT_ADMIN_URL || `http://127.0.0.1:${config.port}`,
@@ -283,6 +290,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     (bot, session) => bots.get(bot, session),
     canRespond,
     async () => (await zeroSettings.read()).prompt,
+    assistantDefinitions,
   ),
   assistant = new Assistant(
     config,
@@ -408,7 +416,14 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     zeroSettings,
     integrationAccess,
     pairing,
-    new SetupAdmin(integrationAccess, pairing, zeroSettings, accessRepository, adminAuth.origin),
+    new SetupAdmin(
+      integrationAccess,
+      pairing,
+      zeroSettings,
+      accessRepository,
+      adminAuth.origin,
+      new AssistantAdmin(assistantDefinitions, accessRepository),
+    ),
   );
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {

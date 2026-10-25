@@ -1,3 +1,4 @@
+import { PostgresAssistantDefinitions } from './postgres-assistant-definitions.js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import type { AccessRepository } from '../../application/access.js';
@@ -36,6 +37,7 @@ export class PostgresAccess implements AccessRepository {
     return JSON.parse(Buffer.concat([cipher.update(data), cipher.final()]).toString('utf8'));
   }
   async initialize(config: Config) {
+    await new PostgresAssistantDefinitions(this.pool).initialize();
     await this.pool.query(`CREATE TABLE IF NOT EXISTS access_profiles (
       bot TEXT NOT NULL, chat_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT false, capabilities JSONB NOT NULL DEFAULT '["web","transcription"]',
@@ -44,6 +46,8 @@ export class PostgresAccess implements AccessRepository {
       ALTER TABLE access_profiles ADD COLUMN IF NOT EXISTS timezone TEXT;
       ALTER TABLE access_profiles ADD COLUMN IF NOT EXISTS voice_replies BOOLEAN NOT NULL DEFAULT true;
       ALTER TABLE access_profiles ADD COLUMN IF NOT EXISTS prompt_preset TEXT CHECK(prompt_preset IN ('salem','standard'));
+      ALTER TABLE access_profiles ADD COLUMN IF NOT EXISTS assistant_id TEXT REFERENCES assistant_definitions(id);
+      CREATE INDEX IF NOT EXISTS access_profiles_assistant_id ON access_profiles(assistant_id);
       CREATE TABLE IF NOT EXISTS managed_bots(id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, token TEXT NOT NULL);
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_url TEXT;`);
@@ -79,6 +83,7 @@ export class PostgresAccess implements AccessRepository {
       memoryMode: row.memory_mode || 'advanced',
       timezone: row.timezone || undefined,
       voiceReplies: row.voice_replies,
+      ...(row.assistant_id ? { assistantId: row.assistant_id } : {}),
       ...(row.prompt_preset ? { promptPreset: row.prompt_preset } : {}),
       ...(row.credentials ? this.decrypt(row.credentials, `${row.bot}:${row.chat_id}`) : {}),
     };
@@ -113,8 +118,8 @@ export class PostgresAccess implements AccessRepository {
       `${profile.bot}:${profile.chatId}`,
     );
     await database.query(
-      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone,voice_replies,prompt_preset) VALUES($1,$2,$3,$4,$5,$6,false,$7,COALESCE($8,'advanced'),$9,COALESCE($10,true),$11)
-      ON CONFLICT(bot,chat_id) DO UPDATE SET kind=EXCLUDED.kind,label=EXCLUDED.label,enabled=EXCLUDED.enabled,capabilities=EXCLUDED.capabilities,credentials=EXCLUDED.credentials,memory_mode=COALESCE($8,access_profiles.memory_mode),timezone=COALESCE($9,access_profiles.timezone),voice_replies=COALESCE($10,access_profiles.voice_replies),prompt_preset=COALESCE($11,access_profiles.prompt_preset)`,
+      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone,voice_replies,prompt_preset,assistant_id) VALUES($1,$2,$3,$4,$5,$6,false,$7,COALESCE($8,'advanced'),$9,COALESCE($10,true),$11,$12)
+      ON CONFLICT(bot,chat_id) DO UPDATE SET kind=EXCLUDED.kind,label=EXCLUDED.label,enabled=EXCLUDED.enabled,capabilities=EXCLUDED.capabilities,credentials=EXCLUDED.credentials,memory_mode=COALESCE($8,access_profiles.memory_mode),timezone=COALESCE($9,access_profiles.timezone),voice_replies=COALESCE($10,access_profiles.voice_replies),prompt_preset=COALESCE($11,access_profiles.prompt_preset),assistant_id=EXCLUDED.assistant_id`,
       [
         profile.bot,
         profile.chatId,
@@ -127,6 +132,7 @@ export class PostgresAccess implements AccessRepository {
         profile.timezone || null,
         profile.voiceReplies ?? null,
         profile.promptPreset || null,
+        profile.assistantId || null,
       ],
     );
   }
@@ -156,8 +162,8 @@ export class PostgresAccess implements AccessRepository {
     );
     // Preserve existing destination decisions and keep the old chat's history intact.
     await this.pool.query(
-      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone,voice_replies,prompt_preset)
-       SELECT $1,$2,'group',$3,$4,$5,false,$6,$7,$8,$9,$10 WHERE NOT EXISTS (
+      `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone,voice_replies,prompt_preset,assistant_id)
+       SELECT $1,$2,'group',$3,$4,$5,false,$6,$7,$8,$9,$10,$11 WHERE NOT EXISTS (
          SELECT 1 FROM access_profile_deletions WHERE bot=$1 AND chat_id=$2)
        ON CONFLICT DO NOTHING`,
       [
@@ -171,6 +177,7 @@ export class PostgresAccess implements AccessRepository {
         source.timezone || null,
         source.voiceReplies !== false,
         source.promptPreset || null,
+        source.assistantId || null,
       ],
     );
   }

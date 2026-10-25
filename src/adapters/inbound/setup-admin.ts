@@ -1,3 +1,4 @@
+import type { AssistantAdmin } from './assistant-admin.js';
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { IntegrationAccess } from '../../application/integration-access.js';
@@ -11,6 +12,7 @@ export class SetupAdmin {
     private settings: ZeroSettingsPort,
     private profiles: AccessRepository,
     private publicUrl: string,
+    private assistants?: AssistantAdmin,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -19,6 +21,7 @@ export class SetupAdmin {
     send: (status: number, value: unknown) => void,
   ) {
     if (!path.startsWith('/v1/admin/setup/')) return false;
+    if (await this.assistants?.handle(req, path, read, send)) return true;
     if (path === '/v1/admin/setup/connection' && req.method === 'GET') {
       send(200, {
         url: this.publicUrl,

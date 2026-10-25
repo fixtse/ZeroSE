@@ -18,6 +18,16 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
     );
   return value;
 }
+export interface AssistantSummary {
+  id: string;
+  name: string;
+  revision: number;
+  preset: 'standard' | 'salem';
+  builtin: boolean;
+}
+export interface AssistantDefinition extends AssistantSummary {
+  prompt: string;
+}
 export interface Profile {
   bot: 'zero' | 'salem';
   chatId: string;
@@ -27,6 +37,7 @@ export interface Profile {
   owner: boolean;
   capabilities: string[];
   hasHomeAssistant: boolean;
+  assistantId?: string;
   homeAssistant?: {
     url: string;
     shoppingListEntity: string;
