@@ -6,6 +6,8 @@ export interface ZeroSettings {
   assist: boolean;
   frigate: boolean;
   services: string[];
+  /** Authenticated HA user ID -> enabled private Zero chat ID. */
+  homeAssistantUsers?: Record<string, string>;
 }
 export interface ZeroSettingsPort {
   read(): Promise<ZeroSettings>;

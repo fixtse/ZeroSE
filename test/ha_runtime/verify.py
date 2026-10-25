@@ -88,6 +88,52 @@ async def main():
                 assert entities.async_get(entity_id).device_id == device_id
                 assert dr.async_get(hass).async_get(device_id).configuration_url == "http://new-zero.invalid:8788/admin"
                 assert len(dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)) == 1
+            # Real auth users and Android device IDs route through the Zero binding,
+            # without mistaking the phone for the configured physical satellite.
+            from homeassistant.auth.const import GROUP_ID_ADMIN
+            from types import SimpleNamespace
+            from homeassistant.core import Context
+            admin_user = await hass.auth.async_create_user("Android admin", group_ids=[GROUP_ID_ADMIN])
+            assert admin_user.is_admin and admin_user.is_active
+            conversation_module = importlib.import_module("custom_components.assistant_zero.conversation")
+            entity = conversation_module.ZeroConversation(entry)
+            entity.hass = hass
+            phone_input = SimpleNamespace(language="es", conversation_id=None,
+                device_id="android-phone", satellite_id=None, text="Who am I?",
+                context=Context(user_id=admin_user.id))
+            with patch.object(conversation_module, "converse", new=AsyncMock(return_value="Personal reply")) as converse:
+                result = await entity.async_process(phone_input)
+                assert result.response.speech["plain"]["speech"] == "Personal reply", result
+                assert converse.call_args.kwargs["ha_user_id"] == admin_user.id
+            with patch.object(conversation_module, "converse", new=AsyncMock(side_effect=conversation_module.AccessDenied())) as converse:
+                result = await entity.async_process(phone_input)
+                assert result.response.error_code is not None
+                assert converse.await_count == 1
+            # An inactive or absent user never gets a phone-to-owner fallback.
+            with patch.object(conversation_module, "converse", new=AsyncMock()) as converse:
+                with patch.object(hass.auth, "async_get_user", new=AsyncMock(return_value=SimpleNamespace(is_active=False))):
+                    await entity.async_process(phone_input)
+                    converse.assert_not_awaited()
+                phone_input.context = Context()
+                await entity.async_process(phone_input)
+                converse.assert_not_awaited()
+            binding_settings = {**current, "homeAssistantUsers": {admin_user.id: "1234"}}
+            with patch.object(zero, "settings_request", new=AsyncMock(return_value=binding_settings)) as request:
+                options = await hass.config_entries.options.async_init(entry.entry_id)
+                options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "users"})
+                assert options["type"] == "form", options
+                FlowManagerResourceView(hass.config_entries.options)._prepare_result_json(options)
+                result = await hass.config_entries.options.async_configure(options["flow_id"], {"user_id": admin_user.id, "chat_id": "5678"})
+                assert result["type"] == "create_entry", result
+                assert request.call_args.args[3] == {"revision": 4, "userId": admin_user.id, "chatId": "5678"}
+                assert request.call_args.kwargs["path"] == "/users"
+                assert "homeAssistantUsers" not in entry.data and not entry.options
+                # Unlinking is explicit and never removes another user's binding.
+                options = await hass.config_entries.options.async_init(entry.entry_id)
+                options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "users"})
+                result = await hass.config_entries.options.async_configure(options["flow_id"], {"user_id": admin_user.id, "chat_id": ""})
+                assert result["type"] == "create_entry", result
+                assert request.call_args.args[3]["chatId"] is None
             # Delivery is configured under the same Zero config entry.
             options = await hass.config_entries.options.async_init(entry.entry_id)
             options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "delivery"})
@@ -109,7 +155,7 @@ async def main():
             for domain in ("assistant_zero",):
                 assert (components / domain / "brand/icon.png").read_bytes().startswith(b"\x89PNG")
                 assert json.loads((components / domain / "strings.json").read_text())["options"]
-            print("Real Home Assistant: setup, both config/options flows, shared prompt PUT, no cached prompt, import preservation, callback update, discovery, admin link, retained voice/device identities and icons passed")
+            print("Real Home Assistant: Android admin routing, inactive/unbound phone denial, user binding/unlink options, setup, both config/options flows, shared prompt PUT, no cached prompt, import preservation, callback update, discovery, admin link, retained voice/device identities and icons passed")
         finally:
             await hass.async_stop(force=True)
 

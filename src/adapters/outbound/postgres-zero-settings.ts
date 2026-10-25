@@ -29,7 +29,7 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
   async update(value: ZeroSettings): Promise<ZeroSettings | undefined> {
     const { revision, ...settings } = value;
     const { rows } = await this.pool.query(
-      'UPDATE zero_settings SET revision = revision + 1, value = $1 WHERE id = 1 AND revision = $2 RETURNING revision, value',
+      'UPDATE zero_settings SET revision = revision + 1, value = value || $1::jsonb WHERE id = 1 AND revision = $2 RETURNING revision, value',
       [JSON.stringify(settings), revision],
     );
     return rows[0] ? { ...rows[0].value, revision: rows[0].revision } : undefined;

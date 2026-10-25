@@ -802,3 +802,7 @@ Requests are deduplicated by utterance ID. After one submission, the integration
 only reads status for up to 290 seconds; failed or uncertain actions are never
 automatically repeated. Idle operation uses no model tokens or heartbeat; each
 spoken request is a normal Zero model turn. Status polling uses no model tokens.
+
+Home Assistant and Android Assist users can be bound to enabled private Zero user
+profiles under **Zero Assistant → Configure → Home Assistant user bindings**.
+See [user binding setup](integrations/home_assistant/README.md#android-and-home-assistant-user-identity).
