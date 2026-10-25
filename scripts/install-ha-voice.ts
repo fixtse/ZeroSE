@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -66,16 +67,25 @@ try {
   before.close();
 }
 const files = Object.fromEntries(
-  ['manifest.json', '__init__.py', 'config_flow.py', 'conversation.py', 'client.py'].map((name) => [
+  [
+    'manifest.json',
+    '__init__.py',
+    'config_flow.py',
+    'conversation.py',
+    'client.py',
+    'settings.py',
+    'strings.json',
+    'translations/en.json',
+    'brand/icon.png',
+  ].map((name) => [
     name,
     readFileSync(
       new URL('../integrations/home_assistant/assistant_zero/' + name, import.meta.url),
-      'utf8',
-    ),
+    ).toString(name.endsWith('.png') ? 'base64' : 'utf8'),
   ]),
 );
 const script = `
-import datetime, json, pathlib, shutil, sys
+import base64, datetime, json, pathlib, shutil, sys
 data = json.load(sys.stdin)
 root = pathlib.Path('/config')
 backup = root / 'backups' / ('assistant-zero-voice-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
@@ -98,7 +108,11 @@ if include not in config:
     config += '\\n' + include + '\\n'
 component = root / 'custom_components' / 'assistant_zero'
 component.mkdir(parents=True, exist_ok=True)
-for name, content in data['files'].items(): (component / name).write_text(content)
+for name, content in data['files'].items():
+    target = component / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if name.endswith('.png'): target.write_bytes(base64.b64decode(content))
+    else: target.write_text(content)
 (root / 'assistant_zero_credentials.yaml').write_text(json.dumps(data['credentials']))
 (root / 'assistant_zero_credentials.yaml').chmod(0o600)
 (root / 'configuration.yaml').write_text(config)
@@ -108,7 +122,14 @@ execFileSync('docker', ['exec', '-i', container, 'python', '-c', script], {
   input: JSON.stringify({
     files,
     snapshot,
-    credentials: { url: url.origin, token: voiceToken(config.apiKey), satellite_id: satellite },
+    credentials: {
+      url: url.origin,
+      token: voiceToken(config.apiKey),
+      satellite_id: satellite,
+      settings_token: createHmac('sha256', config.apiKey)
+        .update('assistant-home-assistant-settings-v1')
+        .digest('hex'),
+    },
   }),
   stdio: ['pipe', 'inherit', 'inherit'],
 });

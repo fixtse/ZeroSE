@@ -4,6 +4,21 @@ import type { Config } from '../../domain/config.js';
 
 export class HomeAssistant {
   constructor(private config: Config['homeAssistant']) {}
+  async services(
+    signal?: AbortSignal,
+  ): Promise<{ domain: string; services: Record<string, unknown> }[]> {
+    return this.request('services', undefined, signal);
+  }
+  async callService(service: string, data: Record<string, unknown>, signal?: AbortSignal) {
+    if (!/^[a-z_]+\.[a-z_]+$/.test(service)) throw new Error('Invalid service');
+    return this.request(
+      'services/' +
+        service.replace('.', '/') +
+        (service === 'conversation.process' ? '?return_response' : ''),
+      data,
+      signal,
+    );
+  }
   async location(signal?: AbortSignal) {
     const entities = [this.config.locationEntity, this.config.geocodedLocationEntity];
     if (!entities.some(Boolean)) throw new Error('Location entities are not configured');

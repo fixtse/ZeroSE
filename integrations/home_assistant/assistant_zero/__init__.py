@@ -9,6 +9,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required("url"): cv.url,
         vol.Required("token"): cv.string,
         vol.Required("satellite_id"): cv.entity_id,
+        vol.Optional("settings_token"): cv.string,
     })
 }, extra=vol.ALLOW_EXTRA)
 

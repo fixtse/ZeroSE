@@ -15,12 +15,19 @@ const url = new URL(callback);
 if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
   throw new Error('Invalid callback URL');
 const files = Object.fromEntries(
-  ['manifest.json', '__init__.py', 'engine.py'].map((name) => [
+  [
+    'manifest.json',
+    '__init__.py',
+    'engine.py',
+    'config_flow.py',
+    'strings.json',
+    'translations/en.json',
+    'brand/icon.png',
+  ].map((name) => [
     name,
     readFileSync(
       new URL('../integrations/home_assistant/assistant_rules/' + name, import.meta.url),
-      'utf8',
-    ),
+    ).toString(name.endsWith('.png') ? 'base64' : 'utf8'),
   ]),
 );
 const credentials = JSON.stringify({
@@ -28,7 +35,7 @@ const credentials = JSON.stringify({
   callback_token: rulesToken(config.apiKey),
 });
 const script = `
-import datetime, json, pathlib, shutil, sys
+import base64, datetime, json, pathlib, shutil, sys
 data = json.load(sys.stdin)
 root = pathlib.Path('/config')
 backup = root / 'backups' / ('assistant-rules-events-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
@@ -57,7 +64,10 @@ if start in automations:
 component = root / 'custom_components' / 'assistant_rules'
 component.mkdir(parents=True, exist_ok=True)
 for name, content in data['files'].items():
-    (component / name).write_text(content)
+    target = component / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if name.endswith('.png'): target.write_bytes(base64.b64decode(content))
+    else: target.write_text(content)
 (root / 'assistant_rules_credentials.yaml').write_text(data['credentials'])
 (root / 'assistant_rules_credentials.yaml').chmod(0o600)
 (root / 'configuration.yaml').write_text(config)

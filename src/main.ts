@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './adapters/outbound/config.js';
+import { PostgresZeroSettings } from './adapters/outbound/postgres-zero-settings.js';
+import { registerHomeAssistantControl } from './adapters/inbound/ha-control-tools.js';
 import { Store } from './adapters/outbound/postgres-store.js';
 import { Tools } from './application/tool-registry.js';
 import { Codex } from './adapters/outbound/codex-app-server.js';
@@ -156,7 +158,10 @@ async function services(context: ToolContext) {
   const google = new Google(scoped.google, scoped.timezone);
   const ha = new HomeAssistant(scoped.homeAssistant);
   const memory = new Memory(scoped.memory, store, new GeminiEmbeddings(scoped.memory));
+  const settings = await zeroSettings.read();
   const permitted = (name: string) => {
+    if (profile?.owner && !settings.homeAssistant && toolCapability(name) === 'homeAssistant')
+      return false;
     if (isMemoryTool(name) && scoped.memory.mode === 'none') return false;
     const capability = toolCapability(name);
     return !profile || !capability || profile.capabilities.includes(capability);
@@ -164,6 +169,12 @@ async function services(context: ToolContext) {
   const tools = new Tools(
     store,
     async (name) => {
+      if (
+        profile?.owner &&
+        toolCapability(name) === 'homeAssistant' &&
+        !(await zeroSettings.read()).homeAssistant
+      )
+        return false;
       if (!address) return true;
       const current = await access.forSession(context.session);
       const capability = toolCapability(name);
@@ -178,6 +189,7 @@ async function services(context: ToolContext) {
   );
   registerGoogleTools(tools, google);
   registerHomeAssistantTools(tools, ha, scoped.homeAssistant);
+  if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
   registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey);
   registerNotificationTools(tools, rules, scoped.homeAssistant.token ? ha : undefined);
@@ -196,6 +208,10 @@ try {
 } catch {
   /* use default identity */
 }
+const zeroSettings = new PostgresZeroSettings(store.pool);
+await zeroSettings.initialize(
+  prompts.main || 'Eres Zero, un asistente personal. Responde en español.',
+);
 const codex = new Codex(config, store, tools, async (context) => (await services(context)).tools),
   processManagedMessage = new ProcessManagedMessage(
     store,
@@ -203,7 +219,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
     services,
     (bot, session) => bots.get(bot, session),
     canRespond,
-    prompts.main,
+    async () => (await zeroSettings.read()).prompt,
   ),
   assistant = new Assistant(
     config,
@@ -314,6 +330,7 @@ const codex = new Codex(config, store, tools, async (context) => (await services
         bots,
       ),
     ),
+    zeroSettings,
   );
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {

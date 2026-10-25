@@ -25,7 +25,7 @@ export class ProcessManagedMessage {
     private scope: (context: ToolContext) => Promise<ProfileScope>,
     private telegram: (bot: BotId, session?: string) => Promise<TelegramPort>,
     private permitted: (job: Job) => Promise<boolean>,
-    private ownerPrompt: string,
+    private ownerPrompt: string | (() => Promise<string>),
   ) {}
   async execute(job: Job, context: ToolContext): Promise<JobResult> {
     const address = sessionAddress(job.session);
@@ -57,7 +57,9 @@ export class ProcessManagedMessage {
         ? salemPrompt
         : scope.profile && !scope.profile.owner
           ? ''
-          : this.ownerPrompt;
+          : typeof this.ownerPrompt === 'string'
+            ? this.ownerPrompt
+            : await this.ownerPrompt();
     return new ProcessMessage(
       scope.config,
       this.store,
