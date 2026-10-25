@@ -71,13 +71,49 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
-      if (path === '/v1/integrations/home-assistant/settings') {
+      if (
+        path === '/v1/integrations/home-assistant/settings' ||
+        path === '/v1/integrations/home-assistant/settings/users'
+      ) {
         const token = createHmac('sha256', config.apiKey)
           .update('assistant-home-assistant-settings-v1')
           .digest('hex');
         if (!equalSecret(req.headers.authorization, `Bearer ${token}`))
           return send(401, { error: 'Unauthorized' });
         if (!settings) return send(503, { error: 'Settings unavailable' });
+        if (path.endsWith('/users')) {
+          if (req.method !== 'PUT') return send(405, { error: 'Method not allowed' });
+          const value = z
+            .object({
+              revision: z.number().int().positive(),
+              userId: z.string().regex(/^[a-f0-9]{32}$/),
+              chatId: z
+                .string()
+                .regex(/^[1-9]\d*$/)
+                .max(30)
+                .nullable(),
+            })
+            .strict()
+            .parse(await body(req));
+          if (!management) return send(503, { error: 'User management unavailable' });
+          if (value.chatId !== null) {
+            const profile = await management.access.repository.profile('zero', value.chatId);
+            if (!profile?.enabled || profile.kind !== 'user')
+              return send(400, { error: 'Select an enabled private Zero user' });
+          }
+          const current = await settings.read();
+          const bindings = { ...current.homeAssistantUsers };
+          if (value.chatId === null) delete bindings[value.userId];
+          else bindings[value.userId] = value.chatId;
+          const updated = await settings.update({
+            ...current,
+            revision: value.revision,
+            homeAssistantUsers: bindings,
+          });
+          return updated
+            ? send(200, updated)
+            : send(409, { error: 'Settings changed; reload before saving' });
+        }
         if (req.method === 'GET') return send(200, await settings.read());
         if (req.method === 'PUT') {
           const value = z
@@ -88,9 +124,12 @@ export function createHttpServer(
               assist: z.boolean(),
               frigate: z.boolean(),
               services: z.array(z.string().regex(/^[a-z_]+\.[a-z_]+$/)).max(100),
+              // Bindings are writable only through the validated /users endpoint.
+              homeAssistantUsers: z.record(z.string(), z.string()).optional(),
             })
             .strict()
             .parse(await body(req));
+          delete value.homeAssistantUsers;
           const updated = await settings.update(value);
           return updated
             ? send(200, updated)
@@ -106,7 +145,11 @@ export function createHttpServer(
           const value = z
             .object({
               request_id: z.uuid(),
-              satellite_id: z.string().min(1).max(200),
+              satellite_id: z.string().min(1).max(200).optional(),
+              ha_user_id: z
+                .string()
+                .regex(/^[a-f0-9]{32}$/)
+                .optional(),
               text: z.string().trim().min(1).max(16000),
             })
             .strict()
@@ -114,11 +157,20 @@ export function createHttpServer(
           const job = await voice.submit(value);
           return job
             ? send(202, { jobId: job.id, status: job.status })
-            : send(403, { error: 'Voice device or owner is not enabled' });
+            : send(403, { error: 'Voice user or device is not enabled' });
         }
         if (req.method === 'GET' && path.startsWith('/v1/voice/turns/')) {
           const id = z.uuid().parse(path.slice('/v1/voice/turns/'.length));
-          const job = await voice.result(id);
+          const userId = new URL(req.url || '/', 'http://localhost').searchParams.get('ha_user_id');
+          const job = await voice.result(
+            id,
+            userId === null
+              ? undefined
+              : z
+                  .string()
+                  .regex(/^[a-f0-9]{32}$/)
+                  .parse(userId),
+          );
           return job
             ? send(200, { id: job.id, status: job.status, output: job.output })
             : send(404, { error: 'Voice turn not found' });

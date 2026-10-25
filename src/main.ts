@@ -28,7 +28,7 @@ import { registerPersonalDataTools } from './adapters/inbound/personal-data-tool
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
 import { ZeroDiscovery } from './adapters/inbound/zero-discovery.js';
-import { VoiceBridge, voiceOwnerSession } from './application/voice-bridge.js';
+import { VoiceBridge, voiceOwnerSession, voiceUserSession } from './application/voice-bridge.js';
 import { WeatherNotification } from './application/weather-notification.js';
 import { weatherChangeSchema } from './adapters/inbound/weather-change-schema.js';
 import { GeminiEmbeddings } from './adapters/outbound/gemini-embeddings.js';
@@ -161,6 +161,13 @@ registerPersonalDataTools(
 );
 async function canRespond(job: Job, result?: JobResult) {
   const address = sessionAddress(job.session);
+  if (
+    job.payload.source === 'home_assistant_voice' &&
+    job.payload.haUserId !== undefined &&
+    (typeof job.payload.haUserId !== 'string' ||
+      (await voiceUserSession(job.payload.haUserId, zeroSettings, access, bots)) !== job.session)
+  )
+    return false;
   if (!address) return true; // HTTP chat already requires the administrator API key.
   const profile = await access.forSession(job.session);
   if (
@@ -368,12 +375,16 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       ? new DeploymentWebhookProxy(process.env.ASSISTANT_DEPLOY_WEBHOOK_URL)
       : undefined,
     rules,
-    new VoiceBridge(store, config.homeAssistant.voiceSatellite || '', () =>
-      voiceOwnerSession(
-        config.telegram.allowedUsers[0] || config.telegram.notificationChatId,
-        access,
-        bots,
-      ),
+    new VoiceBridge(
+      store,
+      config.homeAssistant.voiceSatellite || '',
+      () =>
+        voiceOwnerSession(
+          config.telegram.allowedUsers[0] || config.telegram.notificationChatId,
+          access,
+          bots,
+        ),
+      (userId) => voiceUserSession(userId, zeroSettings, access, bots),
     ),
     zeroSettings,
   );

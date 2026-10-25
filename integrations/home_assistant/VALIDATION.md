@@ -138,3 +138,49 @@ keys and offline migration support remain. Project `AGENTS.md` now documents the
 integration source/release workflow, compatibility boundaries, private credentials,
 optional SchedulerSE backend, validation, and authorized live upgrades.
 No live service was modified or restarted for this cleanup.
+
+## Home Assistant user bindings — 2026-10-25
+
+Run `zero-ha-user-bindings-20261025-r3` passed in Codespace
+`assistant-ha-integrations-x59w6g566gghp7qj`, with Node 26.12.1 and pnpm 11.28.6.
+Assistant checkout: `/workspaces/zero-ha-user-bindings-20261025-r3/assistant`,
+repository `fixtse/zero-assistant`, branch `validation/ha-user-bindings`, based on
+`e599af561f8b9d2731e508cdad68169c94b258c6` plus the synchronized task changes.
+Independent HACS checkout: `/workspaces/zero-ha-user-bindings-20261025-r3/ha-zero-assistant`,
+based on `2ab5bc212ae868faa8aa308d07a7238ca3cac097` plus the release changes.
+The existing package checkout's private/uncommitted work was preserved by using
+an isolated local package worktree for the release.
+
+Verified result: `/workspaces/zero-ha-user-bindings-20261025-r3/result.json`;
+log: `/tmp/zero-ha-user-bindings-20261025-r3.log`. The completion callback arrived
+in this thread and was checked against both saved files. Local/remote binary
+diff SHA-256 hashes matched before publication: assistant
+`6fb81e038dc41a6bb5e61183904f4a69a530961e5d9356528a270595b7a0351e`, HACS package
+`da4de70a35fab4979f410fd421240ac277dc8ec910074857bcc589dd9d978cb3`.
+Only this validation record and the published revision metadata were added after
+that comparison; executable sources are unchanged.
+
+Passed locked installation, `pnpm format:check`, `pnpm check`, `pnpm test`
+(129 TypeScript and 33 Python tests), `pnpm build`, both Compose configuration
+checks, the pinned real Home Assistant 2026.10.4 smoke check, 30 standalone HACS
+package tests, and package compilation. Component snapshots matched recursively.
+Tests used a new isolated pgvector database on port 55444 and `TEST_DATABASE_URL`.
+The real HA check covered Android admin requests carrying device IDs, inactive
+and unauthenticated phone denial, binding/unlink options, unchanged entry/device
+identities, and prior config/options, discovery and rule-delivery behavior. Backend
+checks covered target profile validation, stale writes, cross-user result isolation,
+revocation, disabled users/bots and preservation of bindings during prompt edits.
+Missing optional FFmpeg/turbojpeg libraries produced media warnings; camera/audio
+processing was not exercised.
+
+The first attempt stopped during unauthenticated GitHub CLI setup; the second
+passed application tests but stopped at a missing test-only Compose variable and
+used the wrong Node version. Neither is a successful validation record. The third
+run corrected both environment issues and passed all checks. No live state was
+changed, no uncertain action was replayed, and no service was restarted.
+
+HACS version 1.3.0 and its full published source revision are recorded in
+`repositories.json`. Both the backend change and integration update are required
+before configuring user bindings. The backend is pushed on a feature branch to
+avoid the configured automatic deployment from successful main builds. Docker
+image validation and live rollout remain deferred until an authorized merge/deploy.
