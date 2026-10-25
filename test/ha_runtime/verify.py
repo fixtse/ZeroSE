@@ -35,6 +35,8 @@ async def main():
                 await hass.async_block_till_done()
                 assert entry.state.value == "loaded", entry.state
                 options = await hass.config_entries.options.async_init(entry.entry_id)
+                assert options["type"] == "menu", options
+                options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "assistant"})
                 assert options["type"] == "form", options
                 changed = {key: value for key, value in current.items() if key != "revision"}
                 changed.update(prompt="Edited in HA", services="light.turn_on\nfrigate.restart", frigate=True)
@@ -47,23 +49,22 @@ async def main():
                 # Import does not replace settings managed through the UI.
                 await hass.config_entries.flow.async_init("assistant_zero", context={"source": "import"}, data={**connection, "url": "http://stale.invalid"})
                 assert entry.data["url"] == connection["url"]
-            assert await async_setup_component(hass, "assistant_rules", {})
-            result = await hass.config_entries.flow.async_init("assistant_rules", context={"source": "user"})
-            assert result["type"] == "form", result
+            # Delivery is configured under the same Zero config entry.
+            options = await hass.config_entries.options.async_init(entry.entry_id)
+            options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "delivery"})
             credentials = {"callback_url": "http://zero.invalid/v1/triggers/rule-events", "callback_token": "test-only-callback-credential-long-enough"}
-            result = await hass.config_entries.flow.async_configure(result["flow_id"], credentials)
+            result = await hass.config_entries.options.async_configure(options["flow_id"], credentials)
             assert result["type"] == "create_entry", result
-            entry = result["result"]
-            await hass.async_block_till_done()
-            assert entry.state.value == "loaded", entry.state
-            assert "assistant_rules" in hass.data
             manager = hass.data["assistant_rules"]
             before = manager.engine.rules.copy()
             options = await hass.config_entries.options.async_init(entry.entry_id)
+            options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "delivery"})
             result = await hass.config_entries.options.async_configure(options["flow_id"], {**credentials, "callback_url": "http://new-zero.invalid/v1/triggers/rule-events"})
             assert result["type"] == "create_entry", result
             assert manager.config["callback_url"].startswith("http://new-zero.invalid")
             assert manager.engine.rules == before
+            assert len(hass.config_entries.async_entries("assistant_zero")) == 1
+            assert not hass.config_entries.async_entries("assistant_rules")
             for domain in ("assistant_zero", "assistant_rules"):
                 assert (components / domain / "brand/icon.png").read_bytes().startswith(b"\x89PNG")
                 assert json.loads((components / domain / "strings.json").read_text())["options"]

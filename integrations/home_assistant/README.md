@@ -1,74 +1,42 @@
-# Home Assistant integrations
+# Zero Assistant integration
 
-- `fixtse/ha-zero-assistant`: Zero Assistant Bridge (`assistant_zero`).
-- `fixtse/ha-assistant-rules`: event-driven reminders and alerts (`assistant_rules`).
+`fixtse/ha-zero-assistant` now packages conversation, shared settings, reminders,
+sensor alerts and weather alerts in one `assistant_zero` component. The old
+`assistant_rules` API path and storage key remain stable for existing rules.
 
-Each private repository contains an installable `custom_components/<domain>`
-package, its own description, local brand icon, translations and release version.
-This assistant repository retains a tested source snapshot for its existing
-installers and protocol tests. Publish integration changes to the matching
-repository at the same revision/version; do not edit deployed component files.
+Use the offline `scripts/migrate-ha-zero.py` migration only while Home Assistant
+is stopped. It backs up private settings/components, retains the Zero entry and
+pipeline IDs, merges callback credentials, and removes the separate legacy entry
+and component. It never rewrites rule storage or resubmits deadlines.
 
-## Zero remains independent
+## Optional SchedulerSE backend
 
-Zero owns its model, prompt, memory, queue and integrations. Home Assistant's
-conversation entity is a transport into the existing owner conversation. It does
-not run another Zero model or store another identity prompt. Telegram and API use
-continue without the HA bridge. HA sensors, services and event delivery naturally
-require HA to be available. Existing HA-owned deadlines remain in HA.
+Timed reminders can use SchedulerSE independently of Home Assistant. Sensor and
+weather alerts still require Home Assistant. Existing schedules keep their backend;
+there is no automatic migration or outage failover that could duplicate delivery.
 
-On first startup of this version, Zero copies `data/prompts.json`'s `main` identity
-template into PostgreSQL, without overwriting an existing settings row. Thereafter
-`zero_settings` is authoritative for the owner's standard conversation identity.
-The next turn reads it afresh. Notification/consolidation templates and Zero's
-built-in tool instructions remain distinct; this editor does not replace them.
-Normal non-owner/Salem profile prompts are unchanged.
+Configure Zero privately (not in the HA prompt):
 
-## Home Assistant settings
+```json
+{
+  "schedulerSE": {
+    "enabled": true,
+    "url": "https://scheduler.example.com",
+    "token": "<private agent API token>",
+    "callbackUrl": "https://zero.example.com/v1/triggers/schedulerse-events"
+  }
+}
+```
 
-Install `custom_components/<domain>`, restart HA, then open Settings → Devices &
-services → Add integration. Existing YAML entries import once into config entries;
-subsequent YAML imports do not overwrite UI settings. Remove the YAML after a
-successful migration. Zero's Reconfigure changes its URL, private credentials and
-satellite binding. Configure reads the current identity prompt and access policy
-from Zero each time; Save writes directly back to Zero. Concurrent edits are
-rejected and must be reopened. No policy or prompt is stored in HA options.
+In SchedulerSE, configure webhook delivery to that exact callback URL. Use the
+complete Authorization header with a dedicated callback token derived as
+HMAC-SHA256(Zero apiKey, `zero-schedulerse-callback-v1`). Provision it through a
+private secret store. The adapter validates the destination and never changes
+SchedulerSE's installation-wide connection automatically. Leave `enabled` false
+until configured. No polling bridge is required, and no second assistant prompt
+is stored. SchedulerSE callbacks use stable occurrence IDs, existing Zero rule
+generations and durable duplicate suppression. Uncertain writes are not replayed.
 
-The bridge needs separate credentials for voice turns and settings management.
-The settings token is HMAC-SHA256(apiKey,
-`assistant-home-assistant-settings-v1`); the voice token uses
-`assistant-home-assistant-voice-v1`. Provision them privately using the installer
-or a secret store. Never paste Zero's administrator API key into HA. Old YAML
-voice entries work without a settings token; reconfigure or use the updated
-installer to provision settings access. This code change does not run installers,
-restart services, register pipelines or change live credentials.
-
-The access master switch governs new owner HA tool calls across transports.
-Existing deadlines, callbacks, speech output and non-owner policies are unchanged.
-The Assist and Frigate switches additionally gate their service domains. Add exact
-`domain.service` names, one per line; new service access defaults to none. Enable
-`conversation.process` plus Assist to delegate a user-requested action to HA's
-built-in `homeassistant` agent. Other conversation agents are rejected to prevent
-routing back to Zero. Frigate must already expose the selected services in HA.
-Service definitions are discovered on demand with `ha_services`; catalogs are
-never injected into the prompt. HA's service authorization still applies. These
-permissions do not imply camera-stream or video-analysis capabilities.
-
-The reminder integration's Configure form changes future callback delivery. Use
-Zero's existing reminder/alert tools to inspect or manage individual rules.
-Changing a callback never retries an uncertain delivery. The integration does
-not have its own assistant prompt.
-
-## HTTP protocol
-
-`GET/PUT /v1/integrations/home-assistant/settings` uses only the dedicated settings
-token. PUT accepts `revision`, `prompt`, `homeAssistant`, `assist`, `frigate`, and
-`services`; stale revisions return 409. The endpoint is usable without an HA
-installation, so Zero's settings do not depend on the HA lifecycle. Tokens are
-not returned. Responses are not cached.
-
-Custom integration icons use the local `brand/` format supported by HA 2026.3+.
-Icons ship in the integration itself. Both integration repositories are public,
-with HACS metadata and README install/setup buttons. The Zero bridge uses the
-same icon as the assistant project. The assistant backend repository's visibility
-is managed independently.
+New reminders use the chosen backend; already installed HA rules remain on HA.
+SchedulerSE is optional and has not been enabled or deployed by this code change.
+The Zero bridge uses the project's existing icon.

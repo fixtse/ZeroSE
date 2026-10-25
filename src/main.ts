@@ -18,6 +18,7 @@ import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
 import { NotificationRules } from './application/notification-rules.js';
 import { HomeAssistantRuleScheduler } from './adapters/outbound/ha-rule-scheduler.js';
+import { SchedulerSE } from './adapters/outbound/schedulerse.js';
 import { PostgresRules } from './adapters/outbound/postgres-rules.js';
 import { PostgresPersonalData } from './adapters/outbound/postgres-personal-data.js';
 import { OpenStreetMapPlaces } from './adapters/outbound/places.js';
@@ -87,10 +88,12 @@ const places = new OpenStreetMapPlaces(
 const personalData = new PostgresPersonalData(store.pool);
 const rules = new NotificationRules(
   ruleRepository,
-  async (session, kind) => {
+  async (session, kind, schedulerKey) => {
     const address = sessionAddress(session);
     const profile = await access.forSession(session);
     const scoped = profile ? scopedConfig(config, profile) : config;
+    const external = profile?.owner && config.schedulerSE &&
+      (schedulerKey ? schedulerKey.startsWith('schedulerse:') : config.schedulerSE.enabled);
     return {
       enabled:
         !!address &&
@@ -100,7 +103,9 @@ const rules = new NotificationRules(
           (profile.capabilities.includes('homeAssistant') && !!scoped.homeAssistant.token)),
       scheduler:
         kind !== 'alert'
-          ? new HomeAssistantRuleScheduler(config.homeAssistant)
+          ? external && config.schedulerSE
+            ? new SchedulerSE({ ...config.schedulerSE, callbackUrl: config.schedulerSE.callbackUrl || `http://127.0.0.1:${config.port}/v1/triggers/schedulerse-events` }, (id) => ruleRepository.byId(id))
+            : new HomeAssistantRuleScheduler(config.homeAssistant)
           : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
             ? new HomeAssistantRuleScheduler(scoped.homeAssistant)
             : undefined,

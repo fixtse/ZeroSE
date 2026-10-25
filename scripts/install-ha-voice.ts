@@ -73,6 +73,8 @@ const files = Object.fromEntries(
     'config_flow.py',
     'conversation.py',
     'client.py',
+    'rules.py',
+    'engine.py',
     'settings.py',
     'strings.json',
     'translations/en.json',
