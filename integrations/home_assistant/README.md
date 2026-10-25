@@ -1,4 +1,4 @@
-# Private Home Assistant integrations
+# Home Assistant integrations
 
 - `fixtse/ha-zero-assistant`: Zero Assistant Bridge (`assistant_zero`).
 - `fixtse/ha-assistant-rules`: event-driven reminders and alerts (`assistant_rules`).
@@ -68,9 +68,7 @@ installation, so Zero's settings do not depend on the HA lifecycle. Tokens are
 not returned. Responses are not cached.
 
 Custom integration icons use the local `brand/` format supported by HA 2026.3+.
-Private repositories cannot use the public HA brand repository; icons ship in
-the integration itself. HACS packaging and README install/configuration buttons live in each integration
-repository. HACS cannot download private repositories, even with GitHub login.
-Keep using authenticated manual downloads while private; enabling the HACS
-buttons requires making the integration repositories public. See
-https://www.hacs.dev/docs/faq/private_repositories/.
+Icons ship in the integration itself. Both integration repositories are public,
+with HACS metadata and README install/setup buttons. The Zero bridge uses the
+same icon as the assistant project. The assistant backend repository's visibility
+is managed independently.
