@@ -43,7 +43,10 @@ recorded in `repositories.json`.
 Logs in the Codespace: `/tmp/assistant-ha-validation.log` and
 `/tmp/assistant-ha-packages.log`. Completion wrappers preserved actual exit
 codes and posted result metadata to this thread's private webhook. The relay
-returned HTTP 202; end-to-end thread delivery was not independently confirmed.
+returned HTTP 202. The queued callbacks subsequently arrived in this thread,
+confirming end-to-end delivery. Earlier failed attempts were superseded by the
+verified final successful runs. During execution the agent also checked logs and
+command sessions; that redundant polling did not follow the webhook-first policy.
 
 HACS's GitHub validator and an actual HACS download remain unverified because
 HACS does not support private repositories. Both repositories remain private.
