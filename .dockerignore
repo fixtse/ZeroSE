@@ -11,3 +11,10 @@
 
 !scripts/
 !scripts/**
+
+!web/
+!web/**
+web/node_modules/
+web/.next/
+web/out/
+web/*.tsbuildinfo

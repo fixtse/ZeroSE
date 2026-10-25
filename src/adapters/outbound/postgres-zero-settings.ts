@@ -19,16 +19,17 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
       ],
     );
   }
-  async read(): Promise<ZeroSettings> {
-    const { rows } = await this.pool.query(
-      'SELECT revision, value FROM zero_settings WHERE id = 1',
-    );
+  async read(database: Pick<pg.Pool, 'query'> = this.pool): Promise<ZeroSettings> {
+    const { rows } = await database.query('SELECT revision, value FROM zero_settings WHERE id = 1');
     if (!rows[0]) throw new Error('Zero settings not initialized');
     return { ...rows[0].value, revision: rows[0].revision };
   }
-  async update(value: ZeroSettings): Promise<ZeroSettings | undefined> {
+  async update(
+    value: ZeroSettings,
+    database: Pick<pg.Pool, 'query'> = this.pool,
+  ): Promise<ZeroSettings | undefined> {
     const { revision, ...settings } = value;
-    const { rows } = await this.pool.query(
+    const { rows } = await database.query(
       'UPDATE zero_settings SET revision = revision + 1, value = value || $1::jsonb WHERE id = 1 AND revision = $2 RETURNING revision, value',
       [JSON.stringify(settings), revision],
     );

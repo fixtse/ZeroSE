@@ -806,3 +806,13 @@ spoken request is a normal Zero model turn. Status polling uses no model tokens.
 Home Assistant and Android Assist users can be bound to enabled private Zero user
 profiles under **Zero Assistant → Configure → Home Assistant user bindings**.
 See [user binding setup](integrations/home_assistant/README.md#android-and-home-assistant-user-identity).
+
+### Guided Home Assistant setup
+
+Zero's `/admin` interface is a Next.js App Router static export using shadcn/ui and the ScribeSE slate/orange theme. The existing Node HTTP adapter serves its assets and authenticated APIs from one origin. Domain models and application ports remain independent of Next.js and PostgreSQL. The full existing management panel remains available at `/admin/advanced`.
+
+In Home Assistant, select the mDNS-discovered Zero instance, confirm both server URLs, choose the Home Assistant user and satellite, then approve the request in Zero and select an enabled private Zero profile. Home Assistant creates its own ten-year long-lived access token; Zero encrypts it with the existing profile credential store. A separate revocable Zero token configures voice, shared settings and rule callbacks automatically. Both tokens are exchanged server to server, never in callback URLs or browser storage. The selected HA user inherits the linked Zero profile's permissions and conversation state. Setup does not grant new tool permissions or replace existing schedules.
+
+Requests expire after ten minutes, require administrator approval in Zero and a separate one-use exchange secret, and do not survive a Zero restart. Failed or uncertain exchanges are never retried. Inspect both servers' token lists before beginning another attempt. Zero tokens are shown only at manual creation, stored as digests and revocable in Security; revoke HA tokens from the HA user's profile. Older dedicated credentials and manual/reconfigure flows remain compatible.
+
+Run `pnpm dev:admin` in Codespaces for the UI; authenticated setup uses `pnpm build` and the normal assistant listener on port 8788. Never use production configuration or credentials for development. `pnpm build` builds both TypeScript and the static UI. No separate Next.js runtime or production port is needed.

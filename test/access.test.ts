@@ -379,7 +379,7 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
   const get = async (path: string) =>
     (await (await fetch(base + '/v1/admin/' + path, { headers })).json()) as any;
   try {
-    const page = await fetch(base + '/admin');
+    const page = await fetch(base + '/admin/advanced');
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-security-policy')!, /frame-ancestors 'none'/);
     const html = await page.text();

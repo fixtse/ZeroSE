@@ -1,4 +1,8 @@
 import { createServer, IncomingMessage } from 'node:http';
+import { adminAssets } from './admin-assets.js';
+import type { IntegrationAccess } from '../../application/integration-access.js';
+import type { SetupAdmin } from './setup-admin.js';
+import type { HomeAssistantPairing } from '../../application/home-assistant-pairing.js';
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { Config } from '../../domain/config.js';
@@ -47,6 +51,9 @@ export function createHttpServer(
   },
   voice?: VoiceBridge,
   settings?: ZeroSettingsPort,
+  integrationAccess?: IntegrationAccess,
+  pairing?: HomeAssistantPairing,
+  setup?: SetupAdmin,
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -68,8 +75,37 @@ export function createHttpServer(
         res.end(icon);
         return;
       }
-      if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
+      if (management && (await adminAssets(req, res))) return;
+      if (
+        req.method === 'GET' &&
+        ['/admin/advanced', '/admin/advanced/'].includes(path) &&
+        management
+      )
         return management.admin.page(res);
+      if (pairing && req.method === 'POST' && path === '/v1/pairing/home-assistant') {
+        const input = z
+          .object({
+            secret: z.string().regex(/^[a-f0-9]{64}$/),
+            homeAssistantUrl: z.string().url().max(2048),
+            flowId: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+            state: z.string().regex(/^[a-f0-9]{64}$/),
+            userId: z.string().regex(/^[a-f0-9]{32}$/),
+          })
+          .strict()
+          .parse(await body(req));
+        return send(201, pairing.begin(input));
+      }
+      if (pairing && req.method === 'POST' && path === '/v1/pairing/home-assistant/exchange') {
+        const input = z
+          .object({
+            id: z.uuid(),
+            secret: z.string().regex(/^[a-f0-9]{64}$/),
+            homeAssistantToken: z.string().min(24).max(8192),
+          })
+          .strict()
+          .parse(await body(req));
+        return send(200, await pairing.exchange(input.id, input.secret, input.homeAssistantToken));
+      }
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
       if (
         path === '/v1/integrations/home-assistant/settings' ||
@@ -78,7 +114,10 @@ export function createHttpServer(
         const token = createHmac('sha256', config.apiKey)
           .update('assistant-home-assistant-settings-v1')
           .digest('hex');
-        if (!equalSecret(req.headers.authorization, `Bearer ${token}`))
+        if (
+          !equalSecret(req.headers.authorization, `Bearer ${token}`) &&
+          !(await integrationAccess?.authorize(req.headers.authorization, 'settings'))
+        )
           return send(401, { error: 'Unauthorized' });
         if (!settings) return send(503, { error: 'Settings unavailable' });
         if (path.endsWith('/users')) {
@@ -139,7 +178,10 @@ export function createHttpServer(
       }
       if (path === '/v1/voice/turns' || path.startsWith('/v1/voice/turns/')) {
         if (!voice) return send(503, { error: 'Voice bridge unavailable' });
-        if (!equalSecret(req.headers.authorization, `Bearer ${voiceToken(config.apiKey)}`))
+        if (
+          !equalSecret(req.headers.authorization, `Bearer ${voiceToken(config.apiKey)}`) &&
+          !(await integrationAccess?.authorize(req.headers.authorization, 'voice'))
+        )
           return send(401, { error: 'Unauthorized' });
         if (req.method === 'POST' && path === '/v1/voice/turns') {
           const value = z
@@ -207,7 +249,10 @@ export function createHttpServer(
         return send(202, { accepted });
       }
       if (req.method === 'POST' && path === '/v1/triggers/rule-events' && rules) {
-        if (!equalSecret(req.headers.authorization, `Bearer ${rulesToken(config.apiKey)}`))
+        if (
+          !equalSecret(req.headers.authorization, `Bearer ${rulesToken(config.apiKey)}`) &&
+          !(await integrationAccess?.authorize(req.headers.authorization, 'rules'))
+        )
           return send(401, { error: 'Unauthorized' });
         const event = z
           .object({
@@ -286,6 +331,7 @@ export function createHttpServer(
         if (!management.auth.mutationAllowed(req))
           return send(403, { error: 'No se pudo autorizar la solicitud desde esta página.' });
       }
+      if (setup && (await setup.handle(req, path, () => body(req), send))) return;
       if (management && (await management.admin.handle(req, path, () => body(req), send))) return;
       if (req.method === 'POST' && path === '/v1/triggers/morning') {
         const chat = config.telegram.notificationChatId;

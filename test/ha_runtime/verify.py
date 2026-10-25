@@ -47,9 +47,64 @@ async def main():
             invalid = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
             assert invalid["type"] == "abort" and invalid["reason"] == "invalid_discovery", invalid
             discovery.properties = {"version": "1", "url": "https://zero.example"}
+            # HA starts pairing, validates external state, creates its real long-lived
+            # credential and exchanges secrets without exposing them in redirect URLs.
+            from homeassistant.auth.const import GROUP_ID_ADMIN
+            pairing_user = await hass.auth.async_create_user("Pairing user", group_ids=[GROUP_ID_ADMIN])
+            pairing_calls = []
+            async def pairing_request(hass_arg, url, path, payload):
+                pairing_calls.append((path, payload))
+                if path.endswith("/exchange"):
+                    assert len(payload["homeAssistantToken"]) > 24
+                    return {"token": "zero-pairing-test", "settings_token": "zero-pairing-test", "callback_token": "zero-pairing-test", "callback_url": "https://zero.example/v1/triggers/rule-events"}
+                return {"id": "pairing-request", "approvalUrl": "https://zero.example/admin/?pairing=pairing-request"}
+            with patch.object(zero, "zero_request", new=pairing_request):
+                paired = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
+                paired = await hass.config_entries.flow.async_configure(paired["flow_id"], {"url": "https://zero.example", "home_assistant_url": "https://ha.example", "user_id": pairing_user.id, "satellite_id": "assist_satellite.test"})
+                assert paired["type"] == "external", paired
+                assert "homeAssistantToken" not in paired["url"] and "secret=" not in paired["url"]
+                from types import SimpleNamespace
+                from homeassistant.components.http import KEY_HASS
+                pairing_module = importlib.import_module("custom_components.assistant_zero.pairing")
+                view = pairing_module.PairingCallbackView()
+                invalid = await view.get(SimpleNamespace(app={KEY_HASS: hass}, query={"state": "0" * 64}), paired["flow_id"])
+                assert invalid.status == 400
+                callback = await view.get(SimpleNamespace(app={KEY_HASS: hass}, query={"state": pairing_calls[0][1]["state"]}), paired["flow_id"])
+                assert callback.status == 200
+                duplicate_callback = await view.get(SimpleNamespace(app={KEY_HASS: hass}, query={"state": pairing_calls[0][1]["state"]}), paired["flow_id"])
+                assert duplicate_callback.status == 400
+                with patch("custom_components.assistant_zero.async_setup_entry", new=AsyncMock(return_value=True)):
+                    completed = await hass.config_entries.flow.async_configure(paired["flow_id"])
+                    assert completed["type"] == "create_entry", completed
+                    await hass.async_block_till_done()
+                paired_entry = completed["result"]
+                assert paired_entry.data["token"] == "zero-pairing-test"
+                assert "homeAssistantToken" not in paired_entry.data
+                assert len(pairing_calls) == 2
+                assert len(pairing_user.refresh_tokens) == 1
+                assert next(iter(pairing_user.refresh_tokens.values())).access_token_expiration.days == 3650
+                await hass.config_entries.async_remove(paired_entry.entry_id)
+                for refresh in list(pairing_user.refresh_tokens.values()):
+                    hass.auth.async_remove_refresh_token(refresh)
+            # An uncertain exchange is submitted once and its HA token is revoked.
+            async def failed_exchange(hass_arg, url, path, payload):
+                if path.endswith("/exchange"):
+                    raise TimeoutError("uncertain exchange")
+                return {"id": "failed-request", "approvalUrl": "https://zero.example/admin/?pairing=failed-request"}
+            with patch.object(zero, "zero_request", new=AsyncMock(side_effect=failed_exchange)) as request:
+                failed = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "user"})
+                failed = await hass.config_entries.flow.async_configure(failed["flow_id"], {"url": "https://zero.example", "home_assistant_url": "https://ha.example", "user_id": pairing_user.id, "satellite_id": "assist_satellite.test"})
+                state = request.call_args.args[3]["state"]
+                await hass.config_entries.flow.async_configure(failed["flow_id"], {"state": state})
+                failed = await hass.config_entries.flow.async_configure(failed["flow_id"])
+                assert failed["type"] == "abort" and failed["reason"] == "pairing_failed", failed
+                assert request.await_count == 2 and not pairing_user.refresh_tokens
             with patch.object(zero, "settings_request", new=AsyncMock(return_value=current)) as request:
                 result = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "user"})
                 assert result["type"] == "form", result
+                FlowManagerResourceView(hass.config_entries.flow)._prepare_result_json(result)
+                result = await hass.config_entries.flow.async_configure(result["flow_id"], {"url": connection["url"], "manual": True})
+                assert result["type"] == "form" and result["step_id"] == "manual", result
                 FlowManagerResourceView(hass.config_entries.flow)._prepare_result_json(result)
                 result = await hass.config_entries.flow.async_configure(result["flow_id"], connection)
                 assert result["type"] == "create_entry", result

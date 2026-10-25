@@ -8,19 +8,20 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && pnpm --filter @zero/admin build",
     "start": "node dist/src/main.js",
     "dev": "tsx src/main.ts",
     "test": "tsx --test test/*.test.ts && python3 -B -m unittest discover -s test/home_assistant -p 'test_*.py'",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && pnpm --filter @zero/admin check",
     "login": "tsx scripts/login.ts",
-    "format": "prettier --write src scripts test",
-    "format:check": "prettier --check src scripts test",
+    "format": "prettier --write src scripts test web",
+    "format:check": "prettier --check src scripts test web",
     "doctor": "tsx scripts/doctor.ts",
     "rules:enable-owner-weather": "tsx scripts/enable-owner-weather.ts",
     "voice:install-home-assistant": "tsx scripts/install-ha-voice.ts",
     "migrate:sqlite": "tsx scripts/migrate-sqlite.ts",
-    "admin:password": "tsx scripts/admin-password.ts"
+    "admin:password": "tsx scripts/admin-password.ts",
+    "dev:admin": "pnpm --filter @zero/admin dev"
   },
   "dependencies": {
     "@openai/codex": "0.159.2",

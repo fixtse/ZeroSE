@@ -1,3 +1,11 @@
+import { PostgresPairing } from './adapters/outbound/postgres-pairing.js';
+import { IntegrationAccess } from './application/integration-access.js';
+import { HomeAssistantPairing } from './application/home-assistant-pairing.js';
+import {
+  PostgresIntegrationAccess,
+  credentialCrypto,
+} from './adapters/outbound/postgres-integration-access.js';
+import { SetupAdmin } from './adapters/inbound/setup-admin.js';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './adapters/outbound/config.js';
@@ -99,6 +107,10 @@ const adminAuth = new AdminAuth(
   },
 );
 await adminAuth.initialize();
+const integrationRepository = new PostgresIntegrationAccess(store.pool);
+await integrationRepository.initialize();
+const integrationAccess = new IntegrationAccess(integrationRepository, credentialCrypto);
+
 const access: Access = new Access(accessRepository, store, () => bots.salemUsername());
 const bots = new TelegramBots(config, media, telegram, store, access);
 const ruleRepository = new PostgresRules(store.pool);
@@ -253,6 +265,13 @@ try {
   /* use default identity */
 }
 const zeroSettings = new PostgresZeroSettings(store.pool);
+const pairing = new HomeAssistantPairing(
+  accessRepository,
+  new PostgresPairing(store.pool, accessRepository, zeroSettings),
+  credentialCrypto,
+  config.homeAssistant,
+  adminAuth.origin,
+);
 await zeroSettings.initialize(
   prompts.main || 'Eres Zero, un asistente personal. Responde en español.',
 );
@@ -387,6 +406,9 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       (userId) => voiceUserSession(userId, zeroSettings, access, bots),
     ),
     zeroSettings,
+    integrationAccess,
+    pairing,
+    new SetupAdmin(integrationAccess, pairing, zeroSettings, accessRepository, adminAuth.origin),
   );
 
 async function notify(job: Job, context: ToolContext): Promise<JobResult> {

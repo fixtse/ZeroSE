@@ -83,8 +83,8 @@ export class PostgresAccess implements AccessRepository {
       ...(row.credentials ? this.decrypt(row.credentials, `${row.bot}:${row.chat_id}`) : {}),
     };
   }
-  async profile(bot: BotId, chatId: string) {
-    const { rows } = await this.pool.query(
+  async profile(bot: BotId, chatId: string, database: Pick<pg.Pool, 'query'> = this.pool) {
+    const { rows } = await database.query(
       'SELECT * FROM access_profiles WHERE bot=$1 AND chat_id=$2',
       [bot, chatId],
     );
@@ -107,12 +107,12 @@ export class PostgresAccess implements AccessRepository {
         );
     return { items: rows.map((row) => this.decode(row)), total };
   }
-  async saveProfile(profile: AccessProfile) {
+  async saveProfile(profile: AccessProfile, database: Pick<pg.Pool, 'query'> = this.pool) {
     const credentials = this.encrypt(
       { google: profile.google, homeAssistant: profile.homeAssistant, speech: profile.speech },
       `${profile.bot}:${profile.chatId}`,
     );
-    await this.pool.query(
+    await database.query(
       `INSERT INTO access_profiles(bot,chat_id,kind,label,enabled,capabilities,owner,credentials,memory_mode,timezone,voice_replies,prompt_preset) VALUES($1,$2,$3,$4,$5,$6,false,$7,COALESCE($8,'advanced'),$9,COALESCE($10,true),$11)
       ON CONFLICT(bot,chat_id) DO UPDATE SET kind=EXCLUDED.kind,label=EXCLUDED.label,enabled=EXCLUDED.enabled,capabilities=EXCLUDED.capabilities,credentials=EXCLUDED.credentials,memory_mode=COALESCE($8,access_profiles.memory_mode),timezone=COALESCE($9,access_profiles.timezone),voice_replies=COALESCE($10,access_profiles.voice_replies),prompt_preset=COALESCE($11,access_profiles.prompt_preset)`,
       [
