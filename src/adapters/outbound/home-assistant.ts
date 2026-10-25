@@ -1,4 +1,5 @@
 import { jsonRequest, jsonBody } from './http.js';
+import type { AdminCatalogQuery } from '../../application/admin-catalog.js';
 import { dailyWeatherEntity } from './weather-entity.js';
 import type { Config } from '../../domain/config.js';
 
@@ -8,6 +9,43 @@ export class HomeAssistant {
     signal?: AbortSignal,
   ): Promise<{ domain: string; services: Record<string, unknown> }[]> {
     return this.request('services', undefined, signal);
+  }
+  async entityCatalog(query: AdminCatalogQuery, signal: AbortSignal) {
+    const states = await this.request('states', undefined, signal);
+    const items = states
+      .map((state: any) => {
+        const id = String(state.entity_id);
+        const access: string[] = [];
+        if (this.permitted(id)) access.push('sensor');
+        for (const [key, label] of [
+          ['shoppingListEntity', 'shopping'],
+          ['weatherEntity', 'weather'],
+          ['locationEntity', 'location'],
+          ['geocodedLocationEntity', 'address'],
+        ] as const)
+          if (this.config[key] === id) access.push(label);
+        if (!this.config.weatherEntity && id.startsWith('weather.'))
+          access.push('weather discovery');
+        return { id, name: String(state.attributes?.friendly_name || id).slice(0, 200), access };
+      })
+      .filter((item: { id: string; name: string }) =>
+        (item.id + ' ' + item.name).toLowerCase().includes(query.search.toLowerCase()),
+      );
+    return { items: items.slice(query.offset, query.offset + query.limit), total: items.length };
+  }
+  async serviceCatalog(query: AdminCatalogQuery, signal: AbortSignal) {
+    const catalog = await this.services(signal);
+    const items = catalog
+      .flatMap((group) =>
+        Object.entries(group.services).map(([key, value]) => ({
+          id: group.domain + '.' + key,
+          name: String((value as { name?: string })?.name || key).slice(0, 200),
+        })),
+      )
+      .filter((item) =>
+        (item.id + ' ' + item.name).toLowerCase().includes(query.search.toLowerCase()),
+      );
+    return { items: items.slice(query.offset, query.offset + query.limit), total: items.length };
   }
   async callService(service: string, data: Record<string, unknown>, signal?: AbortSignal) {
     if (!/^[a-z_]+\.[a-z_]+$/.test(service)) throw new Error('Invalid service');

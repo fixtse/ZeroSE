@@ -1,6 +1,6 @@
 # Isolated validation
 
-Use Node 22 and the pinned pnpm via Corepack. The post-create command installs
+Use Node 26 and the pinned pnpm 11.28.6. The post-create command installs
 locked dependencies. Start a disposable test PostgreSQL/pgvector instance:
 
 ```sh

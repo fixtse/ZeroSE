@@ -5,6 +5,7 @@ import { memoryModes } from '../../domain/memory.js';
 import { randomBytes } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
 import {
+  telegramSession,
   capabilities,
   type AccessProfile,
   type BotId,
@@ -18,6 +19,8 @@ import type {
 import { scopedConfig } from '../../application/access.js';
 import type { SpeechPort } from '../../application/ports.js';
 import { ConfigSchema } from '../outbound/config.js';
+import type { AdminCatalogFactory } from '../../application/admin-catalog.js';
+import type { RuleRepository } from '../../application/notification-rules.js';
 import { adminPage } from './admin-page.js';
 
 const speechSchema = z.object({
@@ -92,6 +95,15 @@ function publicProfile(p: AccessProfile, timezone: string) {
           taskListId: p.google.taskListId,
           contextDocumentId: p.google.contextDocumentId,
           documentFolderId: p.google.documentFolderId,
+          credentials: Object.fromEntries(
+            Object.entries(p.google.credentials || {}).map(([key, value]) => [
+              key,
+              {
+                clientId: value?.clientId || '',
+                configured: !!value?.refreshToken,
+              },
+            ]),
+          ),
         }
       : undefined,
     homeAssistant: p.homeAssistant ? { ...p.homeAssistant, token: undefined } : undefined,
@@ -106,6 +118,8 @@ export class Admin {
     private commands?: ChatCommandsControl,
     private speech?: (config: Config) => SpeechPort,
     private previewSpeech?: (config: Config, text: string, signal: AbortSignal) => Promise<Buffer>,
+    private catalogs?: AdminCatalogFactory,
+    private rules?: RuleRepository,
   ) {}
   page(res: ServerResponse) {
     res.writeHead(200, {
@@ -288,6 +302,76 @@ export class Admin {
       });
       return true;
     }
+    const catalogMatch =
+      /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})\/(rules|entities|services)$/.exec(path);
+    if (catalogMatch && req.method === 'GET') {
+      const profile = await this.repository.profile(catalogMatch[1] as BotId, catalogMatch[2]);
+      if (!profile) {
+        send(404, { error: 'Chat no encontrado.' });
+        return true;
+      }
+      const params = new URL(req.url || '/', 'http://localhost').searchParams;
+      const query = z
+        .object({
+          search: z.string().max(200).default(''),
+          offset: z.coerce.number().int().min(0).max(1000000).default(0),
+          limit: z.coerce.number().int().min(1).max(50).default(20),
+        })
+        .parse(Object.fromEntries(params));
+      if (catalogMatch[3] === 'rules') {
+        if (!this.rules) send(503, { error: 'Catálogo de alertas no disponible.' });
+        else {
+          const kind = z
+            .enum(['alert', 'reminder', 'timer'])
+            .optional()
+            .parse(params.get('kind') || undefined);
+          const result = await this.rules.list(
+            telegramSession(profile.bot, profile.chatId),
+            kind,
+            query.offset,
+            query.limit,
+          );
+          send(200, {
+            ...result,
+            items: result.items.map((rule) => ({
+              id: rule.id,
+              kind: rule.kind,
+              message: rule.message,
+              status: rule.status,
+              condition: rule.condition,
+              next_at: rule.next_at,
+              wake_date: rule.wake_date,
+              last_fired: rule.last_fired,
+              scheduler_state: rule.scheduler_state,
+              repeat_seconds: rule.repeat_seconds,
+              recurring: rule.recurring,
+              cooldown_seconds: rule.cooldown_seconds,
+            })),
+          });
+        }
+        return true;
+      }
+      const scoped = scopedConfig(this.config, profile);
+      if (!this.catalogs || !scoped.homeAssistant.token) {
+        send(400, { error: 'Activa Home Assistant y guarda su conexión para este chat.' });
+        return true;
+      }
+      try {
+        const catalog = this.catalogs(scoped),
+          signal = AbortSignal.timeout(10000);
+        send(
+          200,
+          await (catalogMatch[3] === 'entities'
+            ? catalog.entities(query, signal)
+            : catalog.services(query, signal)),
+        );
+      } catch {
+        send(502, {
+          error: 'No se pudo consultar Home Assistant. Comprueba la conexión guardada.',
+        });
+      }
+      return true;
+    }
     const speechMatch =
       /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})\/speech\/(catalog|preview)$/.exec(path);
     if (speechMatch && req.method === 'POST') {
@@ -409,10 +493,20 @@ export class Admin {
             taskListId: input.google.taskListId || '@default',
             clientSecret: input.google.clientSecret || previousGoogle?.clientSecret || '',
             refreshToken: input.google.refreshToken || previousGoogle?.refreshToken || '',
-            credentials: Object.keys(input.google.credentials).length
-              ? input.google.credentials
-              : previousGoogle?.credentials || {},
+            credentials: { ...previousGoogle?.credentials },
           };
+        }
+        if (!input.clearGoogle && input.google && google) {
+          for (const service of ['calendar', 'tasks', 'docs', 'drive'] as const) {
+            const value = input.google.credentials[service];
+            if (!value) continue;
+            const saved = previousGoogle?.credentials[service];
+            google.credentials[service] = {
+              clientId: value.clientId || saved?.clientId || '',
+              clientSecret: value.clientSecret || saved?.clientSecret || '',
+              refreshToken: value.refreshToken || saved?.refreshToken || '',
+            };
+          }
         }
         let homeAssistant = previous?.homeAssistant;
         if (input.clearHomeAssistant)

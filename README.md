@@ -27,8 +27,8 @@ Google OAuth scope separation, and the Codex protocol.
 
 ## Run
 
-Requires Node 22.16+ and **pnpm 11+**, pinned to 11.28.6 through `packageManager`.
-Corepack can supply pnpm: use `corepack pnpm` if `pnpm` is not on PATH.
+Requires Node 26.x and **pnpm 11+**, pinned to 11.28.6 through `packageManager`.
+Install the pinned package manager with `npm install --global pnpm@11.28.6`. Node 26 does not bundle Corepack.
 
 ```sh
 pnpm install --frozen-lockfile

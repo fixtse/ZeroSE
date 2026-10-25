@@ -328,6 +328,14 @@ const codex = new Codex(config, store, tools, async (context) => (await services
         await media.cleanup(job);
       }
     },
+    (scoped) => {
+      const homeAssistant = new HomeAssistant(scoped.homeAssistant);
+      return {
+        entities: (query, signal) => homeAssistant.entityCatalog(query, signal),
+        services: (query, signal) => homeAssistant.serviceCatalog(query, signal),
+      };
+    },
+    rules.repository,
   ),
   server = createHttpServer(
     config,

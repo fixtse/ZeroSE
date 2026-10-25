@@ -1,8 +1,8 @@
 {
   "name": "Assistant development",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:26-bookworm",
   "features": { "ghcr.io/devcontainers/features/docker-in-docker:2": {} },
-  "postCreateCommand": "corepack enable && pnpm install --frozen-lockfile",
+  "postCreateCommand": "npm install --global pnpm@11.28.6 && pnpm install --frozen-lockfile",
   "remoteEnv": { "TEST_DATABASE_URL": "postgresql://assistant:test-only-password@127.0.0.1:55432/assistant_test" },
   "forwardPorts": [8788],
   "portsAttributes": { "8788": { "label": "Isolated development assistant" } }
