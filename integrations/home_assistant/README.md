@@ -9,6 +9,22 @@ is stopped. It backs up private settings/components, retains the Zero entry and
 pipeline IDs, merges callback credentials, and removes the separate legacy entry
 and component. It never rewrites rule storage or resubmits deadlines.
 
+## Discovery and admin page
+
+Zero advertises `_zero-assistant._tcp.local.` on the local network. With Zeroconf
+enabled in Home Assistant, Zero appears under **Settings → Devices & services →
+Discovered**. Select it to prefill the URL, then enter the dedicated voice/settings
+tokens and choose the satellite. Discovery never changes an existing connection.
+The Zero service device has a **Visit** link to the configured server's `/admin` page.
+The browser must be able to reach that URL; Home Assistant does not proxy it.
+
+Discovery starts with Zero's HTTP server and stops on shutdown. When configured,
+`ASSISTANT_ADMIN_URL` supplies the advertised origin (including reverse proxies).
+Otherwise a LAN listener advertises its address/port; a localhost-only listener
+is not advertised. Set `ASSISTANT_DISCOVERY=false` to disable advertisements.
+Multicast DNS requires UDP 5353 connectivity on the same LAN; use host networking
+for containers. Manual setup remains available when multicast is blocked.
+
 ## Optional SchedulerSE backend
 
 Timed reminders can use SchedulerSE independently of Home Assistant. Sensor and

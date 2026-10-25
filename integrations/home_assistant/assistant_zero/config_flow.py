@@ -1,6 +1,7 @@
 """Optional HA client for Zero; prompt and access policy remain owned by Zero."""
 import aiohttp
 import voluptuous as vol
+from yarl import URL
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
@@ -9,9 +10,9 @@ from .client import BridgeError
 from .settings import settings_request
 
 
-def connection_schema():
+def connection_schema(discovered_url=None):
     return vol.Schema({
-        vol.Required("url"): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
+        vol.Required("url", **({"default": discovered_url} if discovered_url else {})): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
         vol.Required("token"): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
         vol.Required("satellite_id"): selector.EntitySelector(selector.EntitySelectorConfig(domain="assist_satellite")),
         vol.Optional("callback_url"): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
@@ -22,6 +23,21 @@ def connection_schema():
 
 class ZeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    async def async_step_zeroconf(self, discovery_info):
+        # Zero is a singleton. Discovery must not overwrite an installed connection.
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+        try:
+            advertised = discovery_info.properties.get("url")
+            url = URL(advertised) if advertised else URL.build(scheme="http", host=discovery_info.host, port=discovery_info.port)
+            if url.scheme not in ("http", "https") or not url.host or url.user or url.password or url.query_string or url.fragment:
+                raise ValueError("Invalid discovery URL")
+            self._discovered_url = str(url).rstrip("/")
+        except (TypeError, ValueError):
+            return self.async_abort(reason="invalid_discovery")
+        self.context["title_placeholders"] = {"name": "Zero"}
+        return await self.async_step_user()
 
     async def async_step_import(self, data):
         await self.async_set_unique_id(DOMAIN)
@@ -47,7 +63,7 @@ class ZeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(title="Zero", data=user_input)
-        return self.async_show_form(step_id="user", data_schema=connection_schema(), errors=errors)
+        return self.async_show_form(step_id="user", data_schema=connection_schema(getattr(self, "_discovered_url", None)), errors=errors)
 
     async def async_step_reconfigure(self, user_input=None):
         errors = {}

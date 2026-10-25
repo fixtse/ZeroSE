@@ -5,8 +5,10 @@ import uuid
 import aiohttp
 from homeassistant.components import conversation
 from homeassistant.helpers import entity_registry as er, intent
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from . import DOMAIN
 from .client import BridgeError, converse
 
 
@@ -21,6 +23,15 @@ class ZeroConversation(conversation.ConversationEntity):
     def __init__(self, entry):
         self._entry = entry
         self._attr_unique_id = "assistant_zero"
+
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={(DOMAIN, DOMAIN)},
+            name="Zero",
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url=self._entry.data["url"].rstrip("/") + "/admin",
+        )
 
     @property
     def supported_languages(self):

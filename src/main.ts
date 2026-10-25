@@ -27,6 +27,7 @@ import { registerPlacesTools } from './adapters/inbound/places-tools.js';
 import { registerPersonalDataTools } from './adapters/inbound/personal-data-tools.js';
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
+import { ZeroDiscovery } from './adapters/inbound/zero-discovery.js';
 import { VoiceBridge, voiceOwnerSession } from './application/voice-bridge.js';
 import { WeatherNotification } from './application/weather-notification.js';
 import { weatherChangeSchema } from './adapters/inbound/weather-change-schema.js';
@@ -377,9 +378,12 @@ async function notify(job: Job, context: ToolContext): Promise<JobResult> {
   ).execute(job, context);
 }
 
+const discovery = new ZeroDiscovery();
 server.requestTimeout = 30_000;
 server.headersTimeout = 15_000;
 server.listen(config.port, config.host, () => {
+  if (process.env.ASSISTANT_DISCOVERY !== 'false')
+    discovery.start(config.host, config.port, process.env.ASSISTANT_ADMIN_URL);
   assistant.start();
   scheduler.start();
   void rules
@@ -406,6 +410,7 @@ async function close() {
   if (closing) return;
   closing = true;
   scheduler.close();
+  await discovery.close();
   await bots.close();
   server.close();
   const deadline = setTimeout(() => process.exit(1), 15_000);

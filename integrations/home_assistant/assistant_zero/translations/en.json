@@ -32,8 +32,10 @@
     },
     "abort": {
       "already_configured": "Zero is already configured.",
-      "reconfigure_successful": "Connection updated."
-    }
+      "reconfigure_successful": "Connection updated.",
+      "invalid_discovery": "Zero advertised an invalid server URL. Configure the integration manually."
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {

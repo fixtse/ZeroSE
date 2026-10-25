@@ -5,12 +5,15 @@ import json
 from pathlib import Path
 import shutil
 import tempfile
+from ipaddress import ip_address
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.bootstrap import async_setup_hass
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.runner import RuntimeConfig
 from homeassistant.setup import async_setup_component
 from homeassistant.helpers.data_entry_flow import FlowManagerResourceView
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 
 async def main():
@@ -26,6 +29,24 @@ async def main():
             zero = importlib.import_module("custom_components.assistant_zero.config_flow")
             current = {"revision": 4, "prompt": "Same Zero identity", "homeAssistant": True, "assist": False, "frigate": False, "services": []}
             connection = {"url": "http://zero.invalid:8788", "token": "voice-test-only", "settings_token": "settings-test-only", "satellite_id": "assist_satellite.test"}
+            discovery = ZeroconfServiceInfo(ip_address=ip_address("192.0.2.10"), ip_addresses=[ip_address("192.0.2.10")], port=8788, hostname="zero.local.", type="_zero-assistant._tcp.local.", name="Zero._zero-assistant._tcp.local.", properties={"version": "1", "url": "https://zero.example"})
+            discovered = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
+            assert discovered["type"] == "form", discovered
+            fields = FlowManagerResourceView(hass.config_entries.flow)._prepare_result_json(discovered)["data_schema"]
+            assert next(field for field in fields if field["name"] == "url")["default"] == "https://zero.example", fields
+            assert not hass.config_entries.async_entries("assistant_zero")
+            hass.config_entries.flow.async_abort(discovered["flow_id"])
+            # Address-only announcements also work for IPv6 and retain the advertised port.
+            discovery.properties = {"version": "1"}
+            discovery.ip_address = ip_address("2001:db8::10")
+            discovered = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
+            fields = FlowManagerResourceView(hass.config_entries.flow)._prepare_result_json(discovered)["data_schema"]
+            assert next(field for field in fields if field["name"] == "url")["default"] == "http://[2001:db8::10]:8788", fields
+            hass.config_entries.flow.async_abort(discovered["flow_id"])
+            discovery.properties = {"url": "https://user:secret@zero.example"}
+            invalid = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
+            assert invalid["type"] == "abort" and invalid["reason"] == "invalid_discovery", invalid
+            discovery.properties = {"version": "1", "url": "https://zero.example"}
             with patch.object(zero, "settings_request", new=AsyncMock(return_value=current)) as request:
                 result = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "user"})
                 assert result["type"] == "form", result
@@ -35,6 +56,15 @@ async def main():
                 entry = result["result"]
                 await hass.async_block_till_done()
                 assert entry.state.value == "loaded", entry.state
+                duplicate = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
+                assert duplicate["type"] == "abort" and duplicate["reason"] == "already_configured", duplicate
+                assert entry.data["url"] == connection["url"]
+                entities = er.async_get(hass)
+                entity_id = entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero")
+                assert entity_id == "conversation.zero", entity_id
+                device = dr.async_get(hass).async_get(entities.async_get(entity_id).device_id)
+                assert device.configuration_url == "http://zero.invalid:8788/admin", device
+                device_id = device.id
                 options = await hass.config_entries.options.async_init(entry.entry_id)
                 assert options["type"] == "menu", options
                 options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "assistant"})
@@ -50,6 +80,14 @@ async def main():
                 # Import does not replace settings managed through the UI.
                 await hass.config_entries.flow.async_init("assistant_zero", context={"source": "import"}, data={**connection, "url": "http://stale.invalid"})
                 assert entry.data["url"] == connection["url"]
+                # Reconfiguration refreshes the admin link without replacing voice identities.
+                reconfigure = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "reconfigure", "entry_id": entry.entry_id})
+                result = await hass.config_entries.flow.async_configure(reconfigure["flow_id"], {**connection, "url": "http://new-zero.invalid:8788/"})
+                assert result["type"] == "abort" and result["reason"] == "reconfigure_successful", result
+                await hass.async_block_till_done()
+                assert entities.async_get(entity_id).device_id == device_id
+                assert dr.async_get(hass).async_get(device_id).configuration_url == "http://new-zero.invalid:8788/admin"
+                assert len(dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)) == 1
             # Delivery is configured under the same Zero config entry.
             options = await hass.config_entries.options.async_init(entry.entry_id)
             options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "delivery"})
@@ -71,7 +109,7 @@ async def main():
             for domain in ("assistant_zero",):
                 assert (components / domain / "brand/icon.png").read_bytes().startswith(b"\x89PNG")
                 assert json.loads((components / domain / "strings.json").read_text())["options"]
-            print("Real Home Assistant: setup, both config/options flows, shared prompt PUT, no cached prompt, import preservation, callback update and icons passed")
+            print("Real Home Assistant: setup, both config/options flows, shared prompt PUT, no cached prompt, import preservation, callback update, discovery, admin link, retained voice/device identities and icons passed")
         finally:
             await hass.async_stop(force=True)
 

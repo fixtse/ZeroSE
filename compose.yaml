@@ -17,6 +17,7 @@ services:
         condition: service_healthy
     environment:
       ASSISTANT_CODEX_HOME: /codex
+      ASSISTANT_DISCOVERY: ${ASSISTANT_DISCOVERY:-true}
       ASSISTANT_ADMIN_URL: ${ASSISTANT_ADMIN_URL:-https://twk.kcta.cc}
       ASSISTANT_DEPLOY_WEBHOOK_URL: ${ASSISTANT_DEPLOY_WEBHOOK_URL:-}
       ASSISTANT_SECRETS_KEY: ${ASSISTANT_SECRETS_KEY:-}
