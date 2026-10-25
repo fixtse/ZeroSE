@@ -176,7 +176,11 @@ export function createHttpServer(
         }
         return send(405, { error: 'Method not allowed' });
       }
-      if (path === '/v1/voice/assistants' || path === '/v1/voice/turns' || path.startsWith('/v1/voice/turns/')) {
+      if (
+        path === '/v1/voice/assistants' ||
+        path === '/v1/voice/turns' ||
+        path.startsWith('/v1/voice/turns/')
+      ) {
         if (!voice) return send(503, { error: 'Voice bridge unavailable' });
         if (
           !equalSecret(req.headers.authorization, `Bearer ${voiceToken(config.apiKey)}`) &&
@@ -185,15 +189,21 @@ export function createHttpServer(
           return send(401, { error: 'Unauthorized' });
         if (req.method === 'GET' && path === '/v1/voice/assistants') {
           const query = new URL(req.url || '/', 'http://localhost').searchParams;
-          const input = z.object({search:z.string().max(100).default(''),offset:z.coerce.number().int().min(0).max(1000000).default(0),limit:z.coerce.number().int().min(1).max(50).default(20)}).parse(Object.fromEntries(query));
-          return send(200,await voice.assistants(input.search,input.offset,input.limit));
+          const input = z
+            .object({
+              search: z.string().max(100).default(''),
+              offset: z.coerce.number().int().min(0).max(1000000).default(0),
+              limit: z.coerce.number().int().min(1).max(50).default(20),
+            })
+            .parse(Object.fromEntries(query));
+          return send(200, await voice.assistants(input.search, input.offset, input.limit));
         }
         if (req.method === 'POST' && path === '/v1/voice/turns') {
           const value = z
             .object({
               request_id: z.uuid(),
               satellite_id: z.string().min(1).max(200).optional(),
-              assistant_id: z.union([z.enum(['zero','salem','standard']),z.uuid()]).optional(),
+              assistant_id: z.union([z.enum(['zero', 'salem', 'standard']), z.uuid()]).optional(),
               ha_user_id: z
                 .string()
                 .regex(/^[a-f0-9]{32}$/)

@@ -62,7 +62,7 @@ export class VoiceBridge {
     text: string;
     assistant_id?: string;
   }) {
-    if (value.assistant_id && !await this.definitions?.get(value.assistant_id)) return undefined;
+    if (value.assistant_id && !(await this.definitions?.get(value.assistant_id))) return undefined;
     const session = await this.session(value.ha_user_id);
     if (
       !session ||
@@ -80,15 +80,21 @@ export class VoiceBridge {
         text: value.text,
         name: 'usuario',
       },
-      `voice:${value.ha_user_id === undefined ? this.satellite : 'user:' + value.ha_user_id}:${value.request_id}${value.assistant_id ? ":assistant:" + value.assistant_id : ""}`,
+      `voice:${value.ha_user_id === undefined ? this.satellite : 'user:' + value.ha_user_id}:${value.request_id}${value.assistant_id ? ':assistant:' + value.assistant_id : ''}`,
     );
   }
 
   async assistants(search: string, offset: number, limit: number) {
-    const page = this.definitions ? await this.definitions.list(search,offset,limit)
-      : { items:[{ id:'zero',name:'Zero' }],total:1 };
+    const page = this.definitions
+      ? await this.definitions.list(search, offset, limit)
+      : { items: [{ id: 'zero', name: 'Zero' }], total: 1 };
     // HA discovers names and stable identities only; never expose prompts or credentials.
-    return { items:page.items.map(item=>({id:item.id,name:item.name})),total:page.total,offset,limit };
+    return {
+      items: page.items.map((item) => ({ id: item.id, name: item.name })),
+      total: page.total,
+      offset,
+      limit,
+    };
   }
 
   async result(id: string, userId?: string) {

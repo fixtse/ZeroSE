@@ -470,9 +470,21 @@ const codex = new Codex(config, store, tools, async (context) => (await services
       zeroSettings,
       accessRepository,
       adminAuth.origin,
-      new AssistantAdmin(assistantDefinitions, accessRepository,
-        new AssistantImageAdmin(assistantDefinitions, assistantImages,
-          new TelegramAssistantPhoto(async id => id === 'zero' ? config.telegram.token : id === 'salem' ? (await accessRepository.bots()).find(bot=>bot.id==='salem')?.token : undefined))),
+      new AssistantAdmin(
+        assistantDefinitions,
+        accessRepository,
+        new AssistantImageAdmin(
+          assistantDefinitions,
+          assistantImages,
+          new TelegramAssistantPhoto(async (id) =>
+            id === 'zero'
+              ? config.telegram.token
+              : id === 'salem'
+                ? (await accessRepository.bots()).find((bot) => bot.id === 'salem')?.token
+                : undefined,
+          ),
+        ),
+      ),
       async () => {
         if (config.homeAssistant.token) return true;
         // This discovery is admin-only, never part of a conversation's instructions.

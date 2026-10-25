@@ -1168,7 +1168,6 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-
 /* Let each profile's identity keep a readable width before moving its actions below it. */
 .person-row > .person-summary {
   display: flex;
@@ -1225,9 +1224,36 @@ textarea:focus-visible {
   }
 }
 
-.assistant-photo { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-.assistant-image-settings { margin: 0 0 24px; }
-.assistant-image-preview { width: 96px; height: 96px; border-radius: 20px; overflow: hidden; margin: 16px 0; display: grid; place-items: center; background: var(--secondary); }
-.assistant-image-preview img { width: 100%; height: 100%; object-fit: cover; }
-.assistant-image-settings .form-actions { margin-top: 16px; }
-.assistant-image-settings input[type='file'] { max-width: 100%; height: auto; min-height: 40px; white-space: normal; }
+.assistant-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.assistant-image-settings {
+  margin: 0 0 24px;
+}
+.assistant-image-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 16px 0;
+  display: grid;
+  place-items: center;
+  background: var(--secondary);
+}
+.assistant-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.assistant-image-settings .form-actions {
+  margin-top: 16px;
+}
+.assistant-image-settings input[type='file'] {
+  max-width: 100%;
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+}

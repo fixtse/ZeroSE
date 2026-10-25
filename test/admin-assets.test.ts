@@ -30,6 +30,7 @@ test('static admin serves the exported UI and assets with security headers and c
       assert.equal(await response.text(), '<html>Zero UI</html>');
       assert.match(response.headers.get('content-security-policy')!, /frame-ancestors 'none'/);
       assert.match(response.headers.get('content-security-policy')!, /media-src blob:/);
+      assert.match(response.headers.get('content-security-policy')!, /img-src 'self' data: blob:/);
       assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
     }
     const asset = await fetch(base + '/admin/_next/static/app.js');

@@ -134,12 +134,12 @@ async def main():
                 from homeassistant.components import conversation as conversation_component
                 coordinator = conversation_component.async_get_agent(hass, entity_id)._coordinator
                 catalog_items.append({"id": "standard", "name": "Standard"})
-                await coordinator.async_request_refresh()
+                await coordinator.async_refresh()
                 await hass.async_block_till_done()
                 assert entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero_standard")
                 assert entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero") == entity_id
                 catalog_items[:] = [item for item in catalog_items if item["id"] != "standard"]
-                await coordinator.async_request_refresh()
+                await coordinator.async_refresh()
                 await hass.async_block_till_done()
                 standard_id = entities.async_get_entity_id("conversation", "assistant_zero", "assistant_zero_standard")
                 assert not conversation_component.async_get_agent(hass, standard_id).available

@@ -137,7 +137,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
               onClick={() => void run(async () => setEditor(await api(endpoint + '/' + item.id)))}
             >
               <span className="assistant-avatar">
-                <AssistantAvatar id={item.id}/>
+                <AssistantAvatar id={item.id} />
               </span>
               <span>
                 <strong>{item.name}</strong>
@@ -186,7 +186,9 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                 <h2>{editor ? 'Editar asistente' : 'Un nuevo asistente'}</h2>
                 {editor?.builtin && <Badge variant="outline">Integrado</Badge>}
               </div>
-              {editor && <AssistantImageSettings key={editor.id} id={editor.id} name={editor.name}/>}
+              {editor && (
+                <AssistantImageSettings key={editor.id} id={editor.id} name={editor.name} />
+              )}
               <Label htmlFor="assistant-name">Nombre</Label>
               <Input
                 id="assistant-name"

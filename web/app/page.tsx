@@ -391,73 +391,68 @@ export default function Home() {
                     <span className="pill">Configuración de Zero</span>
                   </div>
 
-                      <Card className="hero panel">
-                        <div className="ha-mark">
-                          <House size={32} />
-                        </div>
-                        <div>
-                          <span className="eyebrow">HOME ASSISTANT</span>
-                          <h2>Tu casa. Una conversación.</h2>
-                          <p>
-                            Añade la instancia de Zero descubierta en Home Assistant. El asistente
-                            de configuración te traerá aquí para aprobar la conexión y compartirá
-                            las credenciales automáticamente.
-                          </p>
-                          <div className="steps">
-                            <span>
-                              <b>01</b> Descubre Zero
-                            </span>
-                            <span>
-                              <b>02</b> Aprueba la conexión
-                            </span>
-                            <span>
-                              <b>03</b> Empieza a hablar
-                            </span>
-                          </div>
-                          <a
-                            className="button"
-                            href="https://my.home-assistant.io/redirect/integrations/"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Abrir Home Assistant ↗
-                          </a>
-                        </div>
-                      </Card>
-                      <div className="two-columns">
-                        <Card className="panel">
-                          <span className="eyebrow">CONEXIÓN LOCAL</span>
-                          <h2>Zero ya sabe presentarse.</h2>
-                          <p>
-                            Home Assistant detecta Zero mediante mDNS en la misma red. Comprueba que
-                            esta URL es accesible desde Home Assistant.
-                          </p>
-                          <Label>
-                            URL de Zero
-                            <Input readOnly value={connection?.url || ''} />
-                          </Label>
-                          <small>
-                            La detección anuncia la dirección del servidor. La aprobación comparte
-                            las credenciales por separado.
-                          </small>
-                        </Card>
-                        <Card className="panel">
-                          <span className="eyebrow">TUS OTRAS CONEXIONES</span>
-                          <h2>Cada persona, su espacio.</h2>
-                          <p>
-                            Gestiona Google, Telegram, entidades de tu casa y voz por perfil. Los
-                            secretos guardados se conservan cuando dejas sus campos vacíos.
-                          </p>
-                          <Button
-                            variant="link"
-                            className="text-link"
-                            onClick={() => setTab('people')}
-                          >
-                            Configurar servicios y perfiles →
-                          </Button>
-                        </Card>
+                  <Card className="hero panel">
+                    <div className="ha-mark">
+                      <House size={32} />
+                    </div>
+                    <div>
+                      <span className="eyebrow">HOME ASSISTANT</span>
+                      <h2>Tu casa. Una conversación.</h2>
+                      <p>
+                        Añade la instancia de Zero descubierta en Home Assistant. El asistente de
+                        configuración te traerá aquí para aprobar la conexión y compartirá las
+                        credenciales automáticamente.
+                      </p>
+                      <div className="steps">
+                        <span>
+                          <b>01</b> Descubre Zero
+                        </span>
+                        <span>
+                          <b>02</b> Aprueba la conexión
+                        </span>
+                        <span>
+                          <b>03</b> Empieza a hablar
+                        </span>
                       </div>
-
+                      <a
+                        className="button"
+                        href="https://my.home-assistant.io/redirect/integrations/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Abrir Home Assistant ↗
+                      </a>
+                    </div>
+                  </Card>
+                  <div className="two-columns">
+                    <Card className="panel">
+                      <span className="eyebrow">CONEXIÓN LOCAL</span>
+                      <h2>Zero ya sabe presentarse.</h2>
+                      <p>
+                        Home Assistant detecta Zero mediante mDNS en la misma red. Comprueba que
+                        esta URL es accesible desde Home Assistant.
+                      </p>
+                      <Label>
+                        URL de Zero
+                        <Input readOnly value={connection?.url || ''} />
+                      </Label>
+                      <small>
+                        La detección anuncia la dirección del servidor. La aprobación comparte las
+                        credenciales por separado.
+                      </small>
+                    </Card>
+                    <Card className="panel">
+                      <span className="eyebrow">TUS OTRAS CONEXIONES</span>
+                      <h2>Cada persona, su espacio.</h2>
+                      <p>
+                        Gestiona Google, Telegram, entidades de tu casa y voz por perfil. Los
+                        secretos guardados se conservan cuando dejas sus campos vacíos.
+                      </p>
+                      <Button variant="link" className="text-link" onClick={() => setTab('people')}>
+                        Configurar servicios y perfiles →
+                      </Button>
+                    </Card>
+                  </div>
                 </>
               )}
               {tab === 'people' && (
@@ -506,29 +501,29 @@ export default function Home() {
                       {profiles.map((p) => (
                         <div className="profile-row person-row" key={p.bot + p.chatId}>
                           <div className="person-summary">
-                          <span className="avatar">{p.label.slice(0, 1).toUpperCase()}</span>
-                          <div className="person-details">
-                            <strong>{p.label}</strong>
-                            <small>
-                              {p.bot} · {p.chatId} · {p.kind === 'user' ? 'Privado' : 'Grupo'}
-                            </small>
-                          </div>
+                            <span className="avatar">{p.label.slice(0, 1).toUpperCase()}</span>
+                            <div className="person-details">
+                              <strong>{p.label}</strong>
+                              <small>
+                                {p.bot} · {p.chatId} · {p.kind === 'user' ? 'Privado' : 'Grupo'}
+                              </small>
+                            </div>
                           </div>
                           <div className="person-actions">
-                          <Badge variant="outline" className="pill">
-                            {p.enabled ? 'Activo' : 'Pendiente'}
-                          </Badge>
-                          <AssistantAssignment profile={p} onAssigned={() => loadProfiles()} />
-                          <Button
-                            variant="outline"
-                            onClick={() => setEditingProfile(p)}
-                            aria-label={'Editar perfil de ' + p.label}
-                          >
-                            Editar perfil
-                          </Button>
-                          {p.hasHomeAssistant && (
-                            <span className="pill connected">Home Assistant</span>
-                          )}
+                            <Badge variant="outline" className="pill">
+                              {p.enabled ? 'Activo' : 'Pendiente'}
+                            </Badge>
+                            <AssistantAssignment profile={p} onAssigned={() => loadProfiles()} />
+                            <Button
+                              variant="outline"
+                              onClick={() => setEditingProfile(p)}
+                              aria-label={'Editar perfil de ' + p.label}
+                            >
+                              Editar perfil
+                            </Button>
+                            {p.hasHomeAssistant && (
+                              <span className="pill connected">Home Assistant</span>
+                            )}
                           </div>
                         </div>
                       ))}
