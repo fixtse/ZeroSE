@@ -219,7 +219,15 @@ class RulesView(HomeAssistantView):
 
 
 async def async_setup(hass, config):
-    manager = Manager(hass, config[DOMAIN])
+    if DOMAIN in config:
+        hass.async_create_task(hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "import"}, data=config[DOMAIN]
+        ))
+    return True
+
+
+async def async_setup_entry(hass, entry):
+    manager = Manager(hass, dict(entry.data))
     hass.data[DOMAIN] = manager
     hass.http.register_view(RulesView(manager))
     if hass.is_running:

@@ -72,6 +72,7 @@ export function telegramMentions(message: any): string[] {
   return mentions;
 }
 export function toolCapability(name: string): Capability | undefined {
+  if (name.startsWith('ha_')) return 'homeAssistant';
   if (name.startsWith('calendar_')) return 'calendar';
   if (name.startsWith('task')) return 'tasks';
   if (['context_save', 'document_create'].includes(name)) return 'documents';

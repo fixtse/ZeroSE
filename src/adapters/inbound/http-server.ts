@@ -10,6 +10,8 @@ import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
 import { rulesToken } from '../../application/rules-auth.js';
 import { voiceToken, type VoiceBridge } from '../../application/voice-bridge.js';
+import type { ZeroSettingsPort } from '../../application/zero-settings.js';
+import { createHmac } from 'node:crypto';
 import { weatherChangeSchema } from './weather-change-schema.js';
 
 export function equalSecret(value: unknown, expected: string) {
@@ -43,6 +45,7 @@ export function createHttpServer(
     receive(event: import('../../application/notification-rules.js').RuleEvent): Promise<boolean>;
   },
   voice?: VoiceBridge,
+  settings?: ZeroSettingsPort,
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -67,6 +70,33 @@ export function createHttpServer(
       if (req.method === 'GET' && ['/admin', '/admin/'].includes(path) && management)
         return management.admin.page(res);
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
+      if (path === '/v1/integrations/home-assistant/settings') {
+        const token = createHmac('sha256', config.apiKey)
+          .update('assistant-home-assistant-settings-v1')
+          .digest('hex');
+        if (!equalSecret(req.headers.authorization, `Bearer ${token}`))
+          return send(401, { error: 'Unauthorized' });
+        if (!settings) return send(503, { error: 'Settings unavailable' });
+        if (req.method === 'GET') return send(200, await settings.read());
+        if (req.method === 'PUT') {
+          const value = z
+            .object({
+              revision: z.number().int().positive(),
+              prompt: z.string().max(100_000),
+              homeAssistant: z.boolean(),
+              assist: z.boolean(),
+              frigate: z.boolean(),
+              services: z.array(z.string().regex(/^[a-z_]+\.[a-z_]+$/)).max(100),
+            })
+            .strict()
+            .parse(await body(req));
+          const updated = await settings.update(value);
+          return updated
+            ? send(200, updated)
+            : send(409, { error: 'Settings changed; reload before saving' });
+        }
+        return send(405, { error: 'Method not allowed' });
+      }
       if (path === '/v1/voice/turns' || path.startsWith('/v1/voice/turns/')) {
         if (!voice) return send(503, { error: 'Voice bridge unavailable' });
         if (!equalSecret(req.headers.authorization, `Bearer ${voiceToken(config.apiKey)}`))
