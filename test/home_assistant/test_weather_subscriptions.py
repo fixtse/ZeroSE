@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock
 
-source = Path(__file__).parents[2] / 'integrations/home_assistant/assistant_rules/__init__.py'
+source = Path(__file__).parents[2] / 'integrations/home_assistant/assistant_zero/rules.py'
 manager_class = next(node for node in ast.parse(source.read_text()).body if isinstance(node, ast.ClassDef) and node.name == 'Manager')
 namespace = {'callback': lambda function: function, 'DATA_COMPONENT': 'weather', 'WeatherEntityFeature': SimpleNamespace(FORECAST_HOURLY=2)}
 exec(compile(ast.Module(body=[manager_class], type_ignores=[]), str(source), 'exec'), namespace)

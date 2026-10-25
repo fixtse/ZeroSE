@@ -83,6 +83,14 @@ export const ConfigSchema = z.object({
       documentFolderId: '',
       credentials: {},
     }),
+  schedulerSE: z
+    .object({
+      url: z.url(),
+      token: z.string().min(1),
+      callbackUrl: z.url().optional(),
+      enabled: z.boolean().default(false),
+    })
+    .optional(),
   homeAssistant: z
     .object({
       voiceSatellite: z

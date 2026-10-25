@@ -4,7 +4,7 @@ import pathlib
 import unittest
 from copy import deepcopy
 
-PATH = pathlib.Path(__file__).resolve().parents[2] / 'integrations/home_assistant/assistant_rules/engine.py'
+PATH = pathlib.Path(__file__).resolve().parents[2] / 'integrations/home_assistant/assistant_zero/engine.py'
 spec = importlib.util.spec_from_file_location('assistant_rules_engine', PATH)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

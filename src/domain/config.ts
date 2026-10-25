@@ -36,6 +36,7 @@ export interface Config {
     documentFolderId: string;
     credentials: Partial<Record<'calendar' | 'tasks' | 'docs' | 'drive', GoogleCredential>>;
   };
+  schedulerSE?: { url: string; token: string; callbackUrl?: string; enabled: boolean };
   homeAssistant: {
     voiceSatellite?: string;
     url: string;

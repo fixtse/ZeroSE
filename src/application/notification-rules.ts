@@ -54,7 +54,11 @@ export interface RuleScope {
 export class NotificationRules {
   constructor(
     readonly repository: RuleRepository,
-    private scope: (session: string, kind: NotificationRule['kind']) => Promise<RuleScope>,
+    private scope: (
+      session: string,
+      kind: NotificationRule['kind'],
+      schedulerKey?: string,
+    ) => Promise<RuleScope>,
     readonly wakeSession?: string,
     readonly localDate: () => string | Promise<string> = () =>
       new Date().toISOString().slice(0, 10),
@@ -111,7 +115,7 @@ export class NotificationRules {
     return this.repository.read(session, result.rule.id);
   }
   async canNotify(rule: NotificationRule) {
-    const scope = await this.scope(rule.session, rule.kind);
+    const scope = await this.scope(rule.session, rule.kind, rule.scheduler_key);
     if (!scope.enabled || (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key))
       return false;
     if (rule.condition?.source === 'weather' && rule.condition.sleep_entity) {
@@ -130,7 +134,7 @@ export class NotificationRules {
   ) {
     const scope = await this.scope(value.session, value.kind);
     if (!scope.enabled || !scope.scheduler)
-      throw new Error('Home Assistant rule scheduler is not available for this chat');
+      throw new Error('Rule scheduler is not available for this chat');
     if (!value.wake_date) await scope.scheduler.ready(signal);
     const rule = await this.repository.create({
       ...value,
@@ -151,7 +155,7 @@ export class NotificationRules {
     } catch (error) {
       await this.repository.installation(rule.id, rule.generation, 'uncertain');
       throw new Error(
-        `Rule ${rule.id} was saved but Home Assistant setup is uncertain. Read reminder_get and inspect Home Assistant before making another change.`,
+        `Rule ${rule.id} was saved but Scheduler setup is uncertain. Read reminder_get and inspect the scheduler before making another change.`,
         { cause: error },
       );
     }
@@ -166,11 +170,11 @@ export class NotificationRules {
   ) {
     const rule = await this.repository.read(session, id);
     if (!rule) throw new Error('Notification rule not found in this chat');
-    const scope = await this.scope(session, rule.kind);
+    const scope = await this.scope(session, rule.kind, rule.scheduler_key);
     if (rule.wake_date && operation === 'snooze')
       throw new Error('Wake-up reminders use a local date, not an elapsed-time snooze');
     if ((operation === 'resume' || operation === 'snooze') && (!scope.enabled || !scope.scheduler))
-      throw new Error('Home Assistant rule scheduler is unavailable');
+      throw new Error('Rule scheduler is unavailable');
     if (operation === 'cancel') rule.status = 'cancelled';
     else if (operation === 'pause' && rule.status === 'active') {
       rule.status = 'paused';
@@ -220,7 +224,7 @@ export class NotificationRules {
   async inspect(session: string, id: string, signal?: AbortSignal) {
     const rule = await this.repository.read(session, id);
     if (!rule) throw new Error('Notification rule not found in this chat');
-    const scope = await this.scope(session, rule.kind);
+    const scope = await this.scope(session, rule.kind, rule.scheduler_key);
     let home_assistant: unknown;
     if (scope.scheduler && !rule.wake_date) {
       try {
@@ -234,7 +238,11 @@ export class NotificationRules {
   /** One-time upgrade only. Claim before the remote write; interrupted installs are never replayed. */
   async migrateLegacy() {
     for (const rule of await this.repository.legacy()) {
-      const scope = await this.scope(rule.session, rule.kind);
+      const scope = await this.scope(
+        rule.session,
+        rule.kind,
+        rule.scheduler_key || 'legacy-home-assistant',
+      );
       rule.generation++;
       rule.scheduler_state = 'installing';
       rule.scheduler_key = scope.scheduler?.identity;
