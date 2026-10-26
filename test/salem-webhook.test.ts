@@ -12,7 +12,7 @@ import { Media } from '../src/adapters/outbound/media.js';
 import type { BotSettings } from '../src/domain/access.js';
 import { fixture } from './helpers.js';
 
-const url = 'https://example.com/telegram/salem/webhook';
+const url = 'https://example.com/telegram/assistants/salem/webhook';
 
 test('Salem webhook authenticates independently, preserves polling dedupe and keeps new contacts pending', async () => {
   const f = await fixture();
@@ -34,7 +34,11 @@ test('Salem webhook authenticates independently, preserves polling dedupe and ke
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
-  const post = (update: unknown, secret = 'salem-secret', path = '/telegram/salem/webhook') =>
+  const post = (
+    update: unknown,
+    secret = 'salem-secret',
+    path = '/telegram/assistants/salem/webhook',
+  ) =>
     fetch(base + path, {
       method: 'POST',
       headers: { 'X-Telegram-Bot-Api-Secret-Token': secret },
@@ -80,8 +84,9 @@ test('Salem webhook authenticates independently, preserves polling dedupe and ke
         .count,
       '0',
     );
-    const stored = (await f.store.pool.query('SELECT webhook_secret FROM managed_bots')).rows[0]
-      .webhook_secret;
+    const stored = (
+      await f.store.pool.query("SELECT webhook_secret FROM managed_bots WHERE id='salem'")
+    ).rows[0].webhook_secret;
     assert(!stored.includes('salem-secret'));
     assert.equal((await repository.bots())[0].webhookSecret, 'salem-secret');
   } finally {
@@ -133,85 +138,6 @@ test('webhook registration preserves pending updates, uses the bot secret and ne
   assert(!calls.some((c) => ['getUpdates', 'deleteWebhook'].includes(c.method)));
 });
 
-test('admin explicitly registers Salem with an encrypted stable secret, checks status read-only and reports uncertain registration', async () => {
-  const f = await fixture();
-  const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
-  await repository.initialize(f.config);
-  let registrations = 0,
-    reads = 0,
-    fail = false;
-  const admin = new Admin(f.config, repository, async () => {}, {
-    async configure(settings) {
-      registrations++;
-      assert.equal(
-        (await repository.bots())[0].webhookSecret,
-        settings.webhookSecret,
-        'Persist secret before Telegram starts delivering',
-      );
-      if (fail) throw new Error('uncertain');
-    },
-    async status(settings) {
-      reads++;
-      return { url: settings.webhookUrl || '', pending: 0 };
-    },
-  });
-  const access = new Access(repository, f.store);
-  const server = createHttpServer(f.config, f.store, undefined, { access, admin });
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  const base = `http://127.0.0.1:${(server.address() as any).port}/v1/admin/bots`;
-  const headers = {
-    Authorization: `Bearer ${f.config.apiKey}`,
-    'Content-Type': 'application/json',
-  };
-  const put = (value: unknown) =>
-    fetch(base + '/salem', { method: 'PUT', headers, body: JSON.stringify(value) });
-  try {
-    assert.equal((await put({ token: '999:test', enabled: true })).status, 400);
-    for (const webhookUrl of [
-      'http://example.com/telegram/salem/webhook',
-      'https://example.com/telegram/webhook',
-      url + '?secret=unsafe',
-    ]) {
-      assert.equal((await put({ token: '999:test', enabled: true, webhookUrl })).status, 400);
-    }
-    assert.equal(registrations, 0);
-    assert.equal((await put({ token: '999:test', enabled: true, webhookUrl: url })).status, 200);
-    const secret = (await repository.bots())[0].webhookSecret!;
-    assert.match(secret, /^[A-Za-z0-9_-]{32,256}$/);
-    assert.equal(registrations, 1);
-    const status = (await (await fetch(base + '/salem/webhook', { headers })).json()) as any;
-    assert.equal(status.registered, true);
-    assert.equal(reads, 1);
-    assert.equal(registrations, 1);
-    const listing = JSON.stringify(await (await fetch(base, { headers })).json());
-    assert(!listing.includes(secret));
-    assert(!listing.includes('999:test'));
-    assert(listing.includes('webhook'));
-    assert.equal((await put({ enabled: false })).status, 200);
-    assert.equal(registrations, 1, 'Disabling must not remove the webhook');
-    fail = true;
-    const failure = await put({ enabled: true });
-    assert.equal(failure.status, 502);
-    assert.equal(((await failure.json()) as any).saved, true);
-    assert.equal(registrations, 2, 'Uncertain mutation must not be retried');
-    assert.equal((await repository.bots())[0].webhookSecret, secret);
-    await fetch(base + '/salem/webhook', { headers });
-    assert.equal(registrations, 2, 'Checking must not replay registration');
-    fail = false;
-    assert.equal((await put({ token: '888:other-bot', enabled: true })).status, 200);
-    assert.notEqual(
-      (await repository.bots())[0].webhookSecret,
-      secret,
-      'Old bot callbacks must not authenticate as a replacement account',
-    );
-  } finally {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    await f.close();
-  }
-});
-
 test('Salem starts no polling or settings synchronization when the process starts', async () => {
   const f = await fixture();
   f.config.telegram.transport = 'webhook';
@@ -245,11 +171,23 @@ test('Salem starts no polling or settings synchronization when the process start
     access,
   );
   try {
-    bots.start();
+    await bots.start();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(reads, 0);
+    assert.equal(reads, 1);
   } finally {
     await bots.close();
     await f.close();
   }
+});
+
+test('explicit webhook removal keeps pending updates and never retries an uncertain delete', async () => {
+  const calls: { method: string; body: unknown }[] = [];
+  const webhook = new TelegramWebhook(() => ({
+    call: async (method, body) => {
+      calls.push({ method, body });
+      throw Error('Uncertain deletion');
+    },
+  }));
+  await assert.rejects(webhook.remove({ id: 'zero', enabled: true, token: '111:fixture' }));
+  assert.deepEqual(calls, [{ method: 'deleteWebhook', body: { drop_pending_updates: false } }]);
 });

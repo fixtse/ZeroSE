@@ -215,7 +215,7 @@ separate sessions can run concurrently.
 
 Telegram supports `disabled`, `webhook`, or `polling` transport. Polling needs no
 public ingress and refuses to start if a webhook already exists. Webhook mode uses
-`POST /telegram/webhook` and validates `X-Telegram-Bot-Api-Secret-Token` plus the
+`POST /telegram/assistants/<assistant-id>/webhook` and validates `X-Telegram-Bot-Api-Secret-Token` plus the
 independent user/group access policy. Neither transport registers or removes a webhook on startup.
 
 ## Wake-up briefing
@@ -605,7 +605,7 @@ and removes an isolated schema. CI provisions that database automatically.
 
 ### Pangolin webhook deployment
 
-The selected public endpoint is `https://twk.kcta.cc/telegram/webhook`. This host has
+The selected public endpoint is `https://twk.kcta.cc/telegram/assistants/zero/webhook`. This host has
 an active Newt service; configure its Pangolin resource to target `http://127.0.0.1:8788`.
 Telegram must be able to reach the webhook path without an interactive login. The
 assistant checks the configured Telegram secret header and the independently permitted chat.
@@ -665,19 +665,13 @@ Save permissions to apply the selections to subsequent Telegram messages and voi
 Only the original owner can inherit the original Home Assistant connection; other chats
 use their own saved credentials. Failed speech requests are reported without automatic retries.
 
-Zero retains its existing token and transport. Configure the separate **Salem** token and
-activation switch in the web interface. Salem receives updates exclusively through
-`POST /telegram/salem/webhook`; it never starts a poller or a settings polling timer. Enter
-that route's public HTTPS URL, then use **Guardar y registrar webhook**. The application
-stores a separate encrypted webhook secret and registers the webhook once for that explicit
-save, preserving pending Telegram updates. It never registers or retries mutations at startup.
-Use **Comprobar webhook** for a read-only status check, including URL, pending update count
-and Telegram's last delivery error. If registration is uncertain, inspect its state before
-saving again. Disabling Salem ignores authenticated incoming updates without deleting its
-Telegram webhook. Zero retains its own route, secret and configured transport. Salem's
-account-scoped update deduplication keys are preserved across migration from polling.
+Each assistant has an optional **Telegram** section in its own editor. Without a bot connection it remains available through Home Assistant. Zero’s original server connection is migrated into encrypted PostgreSQL settings once; its token, enabled state, transport and public webhook URL can then be changed in the same UI. Empty token fields retain the saved secret. The public bot account ID is displayed, while token secrets remain hidden.
 
-Every user or group that contacts either bot appears in the searchable, paginated chat list.
+All bots use `POST /telegram/assistants/<assistant-id>/webhook`, including Zero and Salem. The old webhook endpoints and global bot-settings API are removed. Stored webhook URLs are migrated to the canonical path while conversations and account-scoped deduplication remain intact. Existing Telegram registrations are never changed at startup: inspect **Consultar estado en Telegram**, then explicitly confirm **Registrar webhook** after migration. Registration preserves pending updates and is never retried automatically.
+
+Saving connection settings does not register a webhook. Polling is also available per assistant and refuses an existing Telegram webhook. To switch, save Polling and explicitly confirm **Eliminar webhook de Telegram**; pending updates are retained. Each bot account can belong to only one assistant. Disabling a connection keeps its credentials and ignores incoming updates; clear its token before deleting an assistant. New contacts remain pending until their permissions are approved.
+
+Every user or group that contacts a configured bot appears in the searchable, paginated chat list.
 New contacts are **pending and disabled**, including contacts of Salem. Select “Solo pendientes”
 to review them, then enable each chat manually. No model invocation, transcription, ordinary
 reply, error reply or typing indicator is sent for an unapproved chat. The exception is the

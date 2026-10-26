@@ -98,7 +98,7 @@ export class PostgresAssistantDefinitions implements AssistantDefinitionReposito
   async remove(id: string, revision: number): Promise<'deleted' | 'conflict'> {
     try {
       const result = await this.pool.query(
-        'DELETE FROM assistant_definitions WHERE id=$1 AND revision=$2 AND NOT builtin RETURNING id',
+        'DELETE FROM assistant_definitions WHERE id=$1 AND revision=$2 AND NOT builtin AND NOT EXISTS (SELECT 1 FROM managed_bots WHERE managed_bots.id=assistant_definitions.id AND account_id IS NOT NULL) RETURNING id',
         [id, revision],
       );
       return result.rowCount ? 'deleted' : 'conflict';

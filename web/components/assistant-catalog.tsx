@@ -1,4 +1,5 @@
 'use client';
+import { BotSettings } from './bot-settings';
 import { AssistantAvatar, AssistantImageSettings } from './assistant-image';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Plus, Pencil, Search } from 'lucide-react';
@@ -181,94 +182,100 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
           {editor === undefined ? (
             <p>Cargando asistente…</p>
           ) : (
-            <form onSubmit={save} key={editor ? editor.id + ':' + editor.revision : 'new'}>
-              <div className="assistant-editor-heading">
-                <h2>{editor ? 'Editar asistente' : 'Un nuevo asistente'}</h2>
-                {editor?.builtin && <Badge variant="outline">Integrado</Badge>}
-              </div>
-              {editor && (
-                <AssistantImageSettings key={editor.id} id={editor.id} name={editor.name} />
-              )}
-              <Label htmlFor="assistant-name">Nombre</Label>
-              <Input
-                id="assistant-name"
-                name="name"
-                defaultValue={editor?.name || ''}
-                required
-                maxLength={100}
-                readOnly={editor?.id === 'zero'}
-              />
-              <Label htmlFor="assistant-prompt">Prompt e instrucciones</Label>
-              <Textarea
-                id="assistant-prompt"
-                name="prompt"
-                defaultValue={editor?.prompt || ''}
-                rows={16}
-                required
-                maxLength={100000}
-                placeholder="Eres un asistente especializado en… Define su personalidad, su objetivo y cómo debe responder."
-              />
-              <small>
-                Puedes usar {'{{name}}'}, {'{{now}}'}, {'{{timezone}}'} y {'{{identity}}'}. Cada
-                persona conserva sus permisos, memoria e historial.{' '}
-                {editor?.id === 'zero' &&
-                  'Este es el mismo prompt de Zero que se edita desde Home Assistant.'}
-              </small>
-              <div className="form-actions">
-                <Button disabled={busy}>{editor ? 'Guardar asistente' : 'Crear asistente'}</Button>
+            <>
+              <form onSubmit={save} key={editor ? editor.id + ':' + editor.revision : 'new'}>
+                <div className="assistant-editor-heading">
+                  <h2>{editor ? 'Editar asistente' : 'Un nuevo asistente'}</h2>
+                  {editor?.builtin && <Badge variant="outline">Integrado</Badge>}
+                </div>
                 {editor && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => setEditor(await api(endpoint + '/' + editor.id)))
-                    }
-                  >
-                    Recargar
+                  <AssistantImageSettings key={editor.id} id={editor.id} name={editor.name} />
+                )}
+                <Label htmlFor="assistant-name">Nombre</Label>
+                <Input
+                  id="assistant-name"
+                  name="name"
+                  defaultValue={editor?.name || ''}
+                  required
+                  maxLength={100}
+                  readOnly={editor?.id === 'zero'}
+                />
+                <Label htmlFor="assistant-prompt">Prompt e instrucciones</Label>
+                <Textarea
+                  id="assistant-prompt"
+                  name="prompt"
+                  defaultValue={editor?.prompt || ''}
+                  rows={16}
+                  required
+                  maxLength={100000}
+                  placeholder="Eres un asistente especializado en… Define su personalidad, su objetivo y cómo debe responder."
+                />
+                <small>
+                  Puedes usar {'{{name}}'}, {'{{now}}'}, {'{{timezone}}'} y {'{{identity}}'}. Cada
+                  persona conserva sus permisos, memoria e historial.{' '}
+                  {editor?.id === 'zero' &&
+                    'Este es el mismo prompt de Zero que se edita desde Home Assistant.'}
+                </small>
+                <div className="form-actions">
+                  <Button disabled={busy}>
+                    {editor ? 'Guardar asistente' : 'Crear asistente'}
                   </Button>
-                )}
-                {editor && !editor.builtin && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button type="button" variant="ghost" className="danger" disabled={busy}>
-                        Eliminar
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar {editor.name}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Solo se puede eliminar si ningún perfil tiene este asistente asignado. Los
-                          historiales de conversación se conservan.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() =>
-                            void run(async () => {
-                              await api(endpoint + '/' + editor.id, 'DELETE', {
-                                revision: editor.revision,
-                              });
-                              setEditor(null);
-                              await list();
-                              setNotice('Asistente eliminado.');
-                            })
-                          }
-                        >
-                          Eliminar asistente
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
-              <p className="assistant-assignment-hint">
-                Para asociarlo a una persona, abre Personas → Asistente. Un asistente puede
-                utilizarse en varios perfiles.
-              </p>
-            </form>
+                  {editor && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => setEditor(await api(endpoint + '/' + editor.id)))
+                      }
+                    >
+                      Recargar
+                    </Button>
+                  )}
+                  {editor && !editor.builtin && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="ghost" className="danger" disabled={busy}>
+                          Eliminar
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar {editor.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Solo se puede eliminar si ningún perfil tiene este asistente asignado.
+                            Los historiales de conversación se conservan. Desconecta primero el bot
+                            de Telegram si tiene uno.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              void run(async () => {
+                                await api(endpoint + '/' + editor.id, 'DELETE', {
+                                  revision: editor.revision,
+                                });
+                                setEditor(null);
+                                await list();
+                                setNotice('Asistente eliminado.');
+                              })
+                            }
+                          >
+                            Eliminar asistente
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+                <p className="assistant-assignment-hint">
+                  Para asociarlo a una persona, abre Personas → Asistente. Un asistente puede
+                  utilizarse en varios perfiles.
+                </p>
+              </form>
+              {editor && <BotSettings key={editor.id} id={editor.id} name={editor.name} />}
+            </>
           )}
         </Card>
       </div>

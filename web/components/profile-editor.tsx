@@ -1,4 +1,5 @@
 'use client';
+import { AssistantConnectionField } from './assistant-connection';
 import { HATaskListPicker } from './ha-task-list-picker';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -186,16 +187,7 @@ export function ProfileEditor({
               </TabsList>
               <TabsContent value="profile" forceMount data-settings-provider="profile">
                 <div className="settings-grid">
-                  <SelectField
-                    id="profile-bot"
-                    name="bot"
-                    label="Conexión de Telegram"
-                    defaultValue={current?.bot || 'zero'}
-                    disabled={!!current || busy}
-                  >
-                    <option value="zero">Zero</option>
-                    <option value="salem">Salem</option>
-                  </SelectField>
+                  <AssistantConnectionField profile={current || undefined} disabled={busy} />
                   <SelectField
                     id="profile-kind"
                     name="kind"

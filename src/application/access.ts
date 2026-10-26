@@ -23,6 +23,7 @@ export interface AccessRepository {
   discover(bot: BotId, chatId: string, label: string, kind?: 'user' | 'group'): Promise<void>;
   migrateGroup(bot: BotId, from: string, to: string): Promise<void>;
   bots(): Promise<BotSettings[]>;
+  bot?(id: BotId): Promise<BotSettings | undefined>;
   saveBot(settings: BotSettings): Promise<void>;
 }
 
@@ -34,6 +35,7 @@ export interface WebhookStatus {
 export interface WebhookControl {
   configure(settings: BotSettings): Promise<void>;
   status(settings: BotSettings): Promise<WebhookStatus>;
+  remove?(settings: BotSettings): Promise<void>;
 }
 export interface ChatCommandsControl {
   configure(profile: AccessProfile): Promise<void>;
@@ -43,9 +45,9 @@ export class Access {
   constructor(
     readonly repository: AccessRepository,
     private store: ConversationStore,
-    private salemUsername: () => Promise<string> = async () => '',
+    private salemUsername: (bot?: BotId) => Promise<string> = async () => '',
   ) {}
-  async receive(bot: BotId, update: any, accountId?: string) {
+  async receive(bot: BotId, update: any, accountId?: string, legacyNamespace = false) {
     if (!Number.isSafeInteger(update.update_id)) throw new Error('Invalid update');
     const message = update.message;
     if (!message || !Number.isSafeInteger(message.chat?.id)) return;
@@ -85,16 +87,16 @@ export class Access {
       const profile = await this.repository.profile(bot, chatId);
       if (!profile?.enabled || profile.kind !== kind) return;
       if (kind === 'user' && String(message.from?.id) !== chatId) return;
-      if (bot === 'salem' && kind === 'group') {
+      if (bot !== 'zero' && kind === 'group') {
         const mentions = telegramMentions(message);
-        if (!mentions.length || !mentions.includes((await this.salemUsername()).toLowerCase()))
+        if (!mentions.length || !mentions.includes((await this.salemUsername(bot)).toLowerCase()))
           return;
       }
     }
     return this.store.enqueue(
       telegramSession(bot, chatId),
-      { kind: 'telegram', bot, message },
-      `${bot === 'zero' ? 'telegram' : 'salem' + (accountId ? ':' + accountId : '')}:${update.update_id}`,
+      { kind: 'telegram', bot, message, ...(accountId ? { accountId } : {}) },
+      `${bot === 'zero' ? 'telegram' + (accountId && !legacyNamespace ? ':' + accountId : '') : bot + (accountId ? ':' + accountId : '')}:${update.update_id}`,
     );
   }
   async forSession(session: string) {

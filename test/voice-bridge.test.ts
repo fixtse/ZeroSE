@@ -101,7 +101,7 @@ test('HA discovers all assistant names without prompts and selects an agent with
   }
 });
 
-test('voice owner uses configured Zero availability without requiring a managed-bot record', async () => {
+test('voice owner availability preserves bindings after Zero connection settings are migrated', async () => {
   const f = await fixture();
   const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
   f.config.telegram.allowedUsers = ['1234'];
@@ -117,7 +117,7 @@ test('voice owner uses configured Zero availability without requiring a managed-
   try {
     assert.equal(
       (await repository.bots()).some((bot) => bot.id === 'zero'),
-      false,
+      true,
     );
     assert.equal(await voiceOwnerSession('1234', access, bots), 'telegram:1234');
     assert.equal(await voiceOwnerSession('other', access, bots), undefined);

@@ -29,7 +29,7 @@ export interface AssistantDefinition extends AssistantSummary {
   prompt: string;
 }
 export interface Profile {
-  bot: 'zero' | 'salem';
+  bot: string;
   chatId: string;
   kind: 'user' | 'group';
   label: string;

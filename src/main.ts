@@ -1,3 +1,5 @@
+import { AssistantTelegram } from './application/assistant-telegram.js';
+import { AssistantTelegramAdmin } from './adapters/inbound/assistant-telegram-admin.js';
 import { PostgresAssistantImages } from './adapters/outbound/postgres-assistant-images.js';
 import { AssistantImageAdmin } from './adapters/inbound/assistant-image-admin.js';
 import { TelegramAssistantPhoto } from './adapters/outbound/telegram-assistant-photo.js';
@@ -27,7 +29,7 @@ import { Google } from './adapters/outbound/google.js';
 import { HomeAssistant } from './adapters/outbound/home-assistant.js';
 import { Memory } from './application/memory.js';
 import { HomeAssistantSpeech } from './adapters/outbound/home-assistant-speech.js';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { Media } from './adapters/outbound/media.js';
 import { Telegram } from './adapters/outbound/telegram.js';
 import { Assistant } from './application/assistant.js';
@@ -109,12 +111,13 @@ const adminAuth = new AdminAuth(
   {
     async recipient() {
       const chat = config.telegram.allowedUsers[0];
-      if (!config.telegram.token || !chat || !/^[1-9]\d*$/.test(chat)) return undefined;
+      if (!(await bots.isEnabled('zero')) || !chat || !/^[1-9]\d*$/.test(chat)) return undefined;
       const profile = await accessRepository.profile('zero', chat);
       return profile?.owner && profile.enabled && profile.kind === 'user' ? chat : undefined;
     },
     async send(chat, code) {
-      await telegram.call(
+      const zeroBot = await bots.get('zero');
+      await zeroBot.call(
         'sendMessage',
         {
           chat_id: chat,
@@ -133,14 +136,38 @@ const integrationRepository = new PostgresIntegrationAccess(store.pool);
 await integrationRepository.initialize();
 const integrationAccess = new IntegrationAccess(integrationRepository, credentialCrypto);
 
-const access: Access = new Access(accessRepository, store, () => bots.salemUsername());
-const bots = new TelegramBots(config, media, telegram, store, access);
+const access: Access = new Access(accessRepository, store, (bot) => bots.username(bot));
+const bots = new TelegramBots(
+  config,
+  media,
+  telegram,
+  store,
+  access,
+  async (id) => (await assistantDefinitions.get(id))?.name || 'Assistant',
+);
 const ruleRepository = new PostgresRules(store.pool);
 await ruleRepository.initialize();
 const places = new OpenStreetMapPlaces(
   process.env.ASSISTANT_PHOTON_URL,
   process.env.ASSISTANT_OSRM_URL,
 );
+const assistantTelegram = new AssistantTelegram(
+  accessRepository,
+  config.telegram,
+  adminAuth.origin,
+  assistantDefinitions,
+  async (token) => {
+    const candidate = new Telegram({ ...config, telegram: { ...config.telegram, token } }, media);
+    await candidate.call('getMe', {}, AbortSignal.timeout(10000));
+  },
+  () => randomBytes(32).toString('hex'),
+  new TelegramWebhook(
+    (settings) =>
+      new Telegram({ ...config, telegram: { ...config.telegram, token: settings.token } }, media),
+  ),
+  (id) => bots.reconfigure(id),
+);
+
 const personalData = new PostgresPersonalData(store.pool);
 const rules = new NotificationRules(
   ruleRepository,
@@ -205,6 +232,11 @@ async function canRespond(job: Job, result?: JobResult) {
   )
     return false;
   if (!address) return true; // HTTP chat already requires the administrator API key.
+  if (
+    job.payload.kind === 'telegram' &&
+    !(await bots.matchesAccount(address.bot, job.payload.accountId))
+  )
+    return false;
   const profile = await access.forSession(job.session);
   if (
     result?.requiredCapabilities?.some((capability) => !profile?.capabilities.includes(capability))
@@ -476,14 +508,9 @@ const codex = new Codex(config, store, tools, async (context) => (await services
         new AssistantImageAdmin(
           assistantDefinitions,
           assistantImages,
-          new TelegramAssistantPhoto(async (id) =>
-            id === 'zero'
-              ? config.telegram.token
-              : id === 'salem'
-                ? (await accessRepository.bots()).find((bot) => bot.id === 'salem')?.token
-                : undefined,
-          ),
+          new TelegramAssistantPhoto(async (id) => (await bots.settings(id)).token),
         ),
+        new AssistantTelegramAdmin(assistantTelegram),
       ),
       async () => {
         if (config.homeAssistant.token) return true;
@@ -554,7 +581,14 @@ server.listen(config.port, config.host, () => {
         await rules.ensureOwnerWeather('telegram:' + chat);
     })
     .catch(() => console.error(JSON.stringify({ event: 'notification_rule_startup_failed' })));
-  bots.start();
+  void bots.start().catch(() =>
+    console.error(
+      JSON.stringify({
+        event: 'telegram_start_failed',
+        reason: 'Check saved assistant connections',
+      }),
+    ),
+  );
   console.log(
     JSON.stringify({
       event: 'started',

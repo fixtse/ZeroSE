@@ -1,3 +1,5 @@
+import { assistantIdPattern } from '../../domain/access.js';
+import type { AssistantTelegramAdmin } from './assistant-telegram-admin.js';
 import type { AssistantImageAdmin } from './assistant-image-admin.js';
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
@@ -10,6 +12,7 @@ export class AssistantAdmin {
     private definitions: AssistantDefinitions,
     private profiles: AccessRepository,
     private images?: AssistantImageAdmin,
+    private telegram?: AssistantTelegramAdmin,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -17,6 +20,7 @@ export class AssistantAdmin {
     read: () => Promise<unknown>,
     send: (status: number, value: unknown) => void,
   ) {
+    if (await this.telegram?.handle(req, path, read, send)) return true;
     if (await this.images?.handle(req, path, read, send)) return true;
     const root = '/v1/admin/setup/assistants';
     if (path === root && req.method === 'GET') {
@@ -78,11 +82,11 @@ export class AssistantAdmin {
         );
       } else send(405, { error: 'Method not allowed' });
     } else {
-      const match = /^\/v1\/admin\/setup\/profiles\/(zero|salem)\/(-?\d{1,16})\/assistant$/.exec(
-        path,
-      );
+      const match = new RegExp(
+        '^/v1/admin/setup/profiles/(' + assistantIdPattern + ')/(-?\\d{1,16})/assistant$',
+      ).exec(path);
       if (!match) return false;
-      const bot = z.enum(['zero', 'salem']).parse(match[1]),
+      const bot = idSchema.parse(match[1]),
         chatId = match[2];
       const profile = await this.profiles.profile(bot, chatId);
       if (!profile) {

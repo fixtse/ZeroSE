@@ -1257,3 +1257,21 @@ textarea:focus-visible {
   min-height: 40px;
   white-space: normal;
 }
+
+.assistant-telegram-settings form {
+  margin-top: 20px;
+}
+.assistant-telegram-settings fieldset {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.assistant-telegram-settings .form-actions {
+  margin-top: 16px;
+}
+.assistant-telegram-settings p {
+  overflow-wrap: anywhere;
+}

@@ -1,140 +1,247 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { Badge } from './ui/badge';
-import { Field, CheckField } from './settings-fields';
-interface BotStatus {
-  id: 'zero' | 'salem';
+import { Field, CheckField, SelectField } from './settings-fields';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from './ui/alert-dialog';
+interface Connection {
+  id: string;
   configured: boolean;
   enabled: boolean;
-  webhookUrl?: string;
+  transport: 'disabled' | 'webhook' | 'polling';
+  webhookUrl: string;
+  revision: number;
+  accountId: string;
+  source: 'saved' | 'server' | 'none';
 }
-interface WebhookStatus {
+interface Status {
   url: string;
   expectedUrl: string;
-  registered: boolean;
   pending: number;
   lastError?: string;
 }
-export function BotSettings() {
+export function BotSettings({ id, name }: { id: string; name: string }) {
   const { busy, notice, setNotice, run } = useAdminTask();
-  const [bots, setBots] = useState<BotStatus[]>([]),
-    [webhook, setWebhook] = useState<WebhookStatus>();
-  const [revision, setRevision] = useState(0);
+  const [value, setValue] = useState<Connection>(),
+    [version, setVersion] = useState(0),
+    [status, setStatus] = useState<Status>();
+  const endpoint = '/v1/admin/setup/assistants/' + encodeURIComponent(id) + '/telegram';
   async function load() {
-    setBots((await api<{ items: BotStatus[] }>('/v1/admin/bots')).items);
+    setValue(await api<Connection>(endpoint));
+    setStatus(undefined);
+    setVersion((v) => v + 1);
   }
   useEffect(() => {
     void run(load);
-  }, []);
-  const salem = bots.find((bot) => bot.id === 'salem'),
-    zero = bots.find((bot) => bot.id === 'zero');
+  }, [id]);
+  function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    void run(async () => {
+      setValue(
+        await api(endpoint, 'PUT', {
+          token: String(data.get('token') || '').trim(),
+          enabled: data.has('enabled'),
+          transport: data.get('transport'),
+          webhookUrl: String(data.get('webhookUrl') || '').trim(),
+          clearToken: data.has('clearToken'),
+          revision: value?.revision,
+        }),
+      );
+      setStatus(undefined);
+      setVersion((v) => v + 1);
+      setNotice('Conexión guardada. Los webhooks se registran solo con el botón de confirmación.');
+      window.dispatchEvent(new CustomEvent('assistant-telegram-changed', { detail: id }));
+    });
+  }
   return (
-    <Card className="panel">
-      <h2>Conexiones de Telegram</h2>
+    <details
+      className="settings-section assistant-telegram-settings"
+      open={id === 'zero' || !!value?.configured}
+    >
+      <summary>Telegram de {name} · opcional</summary>
       <p>
-        La personalidad de cada asistente se configura en Asistentes. Estas conexiones controlan la
-        entrega de mensajes de Zero y Salem.
+        Sin esta conexión, {name} sigue disponible en Home Assistant. Conecta un bot propio para
+        hablarle directamente por Telegram.
       </p>
-      {notice && (
-        <div className="notice" role="status">
-          {notice}
-        </div>
-      )}
-      <div className="profile-row">
-        <strong>Zero</strong>
-        <Badge variant="outline">
-          {zero?.enabled ? 'Activo' : zero?.configured ? 'Configurado' : 'Sin configurar'}
-        </Badge>
-        <small>Usa la conexión del servidor.</small>
-      </div>
-      {salem ? (
-        <form
-          key={revision}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            void run(async () => {
-              const value = await api<{ saved: boolean; webhookRegistered: boolean }>(
-                '/v1/admin/bots/salem',
-                'PUT',
-                {
-                  token: String(data.get('token') || '').trim(),
-                  webhookUrl: String(data.get('webhookUrl') || '').trim(),
-                  enabled: data.has('enabled'),
-                },
-              );
-              setWebhook(undefined);
-              await load();
-              setRevision((v) => v + 1);
-              setNotice(
-                value.webhookRegistered
-                  ? 'Conexión guardada y webhook confirmado.'
-                  : 'Conexión guardada.',
-              );
-            });
-          }}
-        >
-          <h3>Salem</h3>
-          <Field
-            id="salem-bot-token"
-            name="token"
-            label="Token del bot de Telegram"
-            type="password"
-            autoComplete="off"
-            maxLength={300}
-            placeholder={salem.configured ? 'Vacío conserva el token guardado' : '123456:token'}
-          />
-          <Field
-            id="salem-webhook-url"
-            name="webhookUrl"
-            label="URL pública del webhook"
-            type="url"
-            maxLength={2048}
-            defaultValue={salem.webhookUrl || ''}
-            placeholder="https://zero.example/telegram/salem/webhook"
-          />
-          <CheckField
-            id="salem-bot-enabled"
-            name="enabled"
-            label="Activar respuestas de Salem"
-            defaultChecked={salem.enabled}
-          />
-          <small>
-            Guardar una conexión activada registra el webhook una vez. Los resultados inciertos no
-            se reintentan automáticamente.
-          </small>
+      {notice && <p role="status">{notice}</p>}
+      {value ? (
+        <>
+          <p>
+            {value.configured
+              ? 'Bot configurado' + (value.accountId ? ' · ID ' + value.accountId : '')
+              : 'Sin bot configurado'}
+            {value.source === 'server'
+              ? ' · Valores originales del servidor. Puedes sustituirlos aquí.'
+              : ''}
+          </p>
+          <form key={version} onSubmit={save} className="telegram-connection-form">
+            <fieldset disabled={busy}>
+              <Field
+                id={'telegram-token-' + id}
+                name="token"
+                label="Token del bot de Telegram"
+                type="password"
+                autoComplete="off"
+                maxLength={300}
+                placeholder={value.configured ? 'Vacío conserva el token guardado' : '123456:token'}
+              />
+              <SelectField
+                id={'telegram-transport-' + id}
+                name="transport"
+                label="Transporte de Telegram"
+                defaultValue={value.transport}
+              >
+                <option value="disabled">Desactivado</option>
+                <option value="webhook">Webhook</option>
+                <option value="polling">Polling · sin URL pública</option>
+              </SelectField>
+              <Field
+                id={'telegram-webhook-' + id}
+                name="webhookUrl"
+                label="URL pública del webhook"
+                type="url"
+                maxLength={2048}
+                defaultValue={value.webhookUrl}
+              />
+              <CheckField
+                id={'telegram-enabled-' + id}
+                name="enabled"
+                label="Activar Telegram para este asistente"
+                defaultChecked={value.enabled}
+              />
+              <CheckField
+                id={'telegram-clear-' + id}
+                name="clearToken"
+                label="Borrar el token guardado (desactiva primero Telegram)"
+              />
+              <p>
+                Los secretos no se muestran. Deja el token vacío para conservarlo o introduce uno
+                nuevo para cambiar de bot. Cambiar de bot conserva los perfiles y conversaciones
+                existentes.
+              </p>
+              <div className="form-actions">
+                <Button disabled={busy}>Guardar conexión de Telegram</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void run(load)}
+                >
+                  Recargar conexión
+                </Button>
+              </div>
+            </fieldset>
+          </form>
           <div className="form-actions">
-            <Button disabled={busy}>Guardar conexión de Salem</Button>
             <Button
               type="button"
               variant="outline"
-              disabled={busy || !salem.configured}
-              onClick={() =>
-                void run(async () => setWebhook(await api('/v1/admin/bots/salem/webhook')))
-              }
+              disabled={busy || !value.configured}
+              onClick={() => void run(async () => setStatus(await api(endpoint + '/status')))}
             >
-              Consultar estado del webhook
+              Consultar estado en Telegram
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || !value.enabled || value.transport !== 'webhook'}
+                >
+                  Registrar webhook
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Registrar el webhook de {name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Telegram enviará los mensajes del bot {value.accountId} a {value.webhookUrl}.
+                    Esto sustituye el webhook de ese bot y conserva las actualizaciones pendientes.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    type="button"
+                    onClick={() =>
+                      void run(async () => {
+                        await api(endpoint + '/register', 'POST', {
+                          confirm: true,
+                          revision: value.revision,
+                        });
+                        setNotice('Telegram ha confirmado el registro del webhook.');
+                        setStatus(undefined);
+                      })
+                    }
+                  >
+                    Confirmar registro
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="outline" disabled={busy || !value.configured}>
+                  Eliminar webhook de Telegram
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar el webhook de {name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se conservan los mensajes pendientes. Si has guardado el transporte Polling, el
+                    asistente empezará a recibirlos por ese transporte; de lo contrario deja de
+                    recibir mensajes hasta registrar otro webhook.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    type="button"
+                    onClick={() =>
+                      void run(async () => {
+                        await api(endpoint + '/remove', 'POST', {
+                          confirm: true,
+                          revision: value.revision,
+                        });
+                        setNotice('Telegram ha confirmado la eliminación del webhook.');
+                        setStatus(undefined);
+                      })
+                    }
+                  >
+                    Confirmar eliminación
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </form>
+          {status && (
+            <div role="status">
+              <p>
+                {status.url
+                  ? 'Webhook actual: ' + status.url
+                  : 'Telegram no tiene un webhook registrado.'}
+              </p>
+              <p>Mensajes pendientes: {status.pending}</p>
+              {status.lastError && <p>{status.lastError}</p>}
+            </div>
+          )}
+        </>
       ) : (
-        <p>Cargando conexiones…</p>
+        <p>Cargando conexión…</p>
       )}
-      {webhook && (
-        <div className="catalog-row" role="status">
-          <strong>{webhook.registered ? 'Webhook registrado' : 'Webhook sin confirmar'}</strong>
-          <p>URL: {webhook.url || 'Sin registrar'}</p>
-          <p>Esperada: {webhook.expectedUrl}</p>
-          <small>
-            {webhook.pending} actualizaciones pendientes
-            {webhook.lastError ? ' · ' + webhook.lastError : ''}
-          </small>
-        </div>
-      )}
-    </Card>
+    </details>
   );
 }

@@ -1,4 +1,5 @@
 'use client';
+import { AssistantConnectionName } from '../components/assistant-connection';
 import { useEffect, useState, useRef, type FormEvent } from 'react';
 import {
   api,
@@ -20,7 +21,6 @@ import { AssistantCatalog } from '../components/assistant-catalog';
 import { AssistantAssignment } from '../components/assistant-assignment';
 import { ProfileEditor } from '../components/profile-editor';
 import { AccountSettings } from '../components/account-settings';
-import { BotSettings } from '../components/bot-settings';
 import { HomeAssistantPermissions } from '../components/home-assistant-permissions';
 import { CheckField } from '../components/settings-fields';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
@@ -506,7 +506,8 @@ export default function Home() {
                             <div className="person-details">
                               <strong>{p.label}</strong>
                               <small>
-                                {p.bot} · {p.chatId} · {p.kind === 'user' ? 'Privado' : 'Grupo'}
+                                <AssistantConnectionName id={p.bot} /> · {p.chatId} ·{' '}
+                                {p.kind === 'user' ? 'Privado' : 'Grupo'}
                               </small>
                             </div>
                           </div>
@@ -591,7 +592,6 @@ export default function Home() {
                   <AssistantCatalog
                     onZeroChanged={async () => setSettings(await api(base + '/settings'))}
                   />
-                  <BotSettings />
                   {connection?.homeAssistantConnected && (
                     <>
                       <h2>Permisos compartidos de Home Assistant</h2>

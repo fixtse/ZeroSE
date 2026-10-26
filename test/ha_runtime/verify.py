@@ -2,6 +2,7 @@
 import asyncio
 import importlib
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -17,11 +18,13 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 
 async def main():
+    port = int(os.environ.get("TEST_HA_PORT", "18123"))
+    assert 1024 <= port <= 65535
     with tempfile.TemporaryDirectory(prefix="ha-integration-check-") as directory:
         components = Path(directory) / "custom_components"
         shutil.copytree(Path("integrations/home_assistant/assistant_zero"), components / "assistant_zero")
         components.joinpath("__init__.py").touch()
-        Path(directory, "configuration.yaml").write_text("homeassistant:\n  name: Integration validation\n  latitude: 0\n  longitude: 0\n  elevation: 0\n  unit_system: metric\n  time_zone: UTC\n  currency: EUR\n  country: ES\nhttp:\n  server_port: 18123\n")
+        Path(directory, "configuration.yaml").write_text("homeassistant:\n  name: Integration validation\n  latitude: 0\n  longitude: 0\n  elevation: 0\n  unit_system: metric\n  time_zone: UTC\n  currency: EUR\n  country: ES\nhttp:\n  server_port: 18123\n".replace("server_port: 18123", f"server_port: {port}"))
         hass = await async_setup_hass(RuntimeConfig(config_dir=directory))
         assert hass is not None
         catalog_patch = None

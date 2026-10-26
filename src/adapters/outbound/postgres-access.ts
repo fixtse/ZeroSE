@@ -50,10 +50,53 @@ export class PostgresAccess implements AccessRepository {
       CREATE INDEX IF NOT EXISTS access_profiles_assistant_id ON access_profiles(assistant_id);
       CREATE TABLE IF NOT EXISTS managed_bots(id TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL DEFAULT false, token TEXT NOT NULL);
       ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
-      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_url TEXT;`);
+      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS webhook_url TEXT;
+      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS transport TEXT;
+      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE managed_bots ADD COLUMN IF NOT EXISTS account_id TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS managed_bot_account_unique ON managed_bots(account_id) WHERE account_id IS NOT NULL;`);
     await this.pool.query(`CREATE TABLE IF NOT EXISTS access_profile_deletions (
       bot TEXT NOT NULL, chat_id TEXT NOT NULL, deleted TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY(bot,chat_id));`);
+    // Migrate Zero's server settings once. Later UI edits remain authoritative.
+    await this.pool.query(
+      `INSERT INTO managed_bots(id,enabled,token,webhook_secret,transport,account_id)
+      VALUES('zero',$1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING`,
+      [
+        !!config.telegram.token && config.telegram.transport !== 'disabled',
+        this.encrypt(config.telegram.token, 'bot:zero'),
+        config.telegram.webhookSecret
+          ? this.encrypt(config.telegram.webhookSecret, 'webhook:zero')
+          : null,
+        config.telegram.transport,
+        config.telegram.token.split(':')[0] || null,
+      ],
+    );
+    const existing = await this.pool.query(
+      'SELECT id,webhook_url,token,account_id FROM managed_bots',
+    );
+    for (const row of existing.rows) {
+      if (!row.account_id) {
+        const account = String(this.decrypt(row.token, `bot:${row.id}`)).split(':')[0];
+        if (account)
+          await this.pool.query(
+            'UPDATE managed_bots SET account_id=$1 WHERE id=$2 AND account_id IS NULL',
+            [account, row.id],
+          );
+      }
+      try {
+        const url = new URL(row.webhook_url);
+        if (['/telegram/webhook', '/telegram/salem/webhook'].includes(url.pathname)) {
+          url.pathname = '/telegram/assistants/' + row.id + '/webhook';
+          await this.pool.query(
+            'UPDATE managed_bots SET webhook_url=$1,revision=revision+1 WHERE id=$2',
+            [url.toString(), row.id],
+          );
+        }
+      } catch {
+        /* Invalid historical URLs require an explicit administrator edit. */
+      }
+    }
     // Seed exactly once, so disabling an existing owner survives a restart.
     for (const [index, chatId] of config.telegram.allowedUsers.entries()) {
       if (!/^\d+$/.test(chatId)) continue;
@@ -187,9 +230,8 @@ export class PostgresAccess implements AccessRepository {
       [bot, chatId, label, kind],
     );
   }
-  async bots(): Promise<BotSettings[]> {
-    const { rows } = await this.pool.query('SELECT * FROM managed_bots ORDER BY id');
-    return rows.map((row) => ({
+  private decodeBot(row: any): BotSettings {
+    return {
       id: row.id,
       enabled: row.enabled,
       token: this.decrypt(row.token, `bot:${row.id}`),
@@ -197,11 +239,48 @@ export class PostgresAccess implements AccessRepository {
         ? this.decrypt(row.webhook_secret, `webhook:${row.id}`)
         : undefined,
       webhookUrl: row.webhook_url || undefined,
-    }));
+      transport: row.transport || undefined,
+      revision: row.revision,
+    };
+  }
+  async bot(id: string) {
+    const { rows } = await this.pool.query('SELECT * FROM managed_bots WHERE id=$1', [id]);
+    return rows[0] ? this.decodeBot(rows[0]) : undefined;
+  }
+  async bots(): Promise<BotSettings[]> {
+    const { rows } = await this.pool.query('SELECT * FROM managed_bots ORDER BY id');
+    return rows.map((row) => this.decodeBot(row));
+  }
+  async saveConnection(value: BotSettings, revision: number) {
+    const values = [
+      value.id,
+      value.enabled,
+      this.encrypt(value.token, `bot:${value.id}`),
+      value.webhookSecret ? this.encrypt(value.webhookSecret, `webhook:${value.id}`) : null,
+      value.webhookUrl || '',
+      value.transport || 'webhook',
+      value.token.split(':')[0] || null,
+    ];
+    try {
+      const result =
+        revision === 0
+          ? await this.pool.query(
+              'INSERT INTO managed_bots(id,enabled,token,webhook_secret,webhook_url,transport,account_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING',
+              values,
+            )
+          : await this.pool.query(
+              'UPDATE managed_bots SET enabled=$2,token=$3,webhook_secret=$4,webhook_url=$5,transport=$6,account_id=$7,revision=revision+1 WHERE id=$1 AND revision=$8',
+              [...values, revision],
+            );
+      return result.rowCount === 1;
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') return false;
+      throw error;
+    }
   }
   async saveBot(settings: BotSettings) {
     await this.pool.query(
-      'INSERT INTO managed_bots(id,enabled,token,webhook_secret,webhook_url) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,token=EXCLUDED.token,webhook_secret=COALESCE(EXCLUDED.webhook_secret,managed_bots.webhook_secret),webhook_url=COALESCE(EXCLUDED.webhook_url,managed_bots.webhook_url)',
+      'INSERT INTO managed_bots(id,enabled,token,webhook_secret,webhook_url,transport,account_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,token=EXCLUDED.token,webhook_secret=COALESCE(EXCLUDED.webhook_secret,managed_bots.webhook_secret),webhook_url=COALESCE(EXCLUDED.webhook_url,managed_bots.webhook_url),transport=COALESCE(EXCLUDED.transport,managed_bots.transport),account_id=EXCLUDED.account_id,revision=managed_bots.revision+1',
       [
         settings.id,
         settings.enabled,
@@ -210,6 +289,8 @@ export class PostgresAccess implements AccessRepository {
           ? this.encrypt(settings.webhookSecret, `webhook:${settings.id}`)
           : null,
         settings.webhookUrl || null,
+        settings.transport || null,
+        settings.token.split(':')[0] || null,
       ],
     );
   }

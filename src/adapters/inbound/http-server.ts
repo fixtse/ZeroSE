@@ -1,3 +1,4 @@
+import { assistantIdPattern } from '../../domain/access.js';
 import { createServer, IncomingMessage } from 'node:http';
 import { adminAssets } from './admin-assets.js';
 import type { IntegrationAccess } from '../../application/integration-access.js';
@@ -292,50 +293,34 @@ export function createHttpServer(
         const result = await deployment.forward(req);
         return send(result.status, result.body);
       }
-      if (req.method === 'POST' && path === '/telegram/salem/webhook' && management) {
-        const settings = (await management.access.repository.bots()).find(
-          (bot) => bot.id === 'salem',
-        );
+      const assistantHook = new RegExp(
+        '^/telegram/assistants/(' + assistantIdPattern + ')/webhook$',
+      ).exec(path);
+      if (req.method === 'POST' && assistantHook && management) {
+        const id = assistantHook[1];
+        const repository = management.access.repository;
+        const settings = repository.bot
+          ? await repository.bot(id)
+          : (await repository.bots()).find((bot) => bot.id === id);
         if (
-          !equalSecret(
-            req.headers['x-telegram-bot-api-secret-token'],
-            settings?.webhookSecret || '',
-          )
+          !settings ||
+          !equalSecret(req.headers['x-telegram-bot-api-secret-token'], settings.webhookSecret || '')
         )
           return send(401, { error: 'Unauthorized' });
-        if (!settings?.enabled) return send(200, { ok: true });
+        if (
+          !settings.enabled ||
+          settings.transport === 'polling' ||
+          settings.transport === 'disabled'
+        )
+          return send(200, { ok: true });
         const update = await body(req);
-        if (!Number.isSafeInteger(update.update_id)) return send(400, { error: 'Invalid update' });
-        const job = await management.access.receive('salem', update, settings.token.split(':')[0]);
-        return send(200, { ok: true, ...(job ? { jobId: job.id } : {}) });
-      }
-      if (req.method === 'POST' && path === '/telegram/webhook') {
-        if (
-          !equalSecret(
-            req.headers['x-telegram-bot-api-secret-token'],
-            config.telegram.webhookSecret,
-          )
-        )
-          return send(401, { error: 'Unauthorized' });
-        if (config.telegram.transport !== 'webhook')
-          return send(503, { error: 'Webhook transport is disabled' });
-        const update = await body(req),
-          message = update.message;
-        if (!Number.isSafeInteger(update.update_id)) return send(400, { error: 'Invalid update' });
-        if (!message) return send(200, { ok: true });
-        if (management) {
-          const job = await management.access.receive('zero', update);
-          return send(200, { ok: true, ...(job ? { jobId: job.id } : {}) });
-        }
-        if (!config.telegram.allowedUsers.includes(String(message.from?.id)))
-          return send(403, { error: 'User not permitted' });
-        if (!Number.isSafeInteger(message.chat?.id)) return send(400, { error: 'Invalid chat' });
-        const job = await store.enqueue(
-          'telegram:' + message.chat.id,
-          { kind: 'telegram', message },
-          'telegram:' + update.update_id,
+        const job = await management.access.receive(
+          id,
+          update,
+          settings.token.split(':')[0],
+          id === 'zero' && settings.token.split(':')[0] === config.telegram.token.split(':')[0],
         );
-        return send(200, { ok: true, jobId: job.id });
+        return send(200, { ok: true, ...(job ? { jobId: job.id } : {}) });
       }
       if (!equalSecret(req.headers.authorization, `Bearer ${config.apiKey}`)) {
         if (

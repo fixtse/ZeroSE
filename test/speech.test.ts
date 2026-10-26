@@ -337,7 +337,10 @@ test('Zero and Salem route both incoming transcription and voice replies through
     const updated = await bots.get('zero', 'telegram:123');
     await updated.sendVoice('123', 'Hola', 'test-job', signal());
     assert.equal((seen.at(-1) as typeof speech).tts, 'default');
-    assert.equal(await bots.get('zero'), zero);
+    const unscoped = await bots.get('zero');
+    assert(unscoped instanceof Telegram);
+    await unscoped.sendVoice('123', 'Hola', 'test-job', signal());
+    assert.equal(seen.at(-1), undefined);
   } finally {
     await f.close();
   }

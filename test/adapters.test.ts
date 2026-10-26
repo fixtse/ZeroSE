@@ -43,13 +43,13 @@ test('HTTP ingress authenticates, restricts Telegram users and deduplicates deli
     };
     assert.equal(
       (
-        await fetch(base + '/telegram/webhook', {
+        await fetch(base + '/telegram/assistants/zero/webhook', {
           method: 'POST',
           headers: { 'X-Telegram-Bot-Api-Secret-Token': 'secret' },
           body: JSON.stringify(update),
         })
       ).status,
-      403,
+      401,
     );
   } finally {
     server.closeAllConnections();

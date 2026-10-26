@@ -2,7 +2,10 @@ import type { SpeechSettings } from './speech.js';
 import type { MemoryMode } from './memory.js';
 import type { Config } from './config.js';
 
-export type BotId = 'zero' | 'salem';
+export type BotId = string;
+export const assistantIdPattern =
+  '(?:zero|salem|standard|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})';
+export const isBotId = (value: string) => new RegExp('^' + assistantIdPattern + '$').test(value);
 export const capabilities = [
   'web',
   'transcription',
@@ -35,14 +38,25 @@ export interface BotSettings {
   enabled: boolean;
   webhookSecret?: string;
   webhookUrl?: string;
+  transport?: 'disabled' | 'webhook' | 'polling';
+  revision?: number;
 }
 export function telegramSession(bot: BotId, chatId: string) {
-  return `${bot === 'zero' ? 'telegram' : 'salem'}:${chatId}`;
+  return bot === 'zero'
+    ? 'telegram:' + chatId
+    : bot === 'salem'
+      ? 'salem:' + chatId
+      : 'telegram-assistant:' + bot + ':' + chatId;
 }
 export function sessionAddress(session: string): { bot: BotId; chatId: string } | undefined {
-  const match = /^(telegram|salem):(-?\d+)$/.exec(session);
-  return match ? { bot: match[1] === 'telegram' ? 'zero' : 'salem', chatId: match[2] } : undefined;
+  const legacy = /^(telegram|salem):(-?\d+)$/.exec(session);
+  if (legacy) return { bot: legacy[1] === 'telegram' ? 'zero' : 'salem', chatId: legacy[2] };
+  const match = new RegExp('^telegram-assistant:(' + assistantIdPattern + '):(-?\\d+)$').exec(
+    session,
+  );
+  return match ? { bot: match[1], chatId: match[2] } : undefined;
 }
+export const telegramWebhookPath = (id: string) => '/telegram/assistants/' + id + '/webhook';
 export function membershipEvent(message: any): boolean {
   return (
     ['group', 'supergroup'].includes(message?.chat?.type) &&

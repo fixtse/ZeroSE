@@ -103,6 +103,16 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
     notify(id);
     setNotice('Imagen guardada en Zero. Telegram no se ha modificado.');
   }
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if ((event as CustomEvent).detail === id)
+        void api<ImageState>(endpoint(id))
+          .then((next) => setValue((old) => (old ? { ...old, telegram: next.telegram } : next)))
+          .catch(() => {});
+    };
+    window.addEventListener('assistant-telegram-changed', changed);
+    return () => window.removeEventListener('assistant-telegram-changed', changed);
+  }, [id]);
   return (
     <section className="settings-section assistant-image-settings">
       <h3>Imagen del asistente</h3>

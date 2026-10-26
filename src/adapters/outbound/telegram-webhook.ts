@@ -23,6 +23,14 @@ export class TelegramWebhook implements WebhookControl {
     );
     if (result !== true) throw new Error('Telegram did not confirm webhook registration');
   }
+  async remove(settings: BotSettings) {
+    const result = await this.telegram(settings).call(
+      'deleteWebhook',
+      { drop_pending_updates: false },
+      AbortSignal.timeout(15000),
+    );
+    if (result !== true) throw new Error('Telegram did not confirm webhook removal');
+  }
   async status(settings: BotSettings): Promise<WebhookStatus> {
     const info = await this.telegram(settings).call(
       'getWebhookInfo',

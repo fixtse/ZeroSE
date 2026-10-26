@@ -350,21 +350,7 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
   const f = await fixture();
   const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
   await repository.initialize(f.config);
-  let validations = 0;
-  const admin = new Admin(
-    f.config,
-    repository,
-    async (token) => {
-      validations++;
-      if (token === '999:bad') throw new Error('invalid');
-    },
-    {
-      async configure() {},
-      async status(settings) {
-        return { url: settings.webhookUrl || '', pending: 0 };
-      },
-    },
-  );
+  const admin = new Admin(f.config, repository, async () => {});
   const access = new Access(repository, f.store);
   const server = createHttpServer(f.config, f.store, undefined, { access, admin });
   server.listen(0, '127.0.0.1');
@@ -451,30 +437,11 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
       400,
     );
     assert.equal((await put('profiles/salem/-12', input)).status, 400);
-    assert.equal((await put('bots/salem', { enabled: true })).status, 400);
-    assert.equal((await put('bots/salem', { token: '999:bad', enabled: true })).status, 400);
     assert.equal(
-      (
-        await put('bots/salem', {
-          token: '999:salem-secret',
-          enabled: true,
-          webhookUrl: 'https://example.com/telegram/salem/webhook',
-        })
-      ).status,
-      200,
+      (await put('bots/salem', { enabled: true })).status,
+      404,
+      'Retired global bot settings are not routed',
     );
-    const bots = await get('bots');
-    assert.equal(bots.items.find((b: any) => b.id === 'salem').configured, true);
-    assert(!JSON.stringify(bots).includes('salem-secret'));
-    assert.equal((await put('bots/salem', { token: '', enabled: false })).status, 200);
-    assert.equal((await repository.bots())[0].token, '999:salem-secret');
-    assert.equal(
-      validations,
-      2,
-      'Saving a blank token must not replay token validation or mutate Telegram',
-    );
-    const storedToken = (await f.store.pool.query('SELECT token FROM managed_bots')).rows[0].token;
-    assert(!storedToken.includes('salem-secret'));
     assert.equal(
       (await put('profiles/salem/11', { ...input, clearGoogle: true, clearHomeAssistant: true }))
         .status,
@@ -494,6 +461,7 @@ test('managed webhook uses chat permissions for both ordinary messages and the w
   const f = await fixture();
   f.config.telegram.transport = 'webhook';
   f.config.telegram.webhookSecret = 'webhook-secret';
+  f.config.telegram.token = '111:fixture-zero';
   f.config.telegram.allowedUsers = ['1'];
   const repository = new PostgresAccess(f.store.pool, f.config.apiKey);
   await repository.initialize(f.config);
@@ -502,7 +470,7 @@ test('managed webhook uses chat permissions for both ordinary messages and the w
   const server = createHttpServer(f.config, f.store, undefined, { access, admin });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  const url = `http://127.0.0.1:${(server.address() as any).port}/telegram/webhook`;
+  const url = `http://127.0.0.1:${(server.address() as any).port}/telegram/assistants/zero/webhook`;
   const message = {
     chat: { id: -100, type: 'group', title: 'Group with owner' },
     from: { id: 1 },

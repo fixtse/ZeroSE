@@ -2,14 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { validTimezone } from '../../domain/time.js';
 import { memoryModes } from '../../domain/memory.js';
-import { randomBytes } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
 import {
   telegramSession,
+  assistantIdPattern,
   capabilities,
   type AccessProfile,
   type BotId,
-  type BotSettings,
 } from '../../domain/access.js';
 import type {
   AccessRepository,
@@ -117,8 +116,8 @@ export class Admin {
   constructor(
     private config: Config,
     private repository: AccessRepository,
-    private validateToken: (token: string) => Promise<void>,
-    private webhooks?: WebhookControl,
+    _validateToken: (token: string) => Promise<void>,
+    _webhooks?: WebhookControl,
     private commands?: ChatCommandsControl,
     private speech?: (config: Config) => SpeechPort,
     private previewSpeech?: (config: Config, text: string, signal: AbortSignal) => Promise<Buffer>,
@@ -143,131 +142,6 @@ export class Admin {
     send: (status: number, value: unknown) => void,
   ): Promise<boolean> {
     if (!path.startsWith('/v1/admin/')) return false;
-    if (req.method === 'GET' && path === '/v1/admin/bots') {
-      const settings = await this.repository.bots();
-      send(200, {
-        items: [
-          {
-            id: 'zero',
-            configured: !!this.config.telegram.token,
-            enabled: this.config.telegram.transport !== 'disabled',
-          },
-          {
-            id: 'salem',
-            transport: 'webhook',
-            webhookUrl: settings.find((b) => b.id === 'salem')?.webhookUrl || '',
-            configured: settings.some((b) => b.id === 'salem' && !!b.token),
-            enabled: settings.some((b) => b.id === 'salem' && b.enabled),
-          },
-        ],
-      });
-      return true;
-    }
-    if (req.method === 'GET' && path === '/v1/admin/bots/salem/webhook') {
-      const settings = (await this.repository.bots()).find((b) => b.id === 'salem');
-      if (!settings?.token || !this.webhooks) {
-        send(400, { error: 'Configura primero el token de Salem.' });
-        return true;
-      }
-      try {
-        const status = await this.webhooks.status(settings);
-        send(200, {
-          ...status,
-          expectedUrl: settings.webhookUrl || '',
-          registered: !!settings.webhookUrl && status.url === settings.webhookUrl,
-        });
-      } catch {
-        send(502, { error: 'No se pudo consultar el webhook en Telegram.' });
-      }
-      return true;
-    }
-    if (req.method === 'PUT' && path === '/v1/admin/bots/salem') {
-      const input = z
-        .object({
-          token: z.string().max(300).default(''),
-          enabled: z.boolean(),
-          webhookUrl: z.string().max(2048).optional(),
-        })
-        .parse(await read());
-      const previous = (await this.repository.bots()).find((b) => b.id === 'salem');
-      const token = input.token.trim() || previous?.token || '';
-      if (input.enabled && !token) {
-        send(400, { error: 'Introduce el token de Salem antes de activarlo.' });
-        return true;
-      }
-      if (token && token.split(':')[0] === this.config.telegram.token.split(':')[0]) {
-        send(400, { error: 'Salem debe usar un bot distinto de Zero.' });
-        return true;
-      }
-      if (input.token.trim()) {
-        if (!/^\d+:[\w-]+$/.test(token)) {
-          send(400, { error: 'El formato del token de Telegram no es válido.' });
-          return true;
-        }
-        try {
-          await this.validateToken(token);
-        } catch {
-          send(400, { error: 'Telegram no pudo validar el token. Compruébalo antes de guardar.' });
-          return true;
-        }
-      }
-      const webhookUrl = input.webhookUrl?.trim() || previous?.webhookUrl || '';
-      if (input.enabled && !webhookUrl) {
-        send(400, { error: 'Introduce la URL HTTPS pública del webhook de Salem.' });
-        return true;
-      }
-      if (webhookUrl) {
-        let url: URL;
-        try {
-          url = new URL(webhookUrl);
-        } catch {
-          send(400, { error: 'La URL del webhook no es válida.' });
-          return true;
-        }
-        if (
-          url.protocol !== 'https:' ||
-          url.username ||
-          url.password ||
-          url.search ||
-          url.hash ||
-          url.pathname !== '/telegram/salem/webhook'
-        ) {
-          send(400, {
-            error:
-              'Usa una URL HTTPS pública que termine en /telegram/salem/webhook, sin credenciales ni parámetros.',
-          });
-          return true;
-        }
-      }
-      const sameAccount = previous?.token.split(':')[0] === token.split(':')[0];
-      const settings: BotSettings = {
-        id: 'salem',
-        token,
-        enabled: input.enabled,
-        webhookUrl,
-        webhookSecret:
-          sameAccount && previous?.webhookSecret
-            ? previous.webhookSecret
-            : randomBytes(32).toString('hex'),
-      };
-      // Persist first so Telegram can authenticate immediately after setWebhook succeeds.
-      await this.repository.saveBot(settings);
-      if (input.enabled) {
-        try {
-          if (!this.webhooks) throw new Error('Webhook control is unavailable');
-          await this.webhooks.configure(settings);
-        } catch {
-          send(502, {
-            saved: true,
-            error:
-              'Configuración guardada, pero no se pudo confirmar el registro del webhook. Comprueba su estado antes de volver a registrar; no se ha reintentado automáticamente.',
-          });
-          return true;
-        }
-      }
-      send(200, { saved: true, webhookRegistered: input.enabled });
-      return true;
-    }
     if (req.method === 'GET' && path === '/v1/admin/profiles') {
       const query = new URL(req.url || '/', 'http://localhost').searchParams;
       const search = z
@@ -308,8 +182,9 @@ export class Admin {
       });
       return true;
     }
-    const catalogMatch =
-      /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})\/(rules|entities|services)$/.exec(path);
+    const catalogMatch = new RegExp(
+      '^/v1/admin/profiles/(' + assistantIdPattern + ')/(-?\\d{1,16})/(rules|entities|services)$',
+    ).exec(path);
     if (catalogMatch && req.method === 'GET') {
       const profile = await this.repository.profile(catalogMatch[1] as BotId, catalogMatch[2]);
       if (!profile) {
@@ -378,8 +253,9 @@ export class Admin {
       }
       return true;
     }
-    const speechMatch =
-      /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})\/speech\/(catalog|preview)$/.exec(path);
+    const speechMatch = new RegExp(
+      '^/v1/admin/profiles/(' + assistantIdPattern + ')/(-?\\d{1,16})/speech/(catalog|preview)$',
+    ).exec(path);
     if (speechMatch && req.method === 'POST') {
       const profile = await this.repository.profile(speechMatch[1] as BotId, speechMatch[2]);
       if (!profile) {
@@ -438,7 +314,9 @@ export class Admin {
       }
       return true;
     }
-    const match = /^\/v1\/admin\/profiles\/(zero|salem)\/(-?\d{1,16})$/.exec(path);
+    const match = new RegExp(
+      '^/v1/admin/profiles/(' + assistantIdPattern + ')/(-?\\d{1,16})$',
+    ).exec(path);
     if (match) {
       const bot = match[1] as BotId,
         chatId = match[2];
