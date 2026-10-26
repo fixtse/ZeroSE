@@ -77,7 +77,10 @@ test('service access is checked on every invocation, including existing tool reg
       return { ok: true };
     },
     async services() {
-      return [{ domain: 'frigate', services: { restart: { fields: {} } } }];
+      return [
+        { domain: 'frigate', services: { restart: { fields: {} } } },
+        { domain: 'conversation', services: { process: { fields: {} } } },
+      ];
     },
   } as unknown as HomeAssistant;
   const tools = new Tools(f.store);
@@ -93,15 +96,24 @@ test('service access is checked on every invocation, including existing tool reg
     await assert.rejects(invoke('frigate.restart'), /not allowed/);
     await settings.update({
       ...(await settings.read()),
-      services: ['frigate.restart', 'conversation.process'],
+      services: ['frigate.restart'],
       frigate: true,
       assist: true,
     });
     await invoke('frigate.restart');
+    const discovered = await tools.call('ha_services', {}, context);
+    assert.match(JSON.stringify(discovered), /conversation.process/);
+    await invoke('conversation.process', { agent_id: 'homeassistant' });
     await assert.rejects(
       invoke('conversation.process', { agent_id: 'conversation.zero' }),
       /separate/,
     );
+    await settings.update({ ...(await settings.read()), assist: false });
+    await assert.rejects(
+      invoke('conversation.process', { agent_id: 'homeassistant' }),
+      /not allowed/,
+    );
+    await settings.update({ ...(await settings.read()), assist: true });
     await settings.update({ ...(await settings.read()), frigate: false });
     await assert.rejects(invoke('frigate.restart'), /not allowed/);
     await settings.update({ ...(await settings.read()), homeAssistant: false });
@@ -109,7 +121,7 @@ test('service access is checked on every invocation, including existing tool reg
       invoke('conversation.process', { agent_id: 'homeassistant' }),
       /not allowed/,
     );
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
   } finally {
     await f.close();
   }

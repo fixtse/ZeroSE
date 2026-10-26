@@ -21,6 +21,7 @@ import { AssistantAssignment } from '../components/assistant-assignment';
 import { ProfileEditor } from '../components/profile-editor';
 import { AccountSettings } from '../components/account-settings';
 import { BotSettings } from '../components/bot-settings';
+import { HomeAssistantPermissions } from '../components/home-assistant-permissions';
 import { CheckField } from '../components/settings-fields';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Link2, Users, Sparkles, ShieldCheck, House } from 'lucide-react';
@@ -598,67 +599,29 @@ export default function Home() {
                         Estos ajustes de acceso se conservan en Zero y también se pueden gestionar
                         desde Home Assistant.
                       </p>
-                      <form
-                        className="panel"
-                        onSubmit={submit(async (data) => {
-                          const saved = await api<Settings>(base + '/settings', 'PUT', {
-                            revision: settings.revision,
-                            prompt: settings.prompt,
-                            homeAssistant: data.has('homeAssistant'),
-                            assist: data.has('assist'),
-                            frigate: data.has('frigate'),
-                            services: String(data.get('services') || '')
-                              .split('\n')
-                              .map((v) => v.trim())
-                              .filter(Boolean),
-                          });
-                          setSettings(saved);
-                          setNotice('Configuración guardada.');
-                        })}
+                      <HomeAssistantPermissions
                         key={settings.revision}
-                      >
-                        <div className="toggle-list">
-                          {[
-                            ['homeAssistant', 'Herramientas de Home Assistant'],
-                            ['assist', 'Delegación a Assist'],
-                            ['frigate', 'Servicios de Frigate'],
-                          ].map(([id, label]) => (
-                            <Label className="check" key={id}>
-                              <Checkbox
-                                name={id}
-                                defaultChecked={!!settings[id as keyof Settings]}
-                              />
-                              {label}
-                            </Label>
-                          ))}
-                        </div>
-                        <Label>
-                          Servicios permitidos
-                          <Textarea
-                            name="services"
-                            defaultValue={settings.services.join('\n')}
-                            rows={4}
-                            placeholder="light.turn_on"
-                          />
-                        </Label>
-                        <small>
-                          Un servicio domain.service por línea. Los recordatorios existentes
-                          conservan sus horarios.
-                        </small>
-                        <div className="form-actions">
-                          <Button disabled={busy}>Guardar ajustes →</Button>
-                          <Button
-                            type="button"
-                            className="quiet"
-                            disabled={busy}
-                            onClick={() =>
-                              void run(async () => setSettings(await api(base + '/settings')))
-                            }
-                          >
-                            Recargar
-                          </Button>
-                        </div>
-                      </form>
+                        settings={settings}
+                        busy={busy}
+                        save={(value) =>
+                          void run(async () => {
+                            setSettings(
+                              await api<Settings>(base + '/settings', 'PUT', {
+                                revision: value.revision,
+                                prompt: value.prompt,
+                                homeAssistant: value.homeAssistant,
+                                assist: value.assist,
+                                frigate: value.frigate,
+                                services: value.services,
+                              }),
+                            );
+                            setNotice('Configuración guardada.');
+                          })
+                        }
+                        reload={() =>
+                          void run(async () => setSettings(await api(base + '/settings')))
+                        }
+                      />
                     </>
                   )}
                 </>

@@ -829,6 +829,9 @@ Connection and security settings use provider tabs. Profile settings are grouped
 
 Home Assistant is optional. The admin shows HA operational settings after a connection is configured; direct Google and Telegram connections remain available. Each profile may explicitly select Home Assistant to-do as its task provider and choose one `todo.*` entity (local lists, Google Tasks exposed by HA, or another to-do integration). The setup discovers lists on demand and requires confirmation before switching providers. Existing task tools keep their names, credentials are retained, and selecting a provider does not migrate tasks or silently fail over. HA voice requests do not require a Telegram bot token.
 
+Shared Home Assistant permissions include a searchable, paginated service picker. Select a service or type `domain.service` followed by a comma or Enter to add it; remove its chip to revoke that explicit permission. Enabling Assist delegation automatically permits `conversation.process` with the native `homeassistant` agent while Home Assistant access is enabled. Frigate can be enabled only when the connected Home Assistant exposes `frigate.*` services.
+
+
 Telegram connection settings now live under **Asistentes**. Each assistant can have its own saved avatar; uploading/importing and saving an avatar does not modify Telegram. For Zero and Salem, the editor can explicitly fetch the configured bot’s current photo and separately publish the saved avatar after confirmation. Custom assistants without a bot connection keep a local avatar.
 
 The unified Home Assistant integration exposes the assistant catalog as separate conversation agents and refreshes metadata every minute. Stable agent IDs retain existing `conversation.zero`, pipelines and rules; agent selection preserves the bound user’s existing permissions, conversation and memory. Prompts and image data are not included in discovery responses.

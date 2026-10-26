@@ -494,6 +494,26 @@ const codex = new Codex(config, store, tools, async (context) => (await services
           if (offset + page.items.length >= page.total || !page.items.length) return false;
         }
       },
+      async () => {
+        if (config.homeAssistant.token)
+          return {
+            entities: (query, signal) => ha.entityCatalog(query, signal),
+            services: (query, signal) => ha.serviceCatalog(query, signal),
+          };
+        for (let offset = 0; ; offset += 50) {
+          const page = await accessRepository.profiles('', offset, 50);
+          const profile = page.items.find((item) => !!item.homeAssistant?.token);
+          if (profile) {
+            const client = new HomeAssistant(scopedConfig(config, profile).homeAssistant);
+            return {
+              entities: (query, signal) => client.entityCatalog(query, signal),
+              services: (query, signal) => client.serviceCatalog(query, signal),
+            };
+          }
+          if (offset + page.items.length >= page.total || !page.items.length)
+            throw new Error('No Home Assistant connection');
+        }
+      },
     ),
   );
 

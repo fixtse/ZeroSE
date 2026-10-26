@@ -147,13 +147,21 @@ async def main():
                 assert options["type"] == "menu", options
                 options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "assistant"})
                 assert options["type"] == "form", options
+                schema = options["data_schema"].schema
+                assert "frigate" not in {str(key) for key in schema}
+                services_selector = next(value for key, value in schema.items() if str(key) == "services")
+                assert services_selector.config["multiple"] and services_selector.config["custom_value"]
+                hass.services.async_register("frigate", "restart", lambda call: None)
+                options = await hass.config_entries.options.async_init(entry.entry_id)
+                options = await hass.config_entries.options.async_configure(options["flow_id"], {"next_step_id": "assistant"})
+                assert "frigate" in {str(key) for key in options["data_schema"].schema}
                 changed = {key: value for key, value in current.items() if key != "revision"}
-                changed.update(prompt="Edited in HA", services="light.turn_on\nfrigate.restart", frigate=True)
+                changed.update(prompt="Edited in HA", services=["light.turn_on, frigate.restart"], frigate=True, assist=True)
                 result = await hass.config_entries.options.async_configure(options["flow_id"], changed)
                 assert result["type"] == "create_entry", result
                 sent = request.call_args.args
                 assert sent[2] == "PUT" and sent[3]["revision"] == 4, sent
-                assert sent[3]["services"] == ["light.turn_on", "frigate.restart"]
+                assert sent[3]["services"] == ["light.turn_on", "frigate.restart", "conversation.process"]
                 assert "prompt" not in entry.data and not entry.options
                 # Import does not replace settings managed through the UI.
                 await hass.config_entries.flow.async_init("assistant_zero", context={"source": "import"}, data={**connection, "url": "http://stale.invalid"})

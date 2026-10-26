@@ -13,7 +13,7 @@ export function registerHomeAssistantControl(
     const value = await settings.read();
     return (
       value.homeAssistant &&
-      value.services.includes(service) &&
+      (value.services.includes(service) || (service === 'conversation.process' && value.assist)) &&
       (!service.startsWith('conversation.') || value.assist) &&
       (!service.startsWith('frigate.') || value.frigate)
     );

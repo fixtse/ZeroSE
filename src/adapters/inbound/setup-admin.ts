@@ -5,6 +5,7 @@ import type { IntegrationAccess } from '../../application/integration-access.js'
 import type { HomeAssistantPairing } from '../../application/home-assistant-pairing.js';
 import type { ZeroSettingsPort } from '../../application/zero-settings.js';
 import type { AccessRepository } from '../../application/access.js';
+import type { AdminCatalogPort } from '../../application/admin-catalog.js';
 export class SetupAdmin {
   constructor(
     private tokens: IntegrationAccess,
@@ -14,6 +15,7 @@ export class SetupAdmin {
     private publicUrl: string,
     private assistants?: AssistantAdmin,
     private homeAssistantConnected: () => Promise<boolean> = async () => false,
+    private homeAssistantCatalog?: () => Promise<AdminCatalogPort>,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -76,6 +78,41 @@ export class SetupAdmin {
         .strict()
         .parse(await read());
       send(200, await this.pairing.approve(z.uuid().parse(path.split('/').at(-2)), input.chatId));
+    } else if (path === '/v1/admin/setup/services' && req.method === 'GET') {
+      const query = new URL(req.url || '/', 'http://localhost').searchParams;
+      const search = z
+        .string()
+        .max(200)
+        .parse(query.get('search') || '');
+      const offset = z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(1000000)
+        .parse(query.get('offset') || 0);
+      const limit = z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .parse(query.get('limit') || 20);
+      try {
+        if (!this.homeAssistantCatalog) throw new Error('No Home Assistant connection');
+        const catalog = await this.homeAssistantCatalog();
+        const signal = AbortSignal.timeout(10000);
+        const [page, frigate] = await Promise.all([
+          catalog.services({ search, offset, limit }, signal),
+          catalog.services({ search: 'frigate.', offset: 0, limit: 50 }, signal),
+        ]);
+        send(200, {
+          ...page,
+          frigateAvailable: frigate.items.some((item) => item.id.startsWith('frigate.')),
+        });
+      } catch {
+        send(502, {
+          error: 'No se pudo consultar Home Assistant. Comprueba la conexión guardada.',
+        });
+      }
     } else if (path === '/v1/admin/setup/settings' && req.method === 'GET') {
       send(200, await this.settings.read());
     } else if (path === '/v1/admin/setup/settings' && req.method === 'PUT') {
@@ -90,6 +127,23 @@ export class SetupAdmin {
         })
         .strict()
         .parse(await read());
+      if (input.frigate && !(await this.settings.read()).frigate) {
+        try {
+          if (!this.homeAssistantCatalog) throw new Error('No Home Assistant connection');
+          const catalog = await this.homeAssistantCatalog();
+          const page = await catalog.services(
+            { search: 'frigate.', offset: 0, limit: 50 },
+            AbortSignal.timeout(10000),
+          );
+          if (!page.items.some((item) => item.id.startsWith('frigate.'))) {
+            send(400, { error: 'Home Assistant no ofrece servicios de Frigate.' });
+            return true;
+          }
+        } catch {
+          send(502, { error: 'No se pudo comprobar Frigate en Home Assistant.' });
+          return true;
+        }
+      }
       const updated = await this.settings.update(input);
       send(
         updated ? 200 : 409,
