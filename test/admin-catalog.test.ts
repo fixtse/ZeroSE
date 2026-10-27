@@ -268,3 +268,36 @@ test('configured HA discovery returns only availability and rejects missing conn
     400,
   );
 });
+
+test('HA user entity preferences can change while connection credentials remain managed by HA', async () => {
+  const f = setup();
+  f.profile.chatId = 'ha:' + 'a'.repeat(32);
+  f.profile.homeAssistant!.voiceSatellite = 'assist_satellite.kitchen';
+  const admin = new Admin(f.config, f.repository, async () => {});
+  const input = {
+    kind: 'user', label: 'Test', enabled: true, capabilities: ['homeAssistant'],
+    homeAssistant: { locationEntity: 'person.ana', geocodedLocationEntity: 'sensor.ana_address', weatherEntity: 'weather.home' },
+  };
+  assert.equal((await request(admin, 'helper/' + f.profile.chatId, 'PUT', input)).status, 200);
+  assert.equal(f.profile.homeAssistant?.locationEntity, 'person.ana');
+  assert.equal(f.profile.homeAssistant?.geocodedLocationEntity, 'sensor.ana_address');
+  assert.equal(f.profile.homeAssistant?.url, 'https://ha.example');
+  assert.equal(f.profile.homeAssistant?.token, 'private-ha-token');
+  assert.equal(f.profile.homeAssistant?.voiceSatellite, 'assist_satellite.kitchen');
+  assert.equal((await request(admin, 'helper/' + f.profile.chatId, 'PUT', { ...input, homeAssistant: { ...input.homeAssistant, token: 'replacement' } })).status, 400);
+  assert.equal((await request(admin, 'helper/' + f.profile.chatId, 'PUT', { ...input, clearHomeAssistant: true })).status, 400);
+});
+
+ test('entity catalogs filter domains before pagination', async (t) => {
+  const { HomeAssistant } = await import('../src/adapters/outbound/home-assistant.js');
+  t.mock.method(globalThis, 'fetch', async () => Response.json([
+    { entity_id: 'sensor.first', attributes: {} },
+    { entity_id: 'person.ana', attributes: { friendly_name: 'Ana' } },
+    { entity_id: 'device_tracker.phone', attributes: { friendly_name: 'Phone' } },
+    { entity_id: 'sensor.last', attributes: {} },
+  ]));
+  const config = ConfigSchema.parse({ homeAssistant: { url: 'https://ha.example', token: 'test-only' } });
+  const page = await new HomeAssistant(config.homeAssistant).entityCatalog({ search: '', domains: 'person,device_tracker', offset: 1, limit: 1 }, AbortSignal.timeout(1000));
+  assert.equal(page.total, 2);
+  assert.equal(page.items[0].id, 'device_tracker.phone');
+ });

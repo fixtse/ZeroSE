@@ -2,6 +2,7 @@ import type { Config } from '../domain/config.js';
 
 export interface AdminCatalogQuery {
   search: string;
+  domains?: string;
   offset: number;
   limit: number;
 }

@@ -294,6 +294,7 @@ export class Admin {
       const query = z
         .object({
           search: z.string().max(200).default(''),
+          domains: z.string().regex(/^[a-z_]+(?:,[a-z_]+)*$/).max(200).optional(),
           limit: z.coerce.number().int().min(1).max(50).default(20),
           pageToken: z.string().max(4096).default(''),
         })
@@ -561,7 +562,7 @@ export class Admin {
         }
         if (
           chatId.startsWith('ha:') &&
-          (!previous || input.homeAssistant || input.clearHomeAssistant)
+          (!previous || input.homeAssistant?.url || input.homeAssistant?.token || input.clearHomeAssistant)
         ) {
           send(400, {
             error: 'Home Assistant connection settings are read-only for Home Assistant users.',
@@ -652,6 +653,18 @@ export class Admin {
             ...(configuredHA ? { url: configuredHA.url } : {}),
             token: configuredHA?.token || input.homeAssistant?.token || previousHA?.token || '',
           };
+        if (chatId.startsWith('ha:') && previousHA && input.homeAssistant) {
+          homeAssistant = {
+            ...previousHA,
+            locationEntity: input.homeAssistant.locationEntity,
+            geocodedLocationEntity: input.homeAssistant.geocodedLocationEntity,
+            shoppingListEntity: input.homeAssistant.shoppingListEntity,
+            weatherEntity: input.homeAssistant.weatherEntity,
+            sensorEntities: input.homeAssistant.sensorEntities,
+            taskProvider: provider,
+            taskListEntity: input.homeAssistant.taskListEntity ?? previousHA.taskListEntity,
+          };
+        }
         const profile: AccessProfile = {
           bot,
           chatId,

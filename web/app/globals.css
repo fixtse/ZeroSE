@@ -2605,3 +2605,38 @@ h1 {
 .google-connection [data-state='open'] > ul {
   margin-bottom: 12px;
 }
+
+.member-search-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-block: 16px;
+}
+.member-search-toolbar .settings-field {
+  flex: 1;
+  min-width: 0;
+}
+.member-search-toolbar > button {
+  flex-shrink: 0;
+}
+.member-editor {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.ha-entity-picker {
+  min-width: 0;
+}
+@media (max-width: 420px) {
+  .member-search-toolbar { gap: 8px; }
+}
+
+.member-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+.member-pagination span {
+  line-height: 1;
+}

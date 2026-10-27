@@ -9,13 +9,14 @@ import {
   Save,
   Search,
   Trash2,
-  X,
 } from 'lucide-react';
 import { api, type Profile, type CatalogPage } from '../lib/api';
 import { useUrlState } from '../hooks/use-url-state';
 import { notifyError } from '../lib/notifications';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
+import { HAEntityPicker } from './ha-entity-picker';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Field } from './settings-fields';
 import {
   AlertDialog,
@@ -107,7 +108,8 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
     const saved = await api<Member>(base + '/' + editing.userId);
     setEditing(saved);
     setOriginal(saved);
-    setSelected(saved.userId);
+    setSelected('');
+    setEditing(undefined);
     await load();
     setNotice('Integrante guardado.');
   }
@@ -130,7 +132,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         Telegram no proporciona la lista completa. Aquí aparecen las personas detectadas en mensajes
         y avisos de entrada o salida, y las que añadas por ID. Esto no habilita su perfil privado.
       </p>
-      <div className="form-actions">
+      <div className="member-search-toolbar">
         <Field
           id="member-search"
           label="Buscar integrante"
@@ -203,7 +205,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         <p>No hay integrantes que mostrar. Puedes añadirlos por su ID de Telegram.</p>
       )}
       {page && (
-        <div className="form-actions">
+        <div className="member-pagination" role="group" aria-label="Paginación de integrantes">
           <Button
             type="button"
             variant="outline"
@@ -228,21 +230,12 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         </div>
       )}
       {editing && (
-        <section className="settings-section">
-          <div className="form-actions">
-            <h3 className="settings-heading">
-              {selected === 'new' ? 'Añadir integrante' : editing.name}
-            </h3>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              tooltip="Cerrar edición de integrante"
-              onClick={() => setSelected('')}
-            >
-              <X />
-            </Button>
-          </div>
+        <Dialog open onOpenChange={(open) => { if (!open && !busy) setSelected(''); }}>
+          <DialogContent className="member-editor">
+          <DialogHeader>
+            <DialogTitle>{selected === 'new' ? 'Añadir integrante' : editing.name}</DialogTitle>
+            <DialogDescription>Datos y entidades de este integrante del grupo.</DialogDescription>
+          </DialogHeader>
           <div className="settings-grid">
             <Field
               id="member-user-id"
@@ -253,29 +246,18 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
               maxLength={16}
               onChange={(event) => update('userId', event.target.value)}
             />
-            <Field
+            {selected === 'new' ? <Field
               id="member-name"
               label="Nombre del integrante"
               value={editing.name}
               maxLength={100}
               onChange={(event) => update('name', event.target.value)}
-            />
-            <Field
-              id="member-location"
-              label="Entidad de ubicación del integrante"
-              placeholder="person.nombre o device_tracker.nombre"
-              value={editing.locationEntity}
-              disabled={!profile.hasHomeAssistant}
-              onChange={(event) => update('locationEntity', event.target.value)}
-            />
-            <Field
-              id="member-address"
-              label="Entidad de dirección del integrante"
-              placeholder="sensor.nombre_direccion"
-              value={editing.geocodedLocationEntity}
-              disabled={!profile.hasHomeAssistant}
-              onChange={(event) => update('geocodedLocationEntity', event.target.value)}
-            />
+            /> : <p>Nombre: {editing.name}</p>}
+            {profile.hasHomeAssistant && <>
+              <HAEntityPicker profile={profile} id="member-location" label="Entidad de ubicación del integrante" domains="person,device_tracker" value={editing.locationEntity} onChange={(value) => update('locationEntity', value)} />
+              <HAEntityPicker profile={profile} id="member-address" label="Entidad de dirección del integrante" domains="sensor" value={editing.geocodedLocationEntity} onChange={(value) => update('geocodedLocationEntity', value)} />
+            </>}
+
           </div>
           <p className="settings-help">
             {profile.hasHomeAssistant
@@ -307,7 +289,8 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
               </Button>
             )}
           </div>
-        </section>
+          </DialogContent>
+        </Dialog>
       )}
       <AlertDialog
         open={!!confirm}
