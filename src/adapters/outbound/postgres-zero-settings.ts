@@ -2,7 +2,11 @@ import { and, eq, sql } from 'drizzle-orm';
 import { zeroSettings as settingsTable, accessProfiles as profiles } from './database-schema.js';
 import { type Database, type SqlExecutor } from './database.js';
 import type { PostgresAccess } from './postgres-access.js';
-import type { ZeroSettings, ZeroSettingsPort } from '../../application/zero-settings.js';
+import {
+  homeAssistantBinding,
+  type ZeroSettings,
+  type ZeroSettingsPort,
+} from '../../application/zero-settings.js';
 
 export class PostgresZeroSettings implements ZeroSettingsPort {
   constructor(
@@ -57,8 +61,16 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
       .returning({ revision: settingsTable.revision, value: settingsTable.value });
     if (rows[0] && this.profiles && settings.homeAssistantUsers) {
       for (const [user, chat] of Object.entries(settings.homeAssistantUsers)) {
-        if (previous.homeAssistantUsers?.[user] !== chat)
-          await this.profiles.mergeHomeAssistantUser(user, chat, database);
+        if (previous.homeAssistantUsers?.[user] !== chat) {
+          const binding = homeAssistantBinding(chat);
+          if (binding?.bot === 'zero')
+            await this.profiles.mergeHomeAssistantUser(user, binding.chatId, database);
+          else
+            await database
+              .update(profiles)
+              .set({ linked_chat_id: null })
+              .where(and(eq(profiles.bot, 'zero'), eq(profiles.chat_id, 'ha:' + user)));
+        }
       }
       for (const user of Object.keys(previous.homeAssistantUsers || {})) {
         if (!Object.hasOwn(settings.homeAssistantUsers, user))

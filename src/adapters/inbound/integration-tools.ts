@@ -239,12 +239,13 @@ export function registerHomeAssistantTools(
   if (group || config.locationEntity || config.geocodedLocationEntity)
     tools.add(
       'location_get',
-      'Read the user’s home/away presence, known zone, GPS coordinates/accuracy and geocoded address from Home Assistant, with source timestamps. In a group, omit user_id for the message sender or use a Telegram ID from group_members_list for another member. Use when location improves an answer or suggestion.' +
+      'Read the user’s home/away presence, known zone, GPS coordinates/accuracy and geocoded address from Home Assistant, with source timestamps. In a group, pass member_name for a named person (for example Ken), or user_id from group_members_list. Omit both only for the message sender. A missing known zone does not imply missing location: use returned coordinates/address. Use those same coordinates for nearby places_search and preserve Google Maps links. Qualify old coordinates with their age.' +
         pagingHelp,
       z.object({
         ...resultOffset,
         ...(group
           ? {
+              member_name: z.string().trim().min(1).max(100).optional(),
               user_id: z
                 .string()
                 .regex(/^[1-9]\d{0,15}$/)
@@ -253,13 +254,45 @@ export function registerHomeAssistantTools(
           : {}),
       }),
       async (a, c) => {
-        const userId = a.user_id || c.telegramUserId;
+        if (a.member_name && a.user_id) throw new Error('Choose member_name or user_id, not both');
+        let userId = a.user_id || c.telegramUserId;
+        if (group && a.member_name) {
+          const page = (await group.list(a.member_name, 0, 20)) as {
+            items?: { userId: string; name: string; username?: string; present?: boolean }[];
+            total?: number;
+          };
+          if ((page.total || 0) > (page.items?.length || 0))
+            throw new Error(
+              'Several group members match. Page group_members_list and choose a user_id.',
+            );
+          const candidates = (page.items || []).filter((member) => member.present !== false);
+          const normalize = (name: string) => name.trim().replace(/^@/, '').toLowerCase();
+          const name = normalize(a.member_name);
+          const exact = candidates.filter((member) =>
+            [member.name, member.username || '', member.userId].some(
+              (value) => normalize(value) === name,
+            ),
+          );
+          const matches = exact.length ? exact : candidates;
+          if (matches.length !== 1)
+            throw new Error(
+              matches.length
+                ? 'Several group members match this name. Use group_members_list and choose a user_id.'
+                : 'No active member matches this name. Check group_members_list and Integrantes.',
+            );
+          userId = matches[0].userId;
+        }
         if (group && !userId)
           throw new Error(
             'Choose a member from group_members_list; the sender is not identifiable.',
           );
+        const observation = await (group
+          ? group.location(userId!, c.signal)
+          : ha.location(c.signal));
         return jsonPage(
-          await (group ? group.location(userId!, c.signal) : ha.location(c.signal)),
+          group && observation && typeof observation === 'object'
+            ? { ...observation, subject_user_id: userId }
+            : observation,
           a.result_offset,
         );
       },

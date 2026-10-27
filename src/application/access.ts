@@ -19,6 +19,14 @@ export interface AccessRepository {
     limit: number,
     pending?: boolean,
   ): Promise<{ items: AccessProfile[]; total: number }>;
+  pairingProfiles(
+    search: string,
+    offset: number,
+    limit: number,
+  ): Promise<{
+    items: { bot: string; chatId: string; label: string; kind: 'user' | 'group' }[];
+    total: number;
+  }>;
   saveProfile(profile: AccessProfile): Promise<void>;
   removeProfile(bot: BotId, chatId: string): Promise<void>;
   discover(bot: BotId, chatId: string, label: string, kind?: 'user' | 'group'): Promise<void>;

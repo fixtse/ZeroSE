@@ -1,3 +1,4 @@
+import { isBotId } from '../../domain/access.js';
 import type { ServiceSettingsAdmin } from './service-settings-admin.js';
 import type { AssistantAdmin } from './assistant-admin.js';
 import type { IncomingMessage } from 'node:http';
@@ -32,14 +33,7 @@ export class SetupAdmin {
         url: this.publicUrl,
         callbackUrl: this.publicUrl + '/v1/triggers/rule-events',
         discovery: '_zero-assistant._tcp',
-        fields: [
-          'url',
-          'token',
-          'satellite_id',
-          'callback_url',
-          'callback_token',
-          'settings_token',
-        ],
+        fields: ['url', 'token', 'callback_url', 'callback_token', 'settings_token'],
       });
     } else if (path === '/v1/admin/setup/tokens' && req.method === 'GET') {
       const query = new URL(req.url || '/', 'http://localhost').searchParams;
@@ -68,6 +62,35 @@ export class SetupAdmin {
     } else if (/^\/v1\/admin\/setup\/tokens\/[a-f0-9-]+$/.test(path) && req.method === 'DELETE') {
       await this.tokens.revoke(z.uuid().parse(path.split('/').pop()));
       send(200, { revoked: true });
+    } else if (
+      /^\/v1\/admin\/setup\/pairings\/[a-f0-9-]+\/profiles$/.test(path) &&
+      req.method === 'GET'
+    ) {
+      this.pairing.details(z.uuid().parse(path.split('/').at(-2)));
+      const query = new URL(req.url || '/', 'http://localhost').searchParams;
+      const search = z
+        .string()
+        .max(200)
+        .parse(query.get('search') || '');
+      const offset = z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(1000000)
+        .parse(query.get('offset') || 0);
+      const limit = z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .parse(query.get('limit') || 20);
+      const page = await this.profiles.pairingProfiles(search, offset, limit);
+      send(200, {
+        ...page,
+        offset,
+        limit,
+        next_offset: offset + limit < page.total ? offset + limit : null,
+      });
     } else if (/^\/v1\/admin\/setup\/pairings\/[a-f0-9-]+$/.test(path) && req.method === 'GET') {
       send(200, this.pairing.details(z.uuid().parse(path.split('/').pop())));
     } else if (
@@ -75,10 +98,16 @@ export class SetupAdmin {
       req.method === 'POST'
     ) {
       const input = z
-        .object({ chatId: z.string().regex(/^[1-9]\d{0,15}$/) })
+        .object({
+          chatId: z.string().regex(/^-?[1-9]\d{0,15}$/),
+          bot: z.string().refine(isBotId).default('zero'),
+        })
         .strict()
         .parse(await read());
-      send(200, await this.pairing.approve(z.uuid().parse(path.split('/').at(-2)), input.chatId));
+      send(
+        200,
+        await this.pairing.approve(z.uuid().parse(path.split('/').at(-2)), input.chatId, input.bot),
+      );
     } else if (path === '/v1/admin/setup/settings' && req.method === 'GET') {
       send(200, await this.settings.read());
     } else if (path === '/v1/admin/setup/users' && req.method === 'PUT') {

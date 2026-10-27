@@ -48,3 +48,9 @@ class VoiceBridgeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TimeoutError):
             await client.converse(request, "Action", "assist_satellite.test", timeout=0.02)
         self.assertEqual(request.await_count, 2)
+
+    async def test_authenticated_user_needs_no_satellite(self):
+        request = AsyncMock(side_effect=[{"jobId": JOB}, {"status": "done", "output": "Personal reply"}])
+        self.assertEqual(await client.converse(request, "Hi", ha_user_id="a" * 32), "Personal reply")
+        self.assertNotIn("satellite_id", request.call_args_list[0].args[2])
+        self.assertEqual(request.call_args_list[0].args[2]["ha_user_id"], "a" * 32)

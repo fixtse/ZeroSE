@@ -42,6 +42,7 @@ async def main():
             zero = importlib.import_module("custom_components.assistant_zero.config_flow")
             current = {"revision": 4, "prompt": "Same Zero identity", "homeAssistant": True, "assist": False, "frigate": False, "services": []}
             connection = {"url": "http://zero.invalid:8788", "token": "voice-test-only", "settings_token": "settings-test-only", "satellite_id": "assist_satellite.test"}
+            connection_input = {key: value for key, value in connection.items() if key != 'satellite_id'}
             discovery = ZeroconfServiceInfo(ip_address=ip_address("192.0.2.10"), ip_addresses=[ip_address("192.0.2.10")], port=8788, hostname="zero.local.", type="_zero-assistant._tcp.local.", name="Zero._zero-assistant._tcp.local.", properties={"version": "1", "url": "https://zero.example"})
             discovered = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
             assert discovered["type"] == "form", discovered
@@ -73,7 +74,7 @@ async def main():
                 return {"id": "pairing-request", "approvalUrl": "https://zero.example/admin/?pairing=pairing-request"}
             with patch.object(zero, "zero_request", new=pairing_request):
                 paired = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
-                paired = await hass.config_entries.flow.async_configure(paired["flow_id"], {"url": "https://zero.example", "home_assistant_url": "https://ha.example", "user_id": pairing_user.id, "satellite_id": "assist_satellite.test"})
+                paired = await hass.config_entries.flow.async_configure(paired["flow_id"], {"url": "https://zero.example", "home_assistant_url": "https://ha.example", "user_id": pairing_user.id})
                 assert paired["type"] == "external", paired
                 assert "homeAssistantToken" not in paired["url"] and "secret=" not in paired["url"]
                 from types import SimpleNamespace
@@ -91,6 +92,7 @@ async def main():
                     assert completed["type"] == "create_entry", completed
                     await hass.async_block_till_done()
                 paired_entry = completed["result"]
+                assert "satellite_id" not in paired_entry.data
                 assert paired_entry.data["token"] == "zero-pairing-test"
                 assert "homeAssistantToken" not in paired_entry.data
                 assert len(pairing_calls) == 2
@@ -99,6 +101,32 @@ async def main():
                 await hass.config_entries.async_remove(paired_entry.entry_id)
                 for refresh in list(pairing_user.refresh_tokens.values()):
                     hass.auth.async_remove_refresh_token(refresh)
+            # Missing local fields never submit a pairing mutation; transport and
+            # approval-origin errors stay distinct and do not trigger retries.
+            with patch.object(zero, "zero_request", new=AsyncMock()) as request:
+                missing = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "user"})
+                missing = await hass.config_entries.flow.async_configure(missing['flow_id'], {'url': 'https://zero.example'})
+                assert missing['errors']['base'] == 'pairing_fields', missing
+                request.assert_not_awaited()
+                hass.config_entries.flow.async_abort(missing['flow_id'])
+            for error, code in [(TimeoutError(), 'pairing_unreachable'), (zero.PairingResponseError(404), 'pairing_rejected'), (ValueError('invalid response'), 'pairing_response')]:
+                with patch.object(zero, "zero_request", new=AsyncMock(side_effect=error)) as request:
+                    failed_start = await hass.config_entries.flow.async_init('assistant_zero', context={'source': 'user'})
+                    failed_start = await hass.config_entries.flow.async_configure(failed_start['flow_id'], {'url': 'https://zero.example', 'home_assistant_url': 'https://ha.example', 'user_id': pairing_user.id})
+                    assert failed_start['errors']['base'] == code, failed_start
+                    assert request.await_count == 1
+                    hass.config_entries.flow.async_abort(failed_start['flow_id'])
+            with patch.object(zero, 'zero_request', new=AsyncMock(return_value={'approvalUrl': 'https://other.example/admin/?pairing=test'})) as request:
+                mismatch = await hass.config_entries.flow.async_init('assistant_zero', context={'source': 'user'})
+                mismatch = await hass.config_entries.flow.async_configure(mismatch['flow_id'], {'url': 'https://zero.example', 'home_assistant_url': 'https://ha.example', 'user_id': pairing_user.id})
+                assert mismatch['errors']['base'] == 'approval_mismatch', mismatch
+                assert request.await_count == 1
+                hass.config_entries.flow.async_abort(mismatch['flow_id'])
+            # YAML/manual setup also accepts installations without a satellite.
+            package = importlib.import_module('custom_components.assistant_zero')
+            package.CONFIG_SCHEMA({'assistant_zero': {'url': 'https://zero.example', 'token': 'test'}})
+            zero.connection_schema()({key: value for key, value in connection.items() if key != 'satellite_id'})
+            assert all(getattr(key, 'schema', key) != 'satellite_id' for key in zero.connection_schema().schema)
             # An uncertain exchange is submitted once and its HA token is revoked.
             async def failed_exchange(hass_arg, url, path, payload):
                 if path.endswith("/exchange"):
@@ -106,7 +134,7 @@ async def main():
                 return {"id": "failed-request", "approvalUrl": "https://zero.example/admin/?pairing=failed-request"}
             with patch.object(zero, "zero_request", new=AsyncMock(side_effect=failed_exchange)) as request:
                 failed = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "user"})
-                failed = await hass.config_entries.flow.async_configure(failed["flow_id"], {"url": "https://zero.example", "home_assistant_url": "https://ha.example", "user_id": pairing_user.id, "satellite_id": "assist_satellite.test"})
+                failed = await hass.config_entries.flow.async_configure(failed["flow_id"], {"url": "https://zero.example", "home_assistant_url": "https://ha.example", "user_id": pairing_user.id})
                 state = request.call_args.args[3]["state"]
                 await hass.config_entries.flow.async_configure(failed["flow_id"], {"state": state})
                 failed = await hass.config_entries.flow.async_configure(failed["flow_id"])
@@ -119,9 +147,13 @@ async def main():
                 result = await hass.config_entries.flow.async_configure(result["flow_id"], {"url": connection["url"], "manual": True})
                 assert result["type"] == "form" and result["step_id"] == "manual", result
                 FlowManagerResourceView(hass.config_entries.flow)._prepare_result_json(result)
-                result = await hass.config_entries.flow.async_configure(result["flow_id"], connection)
+                result = await hass.config_entries.flow.async_configure(result["flow_id"], connection_input)
                 assert result["type"] == "create_entry", result
                 entry = result["result"]
+                assert 'satellite_id' not in entry.data
+                # Simulate an existing pre-upgrade installation, whose saved
+                # physical voice identity must survive the new reconfigure form.
+                hass.config_entries.async_update_entry(entry, data={**entry.data, 'satellite_id': connection['satellite_id']})
                 await hass.async_block_till_done()
                 assert entry.state.value == "loaded", entry.state
                 duplicate = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "zeroconf"}, data=discovery)
@@ -173,9 +205,10 @@ async def main():
                 assert entry.data["url"] == connection["url"]
                 # Reconfiguration refreshes the admin link without replacing voice identities.
                 reconfigure = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "reconfigure", "entry_id": entry.entry_id})
-                result = await hass.config_entries.flow.async_configure(reconfigure["flow_id"], {**connection, "url": "http://new-zero.invalid:8788/"})
+                result = await hass.config_entries.flow.async_configure(reconfigure["flow_id"], {**connection_input, "url": "http://new-zero.invalid:8788/"})
                 assert result["type"] == "abort" and result["reason"] == "reconfigure_successful", result
                 await hass.async_block_till_done()
+                assert entry.data['satellite_id'] == connection['satellite_id']
                 assert entities.async_get(entity_id).device_id == device_id
                 assert dr.async_get(hass).async_get(device_id).configuration_url == "http://new-zero.invalid:8788/admin"
                 assert len(dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)) == 1
@@ -202,6 +235,18 @@ async def main():
                 await helper.async_process(phone_input)
                 assert converse.call_args.kwargs["assistant_id"] == "helper"
                 assert converse.call_args.kwargs["ha_user_id"] == admin_user.id
+            # An authenticated Android user works without a physical satellite;
+            # an anonymous device never gains the owner fallback from its absence.
+            without_satellite = conversation_module.ZeroConversation(SimpleNamespace(data={key: value for key, value in entry.data.items() if key != 'satellite_id'}))
+            without_satellite.hass = hass
+            with patch.object(conversation_module, 'converse', new=AsyncMock(return_value='User reply')) as converse:
+                result = await without_satellite.async_process(phone_input)
+                assert result.response.speech['plain']['speech'] == 'User reply'
+                assert converse.call_args.args[2] is None
+                assert converse.call_args.kwargs['ha_user_id'] == admin_user.id
+                anonymous = SimpleNamespace(**{**vars(phone_input), 'context': Context()})
+                await without_satellite.async_process(anonymous)
+                assert converse.await_count == 1
             with patch.object(conversation_module, "converse", new=AsyncMock(side_effect=conversation_module.AccessDenied())) as converse:
                 result = await entity.async_process(phone_input)
                 assert result.response.error_code is not None

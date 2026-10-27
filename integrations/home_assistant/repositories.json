@@ -1,7 +1,7 @@
 {
   "assistant_zero": {
     "repository": "https://github.com/fixtse/ha-zero-assistant",
-    "revision": "a741f44d46d59d6e9677d33c332e96de93228a00",
-    "version": "1.6.0"
+    "revision": "1598e9bd97a5dbce5f889ea75b825d18389c2a6d",
+    "version": "1.6.1"
   }
 }

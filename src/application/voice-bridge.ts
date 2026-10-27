@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { ConversationStore } from './ports.js';
 import type { Access } from './access.js';
-import type { ZeroSettingsPort } from './zero-settings.js';
+import { homeAssistantBinding, type ZeroSettingsPort } from './zero-settings.js';
 import type { BotId } from '../domain/access.js';
 import type { AssistantDefinitions } from './assistant-definitions.js';
 
@@ -17,7 +17,7 @@ export async function voiceOwnerSession(
   return profile?.owner && profile.enabled && (await bots.isEnabled('zero')) ? session : undefined;
 }
 
-/** Resolve only private, enabled Zero profiles; never accept a client-supplied session. */
+/** Resolve an approved private profile on its original assistant; never trust a client-supplied session. */
 export async function voiceUserSession(
   userId: string,
   settings: ZeroSettingsPort,
@@ -27,12 +27,15 @@ export async function voiceUserSession(
   const bindings = (await settings.read()).homeAssistantUsers;
   const chatId = bindings && Object.hasOwn(bindings, userId) ? bindings[userId] : undefined;
   if (!/^[a-f0-9]{32}$/.test(userId)) return undefined;
-  const session = chatId ? 'telegram:' + chatId : 'home-assistant:' + userId;
+  const binding = homeAssistantBinding(chatId);
+  if (chatId && !binding) return undefined;
+  const bot = binding?.bot || 'zero';
+  const session = binding?.session || 'home-assistant:' + userId;
   const profile = await access.forSession(session);
-  return profile?.bot === 'zero' &&
+  return profile?.bot === bot &&
     profile.kind === 'user' &&
     profile.enabled &&
-    (await bots.isEnabled('zero'))
+    (await bots.isEnabled(bot))
     ? session
     : undefined;
 }

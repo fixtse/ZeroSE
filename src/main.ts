@@ -1,3 +1,4 @@
+import { homeAssistantBinding } from './application/zero-settings.js';
 import { GoogleDestinations } from './application/google-destinations.js';
 import { GoogleConnection } from './application/google-connection.js';
 import { GoogleOAuth } from './adapters/outbound/google-oauth.js';
@@ -157,7 +158,8 @@ async function homeAssistantConnection() {
   if (config.homeAssistant.token) return config.homeAssistant;
   const bindings = (await zeroSettings.read()).homeAssistantUsers || {};
   for (const chatId of new Set(Object.values(bindings))) {
-    const profile = await accessRepository.profile('zero', chatId);
+    const binding = homeAssistantBinding(chatId);
+    const profile = binding && (await accessRepository.profile(binding.bot, binding.chatId));
     if (profile?.enabled && profile.homeAssistant?.token) return profile.homeAssistant;
   }
   return config.homeAssistant;

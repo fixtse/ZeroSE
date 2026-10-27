@@ -1,3 +1,4 @@
+import { registerPlacesTools } from '../src/adapters/inbound/places-tools.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { IncomingMessage } from 'node:http';
@@ -187,4 +188,69 @@ test('group location tool defaults to authenticated sender and requires a member
     items: [{ userId: '12', name: 'Ana' }],
     total: 1,
   });
+});
+
+test('named group locations resolve the requested member rather than the sender and reject ambiguity', async () => {
+  const config = { ...ConfigSchema.parse({}).homeAssistant, token: 'test-only' };
+  const tools = new Tools({ async audit() {} });
+  const reads: string[] = [];
+  let ambiguous = false;
+  registerHomeAssistantTools(tools, new HomeAssistant(config), config, {
+    async list(search) {
+      assert.equal(search, 'Ken');
+      return {
+        items: [
+          { userId: '12', name: 'Ken', present: true },
+          ...(ambiguous ? [{ userId: '13', name: 'Ken', present: true }] : []),
+        ],
+        total: ambiguous ? 2 : 1,
+      };
+    },
+    async location(userId) {
+      reads.push(userId);
+      return {
+        location_available: true,
+        zone: null,
+        coordinates: { latitude: 0, longitude: 0 },
+        coordinates_current: false,
+        coordinates_age_seconds: 7200,
+      };
+    },
+  });
+  const context = {
+    session: 'telegram:-10',
+    jobId: 'test',
+    signal: AbortSignal.timeout(5000),
+    telegramUserId: '99',
+  };
+  const location = (await tools.call('location_get', { member_name: 'Ken' }, context)) as any;
+  assert.deepEqual(reads, ['12']);
+  assert.equal(location.subject_user_id, '12');
+  assert.equal(location.location_available, true);
+  assert.equal(location.zone, null);
+  assert.deepEqual(location.coordinates, { latitude: 0, longitude: 0 });
+  assert.equal(location.coordinates_age_seconds, 7200);
+  registerPlacesTools(tools, {
+    async search(_query: string, near: unknown) {
+      assert.deepEqual(near, { latitude: 0, longitude: 0 });
+      return [
+        {
+          name: 'Example restaurant',
+          maps_url: 'https://www.google.com/maps/search/?api=1&query=Example+restaurant',
+        },
+      ];
+    },
+  } as any);
+  const nearby = (await tools.call(
+    'places_search',
+    { query: 'restaurants', near: location.coordinates },
+    context,
+  )) as any;
+  assert.ok(nearby.places[0].maps_url.startsWith('https://www.google.com/maps/'));
+  ambiguous = true;
+  await assert.rejects(
+    tools.call('location_get', { member_name: 'Ken' }, context),
+    /Several group members/,
+  );
+  assert.deepEqual(reads, ['12']);
 });

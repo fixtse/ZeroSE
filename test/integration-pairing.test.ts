@@ -1,3 +1,4 @@
+import { PostgresAssistantDefinitions } from '../src/adapters/outbound/postgres-assistant-definitions.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -21,6 +22,14 @@ async function setup() {
   f.config.telegram.allowedUsers = ['1'];
   const profiles = new PostgresAccess(f.store.db, f.config.apiKey);
   await profiles.initialize(f.config);
+  await new PostgresAssistantDefinitions(f.store.db).create({
+    id: 'helper',
+    name: 'Helper',
+    prompt: 'Helper identity',
+    revision: 1,
+    memoryPolicy: 'automatic',
+    builtin: false,
+  });
   const settings = new PostgresZeroSettings(f.store.db);
   await settings.initialize('Original identity');
   const repository = new PostgresIntegrationAccess(f.store.db);
@@ -178,6 +187,13 @@ test('HTTP requires administrator access for approval and keeps issued tokens ou
     assert.equal(started.status, 201);
     const request = (await started.json()) as { id: string };
     const approval = '/v1/admin/setup/pairings/' + request.id + '/approve';
+    const targetsPath = '/v1/admin/setup/pairings/' + request.id + '/profiles?limit=1';
+    assert.equal((await fetch(base + targetsPath)).status, 401);
+    const targets = await fetch(base + targetsPath, {
+      headers: { Authorization: 'Bearer ' + f.config.apiKey },
+    });
+    assert.equal(targets.status, 200);
+    assert.equal(((await targets.json()) as any).items[0].chatId, '1');
     assert.equal((await post(approval, { chatId: '1' })).status, 401);
     assert.equal((await post(approval, { chatId: '1' }, f.config.apiKey)).status, 200);
     const exchanged = await post('/v1/pairing/home-assistant/exchange', {
@@ -223,6 +239,98 @@ test('HTTP requires administrator access for approval and keeps issued tokens ou
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await f.close();
+  }
+});
+
+test('pairing a group updates only its HA connection and preserves owner and private voice bindings', async () => {
+  const f = await setup();
+  try {
+    await f.profiles.discover('zero', '-42', 'Second house', 'group');
+    const group = (await f.profiles.profile('zero', '-42'))!;
+    await f.profiles.saveProfile({
+      ...group,
+      enabled: true,
+      capabilities: ['homeAssistant'],
+      assistantId: 'helper',
+    });
+    const owner = await f.profiles.profile('zero', '1');
+    const settings = await f.settings.read();
+    const request = f.pairing.begin({ ...f.input, homeAssistantUrl: 'https://second-ha.example' });
+    await f.pairing.approve(request.id, '-42');
+    const result = await f.pairing.exchange(request.id, f.input.secret, 'second-ha-token');
+    assert.deepEqual(await f.profiles.profile('zero', '1'), owner);
+    assert.deepEqual(await f.settings.read(), settings);
+    const paired = (await f.profiles.profile('zero', '-42'))!;
+    assert.equal(paired.homeAssistant?.url, 'https://second-ha.example');
+    assert.equal(paired.homeAssistant?.token, 'second-ha-token');
+    assert.equal(paired.assistantId, 'helper');
+    assert.deepEqual(paired.capabilities, ['homeAssistant']);
+    assert.deepEqual(paired.homeAssistant?.sensorEntities, []);
+    assert.equal(await f.tokens.authorize('Bearer ' + result.token, 'rules'), true);
+    await assert.rejects(f.pairing.exchange(request.id, f.input.secret, 'second-ha-token'));
+  } finally {
+    await f.close();
+  }
+});
+
+test('pairing private users of another assistant preserves assignment and routes HA voice to their existing session', async () => {
+  const f = await setup();
+  try {
+    await f.profiles.discover('helper', '77', 'Other assistant user', 'user');
+    const profile = (await f.profiles.profile('helper', '77'))!;
+    await f.profiles.saveProfile({ ...profile, enabled: true, assistantId: 'helper' });
+    const owner = await f.profiles.profile('zero', '1');
+    const request = f.pairing.begin(f.input);
+    await f.pairing.approve(request.id, '77', 'helper');
+    await f.pairing.exchange(request.id, f.input.secret, 'helper-ha-token');
+    assert.deepEqual(await f.profiles.profile('zero', '1'), owner);
+    const paired = (await f.profiles.profile('helper', '77'))!;
+    assert.equal(paired.assistantId, 'helper');
+    assert.equal(paired.bot, 'helper');
+    assert.deepEqual(paired.capabilities, profile.capabilities);
+    assert.equal(paired.homeAssistant?.token, 'helper-ha-token');
+    assert.equal((await f.settings.read()).homeAssistantUsers?.[f.input.userId], 'helper:77');
+    const { voiceUserSession } = await import('../src/application/voice-bridge.js');
+    const access = new Access(f.profiles, f.store);
+    assert.equal(
+      await voiceUserSession(f.input.userId, f.settings, access, {
+        isEnabled: async (bot) => bot === 'helper',
+      }),
+      'helper:77',
+    );
+    assert.equal(
+      await voiceUserSession(f.input.userId, f.settings, access, { isEnabled: async () => false }),
+      undefined,
+    );
+  } finally {
+    await f.close();
+  }
+});
+
+test('pairing targets are filtered before pagination, searchable across assistants, and contain no credentials', async () => {
+  const f = await setup();
+  try {
+    for (let i = 10; i < 35; i++) {
+      await f.profiles.discover('zero', String(i), 'Person ' + i, 'user');
+      const profile = (await f.profiles.profile('zero', String(i)))!;
+      await f.profiles.saveProfile({ ...profile, enabled: true });
+    }
+    await f.profiles.discover('helper', '-42', 'Remote group', 'group');
+    const group = (await f.profiles.profile('helper', '-42'))!;
+    await f.profiles.saveProfile({ ...group, enabled: true });
+    await f.profiles.discover('zero', '99', 'Disabled user', 'user');
+    const first = await f.profiles.pairingProfiles('', 0, 20);
+    assert.equal(first.total, 27);
+    assert.equal(first.items.length, 20);
+    assert.equal((await f.profiles.pairingProfiles('', 20, 20)).items.length, 7);
+    const search = await f.profiles.pairingProfiles('Remote', 0, 20);
+    assert.deepEqual(search.items, [
+      { bot: 'helper', chatId: '-42', label: 'Remote group', kind: 'group' },
+    ]);
+    assert.equal((await f.profiles.pairingProfiles('Disabled', 0, 20)).total, 0);
+    assert.ok(!JSON.stringify(first).includes('token'));
+  } finally {
     await f.close();
   }
 });

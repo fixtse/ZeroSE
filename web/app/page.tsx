@@ -1,4 +1,5 @@
 'use client';
+import { PairingProfilePicker, type PairingTarget } from '../components/pairing-profile-picker';
 import { notify as setNotice, notifyError, notifyWarning } from '../lib/notifications';
 import {
   ArrowLeft,
@@ -66,7 +67,7 @@ export default function Home() {
     }>();
   const [pairing, setPairing] = useState<Pairing>(),
     [pairingId, setPairingId] = useState(''),
-    [selected, setSelected] = useState('');
+    [pairingTarget, setPairingTarget] = useState<PairingTarget>();
   const [secondFactor, setSecondFactor] = useState(false);
   const [backupCode, setBackupCode] = useState(false);
   const [recovery, setRecovery] = useState(false);
@@ -149,6 +150,7 @@ export default function Home() {
     setAuthenticated(true);
     if (id) {
       try {
+        setPairingTarget(undefined);
         setPairing(await api(base + '/pairings/' + encodeURIComponent(id)));
       } catch (error) {
         notifyError(error instanceof Error ? error.message : 'La solicitud ha caducado.');
@@ -521,42 +523,23 @@ export default function Home() {
                       const result = await api<{ redirectUrl: string }>(
                         base + '/pairings/' + pairing.id + '/approve',
                         'POST',
-                        { chatId: selected },
+                        { chatId: pairingTarget?.chatId, bot: pairingTarget?.bot },
                       );
                       location.assign(result.redirectUrl);
                     })}
                   >
-                    <Label>
-                      Vincular a la persona de Zero
-                      <select
-                        value={selected}
-                        onChange={(e) => setSelected(e.target.value)}
-                        required
-                      >
-                        <option value="">Selecciona un perfil privado activo</option>
-                        {profiles
-                          .filter(
-                            (p) =>
-                              p.bot === 'zero' &&
-                              p.kind === 'user' &&
-                              p.enabled &&
-                              p.source !== 'home_assistant',
-                          )
-                          .map((p) => (
-                            <option key={p.chatId} value={p.chatId}>
-                              {p.label} · {p.chatId}
-                            </option>
-                          ))}
-                      </select>
-                    </Label>
+                    <PairingProfilePicker
+                      pairingId={pairing.id}
+                      selected={pairingTarget}
+                      onSelect={setPairingTarget}
+                    />
                     <p>
-                      Al aprobar, Home Assistant creará un token de larga duración y Zero lo
-                      guardará cifrado en este perfil. Se generará un token de Zero para voz,
-                      ajustes y alertas. El usuario conservará los permisos y la memoria del perfil
-                      seleccionado.
+                      {pairingTarget?.kind === 'group'
+                        ? 'Al aprobar, la conexión Home Assistant de este grupo se actualizará con un token cifrado. Sus herramientas y avisos usarán este servidor. Los vínculos privados de voz se gestionan por separado. Se conservan sus permisos actuales.'
+                        : 'Al aprobar, Home Assistant creará un token de larga duración y Zero lo guardará cifrado en el perfil seleccionado, actualizando su conexión. Se generará un token de Zero para voz, ajustes y alertas. Se conservan los permisos y la memoria del perfil.'}
                     </p>
                     <Button
-                      disabled={busy || pairing.state !== 'pending'}
+                      disabled={busy || !pairingTarget || pairing.state !== 'pending'}
                       size="icon"
                       tooltip="Aprobar y volver a Home Assistant →"
                     >
@@ -576,7 +559,10 @@ export default function Home() {
                       <X />
                     </Button>
                   </form>
-                  <small>Si tu perfil no aparece, búscalo o créalo en Usuarios.</small>
+                  <small>
+                    Busca por nombre o ID. Solo aparecen usuarios y grupos activos de tus
+                    asistentes; puedes activarlos en Usuarios.
+                  </small>
                 </Card>
               )}
               {editingProfile !== undefined && (

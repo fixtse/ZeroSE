@@ -1,3 +1,4 @@
+import { homeAssistantBinding } from './zero-settings.js';
 import type { AccessProfile } from '../domain/access.js';
 import type { MemoryFragment } from '../domain/models.js';
 import type { MemoryPort, MemoryRepository } from './ports.js';
@@ -29,7 +30,8 @@ export async function memoryProfile(
   if (profile.bot !== 'zero' || !profile.chatId.startsWith('ha:')) return profile;
   const chat = (await bindings())[profile.chatId.slice(3)];
   if (!chat) return profile;
-  const linked = await profiles.profile('zero', chat);
+  const binding = homeAssistantBinding(chat);
+  const linked = binding && (await profiles.profile(binding.bot, binding.chatId));
   if (!linked || linked.kind !== 'user')
     throw new ProfileMemoryError(404, 'El usuario vinculado ya no está disponible.');
   return linked;

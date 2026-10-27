@@ -1200,3 +1200,28 @@ does not grant persistent monitoring permission. A different HA account may read
 the data without the Zero integration; persistent alerts require that integration
 on the HA server used by the group. Member assignments do not choose another
 HA server or another member's credentials.
+
+The HA integration does not ask for a voice satellite in setup or reconfiguration.
+Data, reminders and alerts need no physical voice device. Existing stored satellite
+identities remain supported for established voice installations; authenticated HA
+users can use Assist/Android through their existing bindings. An unconfigured
+satellite never grants anonymous-device access. Setup reports missing local fields,
+connection failures, HTTP rejection and a mismatched Zero public approval URL
+separately, without retrying pairing submissions or uncertain exchanges.
+
+The pairing approval has its own searchable, paginated catalog of enabled private
+users and groups across assistant accounts, independent of the Users page's search
+and pagination. Approving a group changes only that group's HA connection and does
+not create or replace a private voice-user binding. Approving a private profile on
+another assistant preserves its bot, assigned assistant, permissions and history;
+its HA voice binding routes to the existing private assistant session. Legacy Zero
+chat-ID bindings remain supported. Pairing does not enable additional capabilities.
+
+For a named group member's whereabouts or nearby food/places, `location_get`
+accepts `member_name` and resolves a unique active member within that group;
+`user_id` remains available for explicit selection. It never substitutes the
+sender for a named person or silently chooses between ambiguous names. A missing
+zone does not hide valid GPS/address observations. Results expose the best
+available coordinates, their source and age; older coordinates remain usable
+with a warning. Nearby searches use that member's coordinates and every suggested
+place includes its Google Maps link.

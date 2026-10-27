@@ -81,12 +81,16 @@ test('location tool reports presence, zones and independent GPS/address observat
     const away = await read();
     assert.equal(away.presence, 'away');
     assert.equal(away.zone, null);
+    assert.equal(away.location_available, true);
+    assert.equal(away.coordinates_source, 'device_tracker.galaxy_s26');
     for (const invalid of ['unknown', 'unavailable', '']) {
       state = invalid;
       const unavailable = await read();
       assert.equal(unavailable.presence, 'unknown');
       assert.equal(unavailable.zone, null);
-      assert.equal(unavailable.tracker?.coordinates, null);
+      assert.ok(unavailable.tracker?.coordinates);
+      assert.equal(unavailable.coordinates_current, false);
+      assert.equal(unavailable.location_available, true);
       assert.equal(unavailable.geocoded?.available, true);
     }
     failTracker = true;

@@ -1,3 +1,4 @@
+import { telegramSession } from '../domain/access.js';
 import type { AccessRepository } from './access.js';
 import type { ZeroSettingsPort } from './zero-settings.js';
 import type { IntegrationAccess, CredentialCrypto } from './integration-access.js';
@@ -19,6 +20,7 @@ interface Pairing {
   userId: string;
   expiresAt: number;
   profile?: string;
+  profileBot?: string;
   state: 'pending' | 'approved' | 'exchanging';
 }
 /** Short-lived, bounded handshakes. Browser approval never exposes either bearer token. */
@@ -90,13 +92,14 @@ export class HomeAssistantPairing {
       state: value.state,
     };
   }
-  async approve(id: string, chatId: string) {
+  async approve(id: string, chatId: string, bot = 'zero') {
     const pairing = this.get(id);
     if (pairing.state !== 'pending') throw new Error('Pairing already approved');
-    const profile = await this.profiles.profile('zero', chatId);
-    if (!profile?.enabled || profile.kind !== 'user')
-      throw new Error('Choose an enabled private Zero profile');
+    const profile = await this.profiles.profile(bot, chatId);
+    if (!profile?.enabled || !['user', 'group'].includes(profile.kind))
+      throw new Error('Choose an enabled user or group');
     pairing.profile = chatId;
+    pairing.profileBot = bot;
     pairing.state = 'approved';
     return { redirectUrl: pairing.callback };
   }
@@ -111,8 +114,9 @@ export class HomeAssistantPairing {
     pairing.state = 'exchanging'; // Lock before the first await. Never replay uncertain writes.
     const result = await this.transaction.run(
       async ({ profiles, settings: repository, tokens }) => {
-        const profile = await profiles.profile('zero', pairing.profile!);
-        if (!profile?.enabled || profile.kind !== 'user') throw new Error('Profile unavailable');
+        const profile = await profiles.profile(pairing.profileBot || 'zero', pairing.profile!);
+        if (!profile?.enabled || !['user', 'group'].includes(profile.kind))
+          throw new Error('Profile unavailable');
         const settings = await repository.read();
         const credential = await tokens.issue(
           ('Home Assistant ' + pairing.homeAssistantUrl).slice(0, 100),
@@ -121,31 +125,46 @@ export class HomeAssistantPairing {
         await profiles.saveProfile({
           ...profile,
           homeAssistant: {
-            ...this.defaults,
+            ...(profile.kind === 'group'
+              ? {
+                  url: '',
+                  token: '',
+                  shoppingListEntity: '',
+                  sensorEntities: [],
+                  weatherEntity: '',
+                  locationEntity: '',
+                  geocodedLocationEntity: '',
+                }
+              : this.defaults),
             ...profile.homeAssistant,
             url: pairing.homeAssistantUrl,
             token: homeAssistantToken,
           },
         });
-        const homeAssistantProfile = await profiles.profile('zero', 'ha:' + pairing.userId);
-        if (homeAssistantProfile)
-          await profiles.saveProfile({
-            ...homeAssistantProfile,
-            homeAssistant: {
-              ...this.defaults,
-              ...homeAssistantProfile.homeAssistant,
-              url: pairing.homeAssistantUrl,
-              token: homeAssistantToken,
+        if (profile.kind === 'user') {
+          const homeAssistantProfile = await profiles.profile('zero', 'ha:' + pairing.userId);
+          if (homeAssistantProfile && profile.bot === 'zero')
+            await profiles.saveProfile({
+              ...homeAssistantProfile,
+              homeAssistant: {
+                ...this.defaults,
+                ...homeAssistantProfile.homeAssistant,
+                url: pairing.homeAssistantUrl,
+                token: homeAssistantToken,
+              },
+            });
+          const saved = await repository.update({
+            ...settings,
+            homeAssistantUsers: {
+              ...settings.homeAssistantUsers,
+              [pairing.userId]:
+                profile.bot === 'zero'
+                  ? pairing.profile!
+                  : telegramSession(profile.bot, pairing.profile!),
             },
           });
-        const saved = await repository.update({
-          ...settings,
-          homeAssistantUsers: {
-            ...settings.homeAssistantUsers,
-            [pairing.userId]: pairing.profile!,
-          },
-        });
-        if (!saved) throw new Error('Settings changed during pairing');
+          if (!saved) throw new Error('Settings changed during pairing');
+        }
         return {
           token: credential.token,
           settings_token: credential.token,

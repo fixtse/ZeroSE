@@ -93,7 +93,6 @@ export class HomeAssistant {
       const latitude = attributes.latitude ?? (Array.isArray(placemark) ? placemark[0] : undefined),
         longitude = attributes.longitude ?? (Array.isArray(placemark) ? placemark[1] : undefined);
       const coordinates =
-        available &&
         typeof latitude === 'number' &&
         Number.isFinite(latitude) &&
         Math.abs(latitude) <= 90 &&
@@ -123,10 +122,25 @@ export class HomeAssistant {
     };
     const tracker = source(0),
       geocoded = source(1);
+    const coordinateSource = [tracker, geocoded]
+      .filter((source) => source?.coordinates)
+      .sort((a, b) => (a?.age_seconds ?? Infinity) - (b?.age_seconds ?? Infinity))[0];
+    const zone = !tracker?.available || tracker.state === 'not_home' ? null : tracker.state;
+    const address = geocoded?.available ? geocoded.state : null;
     return {
+      location_available: !!(coordinateSource?.coordinates || zone || address),
+      coordinates: coordinateSource?.coordinates ?? null,
+      coordinates_source: coordinateSource?.entity_id ?? null,
+      coordinates_age_seconds: coordinateSource?.age_seconds ?? null,
+      coordinates_current:
+        !!coordinateSource?.available &&
+        coordinateSource.age_seconds != null &&
+        coordinateSource.age_seconds <= 3600 &&
+        (coordinateSource.coordinates?.accuracy_m ?? 0) <= 200,
+      address,
       observed_at: observedAt,
       presence: !tracker?.available ? 'unknown' : tracker.state === 'home' ? 'home' : 'away',
-      zone: !tracker?.available || tracker.state === 'not_home' ? null : tracker.state,
+      zone,
       tracker,
       geocoded,
     };

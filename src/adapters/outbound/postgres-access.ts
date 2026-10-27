@@ -229,6 +229,29 @@ export class PostgresAccess implements AccessRepository {
       (await this.db.select({ total: count() }).from(profiles).where(filter))[0].total;
     return { items: rows.map((row) => this.decode(row)), total };
   }
+  async pairingProfiles(search: string, offset: number, limit: number) {
+    const filter = and(
+      isNull(profiles.linked_chat_id),
+      eq(profiles.enabled, true),
+      inArray(profiles.kind, ['user', 'group']),
+      sql`${profiles.chat_id} ~ '^-?[1-9][0-9]{0,15}$'`,
+      sql`position(lower(${search}) in lower(${profiles.label} || ' ' || ${profiles.chat_id})) > 0`,
+    );
+    const items = await this.db
+      .select({
+        bot: profiles.bot,
+        chatId: profiles.chat_id,
+        label: profiles.label,
+        kind: profiles.kind,
+      })
+      .from(profiles)
+      .where(filter)
+      .orderBy(profiles.kind, profiles.label, profiles.chat_id)
+      .offset(offset)
+      .limit(limit);
+    const total = (await this.db.select({ total: count() }).from(profiles).where(filter))[0].total;
+    return { items, total };
+  }
   async saveProfile(profile: AccessProfile, database: SqlExecutor = this.db) {
     const credentials = this.encrypt(
       {
