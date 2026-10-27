@@ -12,6 +12,14 @@ const tables = Object.values({ ...application, ...authentication }).filter((valu
   is(value, PgTable),
 );
 const journalName = '__drizzle_migrations';
+// The initial source cleanup changed policy CHECK values in an already-shipped baseline.
+// Accept only this exact historical/shipped pair; all other checksum checks stay strict.
+const sanitizedBaseline = {
+  timestamp: 1793064686202,
+  previous: '15d0bed3f76f30026a155a50e6abeee740a95c54a1ebadb10103cad4008d3fcd',
+  shipped: '17be5ed15e5a5abfc305b2bc06a497e888d2f8e61de8b8ac7cdbfd6db88acc51',
+};
+
 type Column = { table: string; name: string; type: string; required: boolean };
 type Constraint = {
   table: string;
@@ -202,7 +210,11 @@ export async function migrateDatabase(pool: pg.Pool, options: { folder?: string 
       if (
         !migrations.some(
           (migration) =>
-            migration.folderMillis === Number(entry.created_at) && migration.hash === entry.hash,
+            migration.folderMillis === Number(entry.created_at) &&
+            (migration.hash === entry.hash ||
+              (migration.folderMillis === sanitizedBaseline.timestamp &&
+                migration.hash === sanitizedBaseline.shipped &&
+                entry.hash === sanitizedBaseline.previous)),
         )
       )
         throw new Error('Database migration history does not match the shipped migrations');
