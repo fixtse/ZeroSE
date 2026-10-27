@@ -164,6 +164,7 @@ export const accessProfiles = pgTable(
     memory_mode: text().$type<MemoryMode>().notNull().default('advanced'),
     timezone: text(),
     voice_replies: boolean().notNull().default(true),
+    respond_to_replies: boolean().notNull().default(true),
     prompt_preset: text().$type<MemoryPolicy>(),
     assistant_id: text(),
   },

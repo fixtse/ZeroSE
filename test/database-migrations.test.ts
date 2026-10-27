@@ -26,7 +26,8 @@ test('existing pre-cleanup database upgrades without losing saved assistant data
   try {
     await migrateDatabase(f.pool);
     await f.pool.query(`
-      DELETE FROM __drizzle_migrations WHERE created_at=1793116800000;
+      DELETE FROM __drizzle_migrations WHERE created_at>=1793116800000;
+      ALTER TABLE access_profiles DROP COLUMN respond_to_replies;
       UPDATE __drizzle_migrations SET hash='15d0bed3f76f30026a155a50e6abeee740a95c54a1ebadb10103cad4008d3fcd' WHERE created_at=1793064686202;
       ALTER TABLE assistant_definitions DROP CONSTRAINT assistant_definitions_preset_check;
       ALTER TABLE access_profiles DROP CONSTRAINT access_profiles_prompt_preset_check;
@@ -51,13 +52,17 @@ test('existing pre-cleanup database upgrades without losing saved assistant data
     const {
       rows: [profile],
     } = await f.pool.query(
-      "SELECT assistant_id,prompt_preset FROM access_profiles WHERE bot='helper'",
+      "SELECT assistant_id,prompt_preset,respond_to_replies FROM access_profiles WHERE bot='helper'",
     );
-    assert.deepEqual(profile, { assistant_id: 'helper', prompt_preset: 'explicit' });
+    assert.deepEqual(profile, {
+      assistant_id: 'helper',
+      prompt_preset: 'explicit',
+      respond_to_replies: true,
+    });
     const {
       rows: [history],
     } = await f.pool.query('SELECT count(*)::int AS count FROM __drizzle_migrations');
-    assert.equal(history.count, 5);
+    assert.equal(history.count, 6);
   } finally {
     await f.close();
   }

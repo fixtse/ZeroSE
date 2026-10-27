@@ -146,6 +146,7 @@ export function ProfileEditor({
         label: String(data.get('label') || '').trim(),
         enabled: data.has('enabled'),
         voiceReplies: data.has('voiceReplies'),
+        ...(kind === 'group' ? { respondToReplies: data.has('respondToReplies') } : {}),
         timezone: String(data.get('timezone') || '').trim(),
         memoryMode: data.get('memoryMode'),
         speech,
@@ -338,6 +339,14 @@ export function ProfileEditor({
                   label="Respuestas de voz"
                   defaultChecked={current?.voiceReplies !== false}
                 />
+                {kind === 'group' && (
+                  <CheckField
+                    id="profile-respond-to-replies"
+                    name="respondToReplies"
+                    label="Responder cuando contesten a un mensaje del asistente"
+                    defaultChecked={current?.respondToReplies !== false}
+                  />
+                )}
                 <div className="settings-grid">
                   <Field
                     id="profile-timezone"

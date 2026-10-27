@@ -93,11 +93,28 @@ export class Access {
       const profile = await this.repository.profile(bot, chatId);
       if (!profile?.enabled || profile.kind !== kind) return;
       if (kind === 'user' && String(message.from?.id) !== chatId) return;
+      if (
+        bot === 'zero' &&
+        kind === 'group' &&
+        profile.respondToReplies === false &&
+        message.reply_to_message?.from?.is_bot === true &&
+        typeof message.reply_to_message.from.username === 'string'
+      ) {
+        const username = (await this.botUsername(bot)).toLowerCase();
+        if (
+          username &&
+          message.reply_to_message.from.username.toLowerCase() === username &&
+          !telegramMentions(message).includes(username)
+        )
+          return;
+      }
       if (bot !== 'zero' && kind === 'group') {
         const mentions = telegramMentions(message);
         const replySender = message.reply_to_message?.from;
         const replyUsername =
-          replySender?.is_bot === true && typeof replySender.username === 'string'
+          profile.respondToReplies !== false &&
+          replySender?.is_bot === true &&
+          typeof replySender.username === 'string'
             ? replySender.username.toLowerCase()
             : '';
         if (!mentions.length && !replyUsername) return;

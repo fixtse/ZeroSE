@@ -51,6 +51,7 @@ const profileSchema = z.object({
   label: z.string().trim().min(1).max(100),
   enabled: z.boolean(),
   voiceReplies: z.boolean().optional(),
+  respondToReplies: z.boolean().optional(),
   speech: speechSchema.optional(),
   memoryPolicy: z.enum(['automatic', 'explicit']).optional(),
   capabilities: z.array(z.enum(capabilities)).max(capabilities.length),
@@ -90,6 +91,7 @@ function publicProfile(
     label: p.label,
     enabled: p.enabled,
     voiceReplies: p.voiceReplies !== false,
+    respondToReplies: p.respondToReplies !== false,
     speech: p.speech || {
       stt: 'default',
       sttLanguage: 'es-ES',
@@ -679,6 +681,7 @@ export class Admin {
           label: input.label,
           enabled: input.enabled,
           voiceReplies: input.voiceReplies ?? previous?.voiceReplies ?? true,
+          respondToReplies: input.respondToReplies ?? previous?.respondToReplies ?? true,
           speech: input.speech ?? previous?.speech,
           memoryPolicy: input.memoryPolicy ?? previous?.memoryPolicy,
           assistantId: previous?.assistantId,

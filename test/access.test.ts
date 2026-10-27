@@ -125,7 +125,10 @@ test('Helper groups accept mentions and direct replies to their own bot messages
       for (const message of [
         { text: 'hello' },
         { text: 'hello', reply_to_message: { from: { is_bot: true, username: 'another_bot' } } },
-        { text: 'hello', reply_to_message: { from: { is_bot: false, username: 'del_chat_ai_bot' } } },
+        {
+          text: 'hello',
+          reply_to_message: { from: { is_bot: false, username: 'del_chat_ai_bot' } },
+        },
         { text: 'hello', external_reply: { from: { is_bot: true, username: 'del_chat_ai_bot' } } },
         { video, forward_origin: { type: 'user' } },
         { text: 'transcribe', reply_to_message: { video } },
@@ -144,7 +147,10 @@ test('Helper groups accept mentions and direct replies to their own bot messages
       }
       for (const message of [
         addressed,
-        { text: 'hello', reply_to_message: { from: { is_bot: true, username: 'DEL_CHAT_AI_BOT' } } },
+        {
+          text: 'hello',
+          reply_to_message: { from: { is_bot: true, username: 'DEL_CHAT_AI_BOT' } },
+        },
         { video, reply_to_message: { from: { is_bot: true, username: 'del_chat_ai_bot' } } },
         { ...addressed, reply_to_message: { video } },
         { text: '😀 @DEL_CHAT_AI_BOT', entities: [{ ...mention, offset: 3 }] },
@@ -171,6 +177,53 @@ test('Helper groups accept mentions and direct replies to their own bot messages
         );
       }
     }
+    await repository.saveProfile({
+      ...profile('-10', 'group'),
+      enabled: true,
+      respondToReplies: false,
+    });
+    assert.equal((await repository.profile('helper', '-10'))?.respondToReplies, false);
+    for (const type of ['group', 'supergroup']) {
+      const message = {
+        chat: { id: -10, type },
+        text: 'hello',
+        reply_to_message: { from: { is_bot: true, username: 'del_chat_ai_bot' } },
+      };
+      assert.equal(await access.receive('helper', { update_id: updateId++, message }), undefined);
+      assert.ok(
+        await access.receive('helper', {
+          update_id: updateId++,
+          message: { ...message, ...addressed },
+        }),
+      );
+    }
+    await repository.saveProfile({ ...profile('-10', 'group'), enabled: true });
+    assert.equal(
+      (await repository.profile('helper', '-10'))?.respondToReplies,
+      false,
+      'Omitting the setting preserves it',
+    );
+    await repository.saveProfile({
+      ...profile('-10', 'group'),
+      bot: 'zero',
+      enabled: true,
+      respondToReplies: false,
+    });
+    const zeroReply = {
+      chat: { id: -10, type: 'supergroup' },
+      text: 'hello',
+      reply_to_message: { from: { is_bot: true, username: 'del_chat_ai_bot' } },
+    };
+    assert.equal(
+      await access.receive('zero', { update_id: updateId++, message: zeroReply }),
+      undefined,
+    );
+    assert.ok(
+      await access.receive('zero', {
+        update_id: updateId++,
+        message: { ...zeroReply, ...addressed },
+      }),
+    );
     const beforePrivate = lookups;
     await repository.saveProfile({ ...profile('10'), enabled: true });
     assert.ok(
@@ -184,7 +237,7 @@ test('Helper groups accept mentions and direct replies to their own bot messages
       }),
     );
     assert.equal(lookups, beforePrivate, 'Private messages do not need a bot username');
-    assert.equal(lookups, 20, 'Unaddressed messages never fetch the bot identity');
+    assert.equal(lookups, 24, 'Unaddressed messages never fetch the bot identity');
   } finally {
     await f.close();
   }
@@ -200,6 +253,7 @@ test('group migration carries access and encrypted settings without enqueueing s
     enabled: true,
     label: 'Original group',
     voiceReplies: false,
+    respondToReplies: false,
     memoryPolicy: 'automatic',
     capabilities: ['transcription', 'homeAssistant'],
     memoryMode: 'simple',
@@ -391,6 +445,7 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
     const input = {
       kind: 'user',
       label: 'Helper user',
+      respondToReplies: false,
       enabled: true,
       capabilities: ['web', 'transcription', 'calendar'],
       google: { clientId: 'client', clientSecret: 'google-secret', refreshToken: 'refresh-secret' },
@@ -403,6 +458,7 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
     };
     assert.equal((await put('profiles/helper/11', input)).status, 200);
     const details = await get('profiles/helper/11');
+    assert.equal(details.respondToReplies, false);
     assert.equal(details.hasGoogle, true);
     assert.equal(details.hasHomeAssistant, true);
     const serialized = JSON.stringify(details);
