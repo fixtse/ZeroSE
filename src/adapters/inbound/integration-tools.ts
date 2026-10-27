@@ -263,6 +263,24 @@ export function registerHomeAssistantTools(
         );
       },
     );
+  if (ha.locationEntities && ha.locationEntity) {
+    tools.add(
+      'ha_location_entities',
+      'Discover permitted person and zone IDs for location alerts. Search and paginate; group membership does not grant monitoring permission.',
+      z.object({ search: z.string().max(200).default(''), ...pagination }),
+      async (a, c) =>
+        jsonPage(
+          await ha.locationEntities!(a.search, a.offset, a.limit, c.signal),
+          a.result_offset,
+        ),
+    );
+    tools.add(
+      'ha_location_entity',
+      'Read one permitted person or zone: coordinates, GPS accuracy, radius and timestamps.',
+      z.object({ entity_id: z.string().regex(/^(person|zone)\.[a-z0-9_]+$/), ...resultOffset }),
+      async (a, c) => jsonPage(await ha.locationEntity!(a.entity_id, c.signal), a.result_offset),
+    );
+  }
   tools.add(
     'sensors_list',
     'Find brief Home Assistant sensor and binary-sensor readings by name; use sensor_get for attributes.' +

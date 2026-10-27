@@ -1,4 +1,8 @@
-import type { NotificationRule } from '../domain/notification-rule.js';
+import {
+  isLocationCondition,
+  type LocationCondition,
+  type NotificationRule,
+} from '../domain/notification-rule.js';
 import type { Job } from '../domain/models.js';
 import type { JobResult } from './use-cases/contracts.js';
 import type { WeatherChange } from '../domain/weather-change.js';
@@ -12,6 +16,8 @@ export interface RuleEvent {
   weather?: WeatherChange;
 }
 export interface RuleSchedulerPort {
+  supportsLocationAlerts?(signal?: AbortSignal): Promise<boolean>;
+  permitsLocationCondition?(condition: LocationCondition): boolean;
   supportsHourlyUpdates?(): Promise<boolean>;
   readonly identity?: string;
   ready(signal?: AbortSignal): Promise<void>;
@@ -118,6 +124,11 @@ export class NotificationRules {
     const scope = await this.scope(rule.session, rule.kind, rule.scheduler_key);
     if (!scope.enabled || (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key))
       return false;
+    if (
+      isLocationCondition(rule.condition) &&
+      !scope.scheduler?.permitsLocationCondition?.(rule.condition)
+    )
+      return false;
     if (rule.condition?.source === 'weather' && rule.condition.sleep_entity) {
       try {
         const observed = await scope.scheduler?.inspect(rule.id);
@@ -136,6 +147,14 @@ export class NotificationRules {
     if (!scope.enabled || !scope.scheduler)
       throw new Error('Rule scheduler is not available for this chat');
     if (!value.wake_date) await scope.scheduler.ready(signal);
+    if (
+      isLocationCondition(value.condition) &&
+      (!(await scope.scheduler.supportsLocationAlerts?.(signal)) ||
+        !scope.scheduler.permitsLocationCondition?.(value.condition))
+    )
+      throw new Error(
+        'Location alerts require an upgraded Zero HA integration and permitted people/zones',
+      );
     const rule = await this.repository.create({
       ...value,
       scheduler_state: value.wake_date ? 'installed' : 'installing',

@@ -554,8 +554,8 @@ export function ProfileEditor({
                       profile={current}
                       id="profile-ha-sensors"
                       name="ha-sensorEntities"
-                      label="Sensores permitidos"
-                      domains="sensor,binary_sensor"
+                      label="Sensores y ubicaciones permitidos"
+                      domains="sensor,binary_sensor,person,zone"
                       defaultValues={current.homeAssistant?.sensorEntities || []}
                     />
                     <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />

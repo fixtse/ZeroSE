@@ -4,7 +4,7 @@ import { jsonPage } from '../../application/context-budget.js';
 import type { NotificationRules } from '../../application/notification-rules.js';
 import type { HomeAssistantToolsPort } from '../../application/ports.js';
 import { sessionAddress } from '../../domain/access.js';
-import type { NotificationRule } from '../../domain/notification-rule.js';
+import { isLocationCondition, type NotificationRule } from '../../domain/notification-rule.js';
 
 const seconds = z.number().int().min(1).max(31_536_000);
 const page = {
@@ -31,7 +31,11 @@ export function registerNotificationTools(
             : a.at;
     if (next && Date.parse(next) <= Date.now())
       throw new Error('Choose a future deadline with an explicit timezone offset');
-    if (kind === 'alert' && a.condition.source !== 'weather')
+    if (kind === 'alert' && isLocationCondition(a.condition)) {
+      if (!ha?.locationEntity) throw new Error('Location alert discovery is unavailable');
+      await ha.locationEntity(a.condition.entity_id, c.signal);
+      await ha.locationEntity(a.condition.target_entity_id, c.signal);
+    } else if (kind === 'alert' && a.condition.source !== 'weather')
       await ha!.sensor(a.condition.entity_id, c.signal);
     const rule = await rules.create(
       {
@@ -222,20 +226,45 @@ export function registerNotificationTools(
   );
   tools.add(
     'alert_create',
-    'Create a sensor-based conditional Telegram alert. Discover permitted sensors first. Home Assistant watches state changes and holds continuously; unknown/unavailable breaks the hold. Restarts reset incomplete holds. Recurring alerts rearm only after a valid nonmatching reading and cooldown. Conditions are sensor state equality or numeric thresholds; arbitrary web monitoring is unsupported.',
+    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person and zone; distance above/below watches two people in metres (straight-line). Location alerts start from a baseline and fire only on a later crossing; stale/missing/inaccurate GPS breaks holds. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
     z.object({
       message,
-      condition: z
-        .object({
-          entity_id: z.string().regex(/^(sensor|binary_sensor)\.[a-z0-9_]+$/),
-          operator: z.enum(['above', 'below', 'equals']),
-          value: z.union([z.string().min(1).max(200), z.number().finite()]),
+      condition: z.union([
+        z
+          .object({
+            entity_id: z.string().regex(/^(sensor|binary_sensor)\.[a-z0-9_]+$/),
+            operator: z.enum(['above', 'below', 'equals']),
+            value: z.union([z.string().min(1).max(200), z.number().finite()]),
+            hold_seconds: z.number().int().min(0).max(86400).default(0),
+          })
+          .refine(
+            (c) => c.operator === 'equals' || typeof c.value === 'number',
+            'Numeric thresholds require a number',
+          ),
+        z.object({
+          source: z.literal('zone'),
+          entity_id: z.string().regex(/^person\.[a-z0-9_]+$/),
+          target_entity_id: z.string().regex(/^zone\.[a-z0-9_]+$/),
+          operator: z.enum(['enter', 'leave']),
+          reset_margin_m: z.number().finite().min(0).max(10000).default(0),
           hold_seconds: z.number().int().min(0).max(86400).default(0),
-        })
-        .refine(
-          (c) => c.operator === 'equals' || typeof c.value === 'number',
-          'Numeric thresholds require a number',
-        ),
+          max_age_seconds: z.number().int().min(60).max(86400).default(3600),
+          max_accuracy_m: z.number().finite().positive().max(10000).default(200),
+        }),
+        z
+          .object({
+            source: z.literal('distance'),
+            entity_id: z.string().regex(/^person\.[a-z0-9_]+$/),
+            target_entity_id: z.string().regex(/^person\.[a-z0-9_]+$/),
+            operator: z.enum(['above', 'below']),
+            distance_m: z.number().finite().positive().max(40075000),
+            reset_margin_m: z.number().finite().min(0).max(10000).default(100),
+            hold_seconds: z.number().int().min(0).max(86400).default(0),
+            max_age_seconds: z.number().int().min(60).max(86400).default(3600),
+            max_accuracy_m: z.number().finite().positive().max(10000).default(200),
+          })
+          .refine((c) => c.entity_id !== c.target_entity_id, 'Choose two different people'),
+      ]),
       recurring: z.boolean().default(false),
       cooldown_seconds: z.number().int().min(60).max(31_536_000).default(300),
     }),

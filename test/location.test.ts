@@ -125,3 +125,49 @@ test('location configuration only accepts the intended entity domains', () => {
     'person.sergio',
   );
 });
+
+test('location discovery is scoped, bounded and excludes private attributes', async () => {
+  const states = [
+    {
+      entity_id: 'person.a',
+      state: 'home',
+      attributes: { friendly_name: 'Ana', latitude: 0, longitude: 0, private: 'omit' },
+    },
+    { entity_id: 'person.private', state: 'home', attributes: {} },
+    { entity_id: 'zone.office', state: '0', attributes: { radius: 100 } },
+    { entity_id: 'sensor.temperature', state: '20', attributes: {} },
+  ];
+  const server = createServer((req, res) => {
+    assert.equal(req.method, 'GET');
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(req.url === '/api/states' ? states : states[0]));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const config = ConfigSchema.parse({
+    homeAssistant: {
+      token: 'test',
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      sensorEntities: ['person.a', 'zone.office'],
+    },
+  }).homeAssistant;
+  const ha = new HomeAssistant(config);
+  try {
+    const page = await ha.locationEntities('', 0, 1);
+    assert.equal(page.total, 2);
+    assert.equal(page.next_offset, 1);
+    assert.equal(page.items[0].entity_id, 'person.a');
+    assert.deepEqual(
+      (await ha.locationEntities('office', 0, 10)).items.map((s: any) => s.entity_id),
+      ['zone.office'],
+    );
+    assert.equal((await ha.locationEntity('person.a')).attributes.private, undefined);
+    await assert.rejects(ha.locationEntity('person.private'), /not permitted/);
+    const tools = new Tools({ audit: async () => {} });
+    registerHomeAssistantTools(tools, ha, config);
+    assert.ok(tools.definitions().some((t) => t.name === 'ha_location_entities'));
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});

@@ -1,3 +1,4 @@
+import { permitsLocationEntity } from '../../domain/location-access.js';
 import { jsonRequest, jsonBody } from './http.js';
 import type { AdminCatalogQuery } from '../../application/admin-catalog.js';
 import { dailyWeatherEntity } from './weather-entity.js';
@@ -17,6 +18,7 @@ export class HomeAssistant {
         const id = String(state.entity_id);
         const access: string[] = [];
         if (this.permitted(id)) access.push('sensor');
+        if (permitsLocationEntity(this.config, id)) access.push('location alerts');
         for (const [key, label] of [
           ['shoppingListEntity', 'shopping'],
           ['weatherEntity', 'weather'],
@@ -149,6 +151,38 @@ export class HomeAssistant {
       /^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(entity) &&
       (!this.config.sensorEntities.length || this.config.sensorEntities.includes(entity))
     );
+  }
+  async locationEntities(search: string, offset: number, limit: number, signal?: AbortSignal) {
+    const states = await this.request('states', undefined, signal);
+    const items = states
+      .filter((s: any) => permitsLocationEntity(this.config, s.entity_id))
+      .map((s: any) => ({
+        entity_id: s.entity_id,
+        name: String(s.attributes?.friendly_name || s.entity_id).slice(0, 200),
+      }))
+      .filter((s: any) => (s.entity_id + ' ' + s.name).toLowerCase().includes(search.toLowerCase()))
+      .sort((a: any, b: any) => a.entity_id.localeCompare(b.entity_id));
+    return {
+      items: items.slice(offset, offset + limit),
+      total: items.length,
+      next_offset: offset + limit < items.length ? offset + limit : null,
+    };
+  }
+  async locationEntity(entity: string, signal?: AbortSignal) {
+    if (!permitsLocationEntity(this.config, entity))
+      throw new Error('Location entity is not permitted');
+    const state = await this.request('states/' + encodeURIComponent(entity), undefined, signal);
+    return {
+      entity_id: state.entity_id,
+      state: state.state,
+      last_updated: state.last_updated,
+      last_reported: state.last_reported,
+      attributes: Object.fromEntries(
+        ['friendly_name', 'latitude', 'longitude', 'gps_accuracy', 'radius']
+          .filter((key) => key in (state.attributes || {}))
+          .map((key) => [key, state.attributes[key]]),
+      ),
+    };
   }
   async sensors(search = '', signal?: AbortSignal) {
     const states = await this.request('states', undefined, signal);

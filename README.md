@@ -1150,3 +1150,32 @@ assistant search, catalog, list and detail tools but remain visible to administr
 review, correction or deletion. Expiration does not delete conversation history or backups.
 Entity names and relations are available on demand in memory details, not injected into
 normal turn instructions.
+
+### Location alerts
+
+`alert_create` also accepts location conditions. Discover IDs using
+`ha_location_entities` (search/pagination), then inspect `ha_location_entity`.
+The profile's entity allowlist must permit both people, or the person and zone;
+reading a group member's location does not grant persistent monitoring permission.
+An empty entity allowlist follows the existing unrestricted HA scope.
+
+- Zone: `source: "zone"`, `entity_id: "person.ana"`,
+  `target_entity_id: "zone.office"`, `operator: "enter"` or `"leave"`.
+- Distance: `source: "distance"`, `entity_id: "person.ana"`,
+  `target_entity_id: "person.luis"`, `operator: "below"` or `"above"`,
+  `distance_m: 3200`. This is straight-line distance, not road distance.
+
+Only active requested alerts subscribe to their named entities. Location changes
+are evaluated inside HA without polling, geocoding, routing APIs or AI calls.
+Creation, resume and restart establish a baseline; an alert requires a subsequent
+crossing. Pausing/cancelling/completing removes the listeners. Existing alert
+listing, holds, cooldowns and one-shot delivery rules apply. Recurring distance
+alerts default to a 100 m reset margin; zone alerts default to zero. Unknown or
+invalid locations break holds without rearming. Defaults reject HA location
+reports older than one hour and reported GPS accuracy worse than 200 m; callers
+can set `max_age_seconds`, `max_accuracy_m`, `hold_seconds` and `reset_margin_m`.
+HA report age cannot guarantee the underlying phone GPS fix is fresh. Phone
+background location updates determine detection latency and battery use.
+
+Requires a Zero HA integration advertising `location_alerts`; older integrations
+reject creation before saving a rule. Publishing code does not upgrade live HA.

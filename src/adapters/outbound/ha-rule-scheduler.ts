@@ -1,3 +1,5 @@
+import { permitsLocationEntity } from '../../domain/location-access.js';
+import { isLocationCondition, type LocationCondition } from '../../domain/notification-rule.js';
 import { createHash } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
 import type { NotificationRule } from '../../domain/notification-rule.js';
@@ -38,6 +40,15 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
     if (response?.protocol !== 2 || response?.ready !== true)
       throw new Error('Install/start the unified Zero Assistant Home Assistant integration');
   }
+  async supportsLocationAlerts(signal?: AbortSignal) {
+    return (await this.request('', 'GET', undefined, signal))?.location_alerts === true;
+  }
+  permitsLocationCondition(condition: LocationCondition) {
+    return (
+      permitsLocationEntity(this.config, condition.entity_id) &&
+      permitsLocationEntity(this.config, condition.target_entity_id)
+    );
+  }
   async supportsHourlyUpdates() {
     return (await this.request('', 'GET'))?.hourly_updates === true;
   }
@@ -67,12 +78,19 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
       rule.kind === 'alert' &&
       condition &&
       condition.source !== 'weather' &&
+      !isLocationCondition(condition) &&
       (!/^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(condition.entity_id) ||
         (this.config.sensorEntities.length > 0 &&
           !this.config.sensorEntities.includes(condition.entity_id)))
     ) {
       throw new Error('Alert sensor is no longer permitted in this profile');
     }
+    if (
+      rule.status === 'active' &&
+      isLocationCondition(condition) &&
+      !this.permitsLocationCondition(condition)
+    )
+      throw new Error('Alert people or zone are no longer permitted in this profile');
     const response = await this.request(
       '/' + encodeURIComponent(rule.id),
       'PUT',

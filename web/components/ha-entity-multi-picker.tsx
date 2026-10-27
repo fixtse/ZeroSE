@@ -55,8 +55,8 @@ export function HAEntityMultiPicker({
         ))}
       </div>
       <small>
-        Sin selección se permiten todos los sensores compatibles. Los cambios se aplican al guardar
-        el perfil.
+        Sin selección se permiten todos los sensores, personas y zonas compatibles. Los cambios se
+        aplican al guardar el perfil.
       </small>
     </div>
   );

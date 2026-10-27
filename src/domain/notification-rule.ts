@@ -5,6 +5,22 @@ export interface AlertCondition {
   value: string | number;
   hold_seconds: number;
 }
+export interface LocationCondition {
+  source: 'zone' | 'distance';
+  entity_id: string;
+  target_entity_id: string;
+  operator: 'enter' | 'leave' | 'above' | 'below';
+  distance_m?: number;
+  reset_margin_m: number;
+  hold_seconds: number;
+  max_age_seconds: number;
+  max_accuracy_m: number;
+}
+export function isLocationCondition(
+  condition: NotificationRule['condition'],
+): condition is LocationCondition {
+  return condition?.source === 'zone' || condition?.source === 'distance';
+}
 export interface WeatherCondition {
   hourly_updates?: boolean;
   source: 'weather';
@@ -25,7 +41,7 @@ export interface NotificationRule {
   next_at: string | null;
   repeat_seconds: number | null;
   remaining_seconds: number | null;
-  condition: AlertCondition | WeatherCondition | null;
+  condition: AlertCondition | WeatherCondition | LocationCondition | null;
   forecast_signature: string | null;
   scheduler_key?: string;
   scheduler_state?: 'installing' | 'installed' | 'uncertain';

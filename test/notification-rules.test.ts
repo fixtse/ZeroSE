@@ -343,6 +343,34 @@ test('scheduler adapter sends only rule configuration, with configured weather e
       /no longer permitted/,
     );
     assert.equal(requests.length, 2);
+    const locationRule: NotificationRule = {
+      ...rule,
+      condition: {
+        source: 'distance',
+        entity_id: 'person.a',
+        target_entity_id: 'person.b',
+        operator: 'below',
+        distance_m: 3200,
+        reset_margin_m: 100,
+        hold_seconds: 0,
+        max_age_seconds: 3600,
+        max_accuracy_m: 200,
+      },
+    };
+    await assert.rejects(restricted.configure(locationRule), /no longer permitted/);
+    const locations = new HomeAssistantRuleScheduler({
+      ...f.config.homeAssistant,
+      token: 'test',
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      sensorEntities: ['person.a', 'person.b', 'zone.office'],
+    });
+    await locations.configure(locationRule);
+    const configuredLocation = requests.at(-1);
+    assert.ok(configuredLocation);
+    assert.equal(configuredLocation.body.condition.distance_m, 3200);
+    assert.equal(configuredLocation.body.condition.target_entity_id, 'person.b');
+    // Revoked access must still allow cancellation of the old subscription.
+    await restricted.configure({ ...locationRule, status: 'cancelled' });
   } finally {
     server.close();
     await once(server, 'close');
@@ -724,6 +752,86 @@ test('wake reminders use local dates, stay scoped, and never install a timed HA 
     await f.repository.completeWakeReminders(context.session, resumed);
     assert.equal((await f.repository.read(context.session, receipt.id))?.status, 'completed');
     assert.equal(f.configurations.length, 0);
+  } finally {
+    await f.close();
+  }
+});
+
+test('location tools require both scoped entities and an HA capability before saving', async () => {
+  const f = await setup();
+  try {
+    const tools = new Tools(f.store);
+    const reads: string[] = [];
+    registerNotificationTools(tools, f.rules, {
+      async locationEntity(entity: string) {
+        reads.push(entity);
+        return {};
+      },
+    } as any);
+    const args = {
+      message: 'They are close',
+      condition: {
+        source: 'distance',
+        entity_id: 'person.a',
+        target_entity_id: 'person.b',
+        operator: 'below',
+        distance_m: 3200,
+      },
+    };
+    const ctx = { session: 'telegram:1', jobId: 'location', signal: AbortSignal.timeout(10000) };
+    await assert.rejects(tools.call('alert_create', args, ctx), /upgraded Zero HA/);
+    assert.equal((await f.repository.list(ctx.session, 'alert', 0, 20)).total, 0);
+    f.scheduler.supportsLocationAlerts = async () => true;
+    f.scheduler.permitsLocationCondition = () => true;
+    await tools.call('alert_create', args, ctx);
+    assert.deepEqual(reads, ['person.a', 'person.b', 'person.a', 'person.b']);
+    const rule = f.configurations.at(-1)!;
+    assert.equal(rule.condition?.source, 'distance');
+    if (rule.condition?.source !== 'distance') throw new Error('missing condition');
+    assert.equal(rule.condition.distance_m, 3200);
+    assert.equal(rule.condition.reset_margin_m, 100);
+    assert.equal(await f.rules.canNotify(rule), true);
+    f.scheduler.permitsLocationCondition = () => false;
+    assert.equal(await f.rules.canNotify(rule), false);
+    await assert.rejects(
+      tools.call(
+        'alert_create',
+        { ...args, condition: { ...args.condition, target_entity_id: 'person.a' } },
+        ctx,
+      ),
+      /different people/,
+    );
+    await assert.rejects(
+      tools.call(
+        'alert_create',
+        {
+          message: 'Arrived',
+          condition: {
+            source: 'zone',
+            entity_id: 'person.a',
+            target_entity_id: 'zone.office',
+            operator: 'enter',
+          },
+        },
+        ctx,
+      ),
+      /permitted people/,
+    );
+    f.scheduler.permitsLocationCondition = () => true;
+    await tools.call(
+      'alert_create',
+      {
+        message: 'Arrived',
+        condition: {
+          source: 'zone',
+          entity_id: 'person.a',
+          target_entity_id: 'zone.office',
+          operator: 'enter',
+        },
+      },
+      ctx,
+    );
+    assert.equal(f.configurations.at(-1)?.condition?.source, 'zone');
   } finally {
     await f.close();
   }
