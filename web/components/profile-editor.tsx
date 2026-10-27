@@ -1,6 +1,7 @@
 'use client';
 import { Badge } from './ui/badge';
 import { HAEntityPicker } from './ha-entity-picker';
+import { HAEntityMultiPicker } from './ha-entity-multi-picker';
 import { TimezoneOptions } from './timezone-options';
 import { notifyWarning } from '../lib/notifications';
 import {
@@ -549,11 +550,13 @@ export function ProfileEditor({
                       La entidad de tiempo se usa para consultar el pronóstico y evaluar alertas
                       meteorológicas.
                     </p>
-                    <Field
+                    <HAEntityMultiPicker
+                      profile={current}
                       id="profile-ha-sensors"
                       name="ha-sensorEntities"
-                      label="Sensores permitidos (separados por coma)"
-                      defaultValue={(current.homeAssistant?.sensorEntities || []).join(', ')}
+                      label="Sensores permitidos"
+                      domains="sensor,binary_sensor"
+                      defaultValues={current.homeAssistant?.sensorEntities || []}
                     />
                     <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
                     <ProfileCatalogs profile={current} />

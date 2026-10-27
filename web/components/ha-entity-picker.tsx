@@ -16,6 +16,7 @@ export function HAEntityPicker({
   defaultValue = '',
   value,
   onChange,
+  onSelect,
   pattern,
 }: {
   profile: Profile;
@@ -26,6 +27,7 @@ export function HAEntityPicker({
   defaultValue?: string;
   value?: string;
   onChange?: (value: string) => void;
+  onSelect?: (value: string) => void;
   pattern?: string;
 }) {
   const [local, setLocal] = useState(defaultValue);
@@ -132,6 +134,7 @@ export function HAEntityPicker({
                     onSelect={() => {
                       setLocal(item.id);
                       onChange?.(item.id);
+                      onSelect?.(item.id);
                       setOpen(false);
                     }}
                   >
