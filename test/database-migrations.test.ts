@@ -37,11 +37,26 @@ test('existing pre-cleanup database upgrades without losing saved assistant data
     `);
     await migrateDatabase(f.pool);
     await migrateDatabase(f.pool);
-    const { rows: [assistant] } = await f.pool.query("SELECT name,prompt,preset,builtin FROM assistant_definitions WHERE id='helper'");
-    assert.deepEqual(assistant, { name: 'Saved assistant', prompt: 'Private saved prompt', preset: 'explicit', builtin: false });
-    const { rows: [profile] } = await f.pool.query("SELECT assistant_id,prompt_preset FROM access_profiles WHERE bot='helper'");
+    const {
+      rows: [assistant],
+    } = await f.pool.query(
+      "SELECT name,prompt,preset,builtin FROM assistant_definitions WHERE id='helper'",
+    );
+    assert.deepEqual(assistant, {
+      name: 'Saved assistant',
+      prompt: 'Private saved prompt',
+      preset: 'explicit',
+      builtin: false,
+    });
+    const {
+      rows: [profile],
+    } = await f.pool.query(
+      "SELECT assistant_id,prompt_preset FROM access_profiles WHERE bot='helper'",
+    );
     assert.deepEqual(profile, { assistant_id: 'helper', prompt_preset: 'explicit' });
-    const { rows: [history] } = await f.pool.query('SELECT count(*)::int AS count FROM __drizzle_migrations');
+    const {
+      rows: [history],
+    } = await f.pool.query('SELECT count(*)::int AS count FROM __drizzle_migrations');
     assert.equal(history.count, 5);
   } finally {
     await f.close();
@@ -52,7 +67,9 @@ test('unexpected migration checksums are still rejected before any upgrade', asy
   const f = await isolatedDatabase();
   try {
     await migrateDatabase(f.pool);
-    await f.pool.query("UPDATE __drizzle_migrations SET hash='unrecognized' WHERE created_at=1793064686202");
+    await f.pool.query(
+      "UPDATE __drizzle_migrations SET hash='unrecognized' WHERE created_at=1793064686202",
+    );
     await assert.rejects(migrateDatabase(f.pool), /history does not match/);
   } finally {
     await f.close();

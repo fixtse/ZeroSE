@@ -10,6 +10,10 @@
   descriptions for discovery, and never require replaying a mutation to fetch omitted output.
 - Storage uses PostgreSQL with pgvector; keep ports asynchronous and preserve queue/session ordering.
   Use a dedicated `TEST_DATABASE_URL` for tests. Never clear production state or volumes.
+- Fix code-style issues before committing or pushing. Run the pinned Prettier formatter in
+  Codespaces on changed files, synchronize the formatted files back to the local checkout,
+  and rerun `pnpm format:check` against the final source tree. A failed formatting check
+  blocks commit and push; do not rely on GitHub Actions to discover or fix formatting.
 - Run `pnpm format:check`, `pnpm check`, `pnpm test`, and `pnpm build` before pushing.
   Validate deployment definitions locally with `docker compose config --quiet`.
   Let GitHub Actions build and validate Docker images; do not build images locally unless
