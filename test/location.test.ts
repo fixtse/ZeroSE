@@ -6,6 +6,7 @@ import { ConfigSchema } from '../src/adapters/outbound/config-schema.js';
 import { HomeAssistant } from '../src/adapters/outbound/home-assistant.js';
 import { registerHomeAssistantTools } from '../src/adapters/inbound/integration-tools.js';
 import { Tools } from '../src/application/tool-registry.js';
+import { toolCapability } from '../src/domain/access.js';
 
 test('location tool reports presence, zones and independent GPS/address observations using only GETs', async () => {
   let state = 'home';
@@ -170,4 +171,194 @@ test('location discovery is scoped, bounded and excludes private attributes', as
     server.close();
     await once(server, 'close');
   }
+});
+
+test('direct distance tool computes metres, qualifies old observations and rejects unusable coordinates', async () => {
+  const now = new Date().toISOString();
+  const states: Record<string, any> = {
+    'person.ken': {
+      entity_id: 'person.ken',
+      state: 'not_home',
+      last_reported: now,
+      attributes: {
+        friendly_name: 'Ken',
+        latitude: 0,
+        longitude: 179.99,
+        gps_accuracy: 10,
+        private: 'omit',
+      },
+    },
+    'person.francisco': {
+      entity_id: 'person.francisco',
+      state: 'not_home',
+      last_reported: now,
+      attributes: { friendly_name: 'Francisco', latitude: 0, longitude: -179.99, gps_accuracy: 15 },
+    },
+  };
+  const requests: string[] = [];
+  const server = createServer((req, res) => {
+    assert.equal(req.method, 'GET');
+    requests.push(req.url!);
+    res.setHeader('Content-Type', 'application/json');
+    const entity = decodeURIComponent(req.url!.split('/').at(-1)!);
+    res.end(JSON.stringify(entity === 'states' ? Object.values(states) : states[entity]));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const config = ConfigSchema.parse({
+    homeAssistant: {
+      token: 'test',
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      sensorEntities: Object.keys(states),
+    },
+  }).homeAssistant;
+  const ha = new HomeAssistant(config);
+  const tools = new Tools({ audit: async () => {} });
+  registerHomeAssistantTools(tools, ha, config);
+  const ctx = { session: 'telegram:-42', jobId: 'distance', signal: AbortSignal.timeout(10000) };
+  const read = () =>
+    tools.call(
+      'ha_distance',
+      { person_a: 'person.ken', person_b: 'person.francisco' },
+      ctx,
+    ) as ReturnType<HomeAssistant['distance']>;
+  try {
+    assert.ok(tools.definitions().some((t) => t.name === 'ha_distance'));
+    assert.equal(toolCapability('ha_distance'), 'homeAssistant');
+    const discovered = await ha.locationEntities('francisco', 0, 20);
+    assert.equal(discovered.items[0].entity_id, 'person.francisco');
+    const result = await read();
+    assert.equal(result.available, true);
+    assert.equal(result.current, true);
+    assert.equal(result.method, 'straight_line');
+    assert.equal(result.distance_m, 2224);
+    assert.equal(result.locations[0]!.name, 'Ken');
+    assert.equal(result.locations[1]!.gps_accuracy_m, 15);
+    assert.ok(result.locations.every((location) => location.age_seconds! < 10));
+    assert.ok(!JSON.stringify(result).includes('private'));
+    const count = requests.length;
+    await assert.rejects(ha.distance('person.ken', 'person.private'), /not permitted/);
+    await assert.rejects(ha.distance('person.ken', 'zone.home'), /not permitted/);
+    await assert.rejects(
+      tools.call('ha_distance', { person_a: 'person.ken', person_b: 'person.ken' }, ctx),
+      /different people/,
+    );
+    await assert.rejects(tools.call('ha_distance', { user_a: '12', user_b: '13' }, ctx));
+    assert.equal(requests.length, count);
+    const original = structuredClone(states['person.francisco']);
+    const invalid = [
+      { state: 'unavailable', status: 'unavailable', computable: true },
+      {
+        last_reported: new Date(Date.now() - 7200000).toISOString(),
+        status: 'stale',
+        computable: true,
+      },
+      { last_reported: 'invalid', status: 'invalid_timestamp', computable: true },
+      {
+        last_reported: new Date(Date.now() + 600000).toISOString(),
+        status: 'invalid_timestamp',
+        computable: true,
+      },
+      {
+        attributes: { latitude: 91, longitude: 0 },
+        status: 'invalid_coordinates',
+        computable: false,
+      },
+      {
+        attributes: { latitude: 0, longitude: -179.99, gps_accuracy: 201 },
+        status: 'inaccurate',
+        computable: true,
+      },
+      {
+        attributes: { latitude: '0', longitude: 0 },
+        status: 'invalid_coordinates',
+        computable: false,
+      },
+      { state: 'unavailable', attributes: {}, status: 'unavailable', computable: false },
+    ];
+    for (const { status, computable, ...change } of invalid) {
+      states['person.francisco'] = { ...original, ...change };
+      const unavailable = await read();
+      assert.equal(unavailable.available, computable);
+      assert.equal(unavailable.current, false);
+      assert.equal(unavailable.distance_m, computable ? 2224 : null);
+      assert.equal(unavailable.locations[1]!.status, status);
+      if (status === 'stale') assert.ok(unavailable.locations[1]!.age_seconds! >= 7200);
+    }
+    states['person.francisco'] = {
+      ...original,
+      last_reported: undefined,
+      last_updated: now,
+      attributes: { latitude: 0, longitude: 179.99 },
+    };
+    assert.equal((await read()).distance_m, 0);
+    const blocked = new Tools({ audit: async () => {} }, async () => false);
+    registerHomeAssistantTools(blocked, ha, config);
+    await assert.rejects(
+      blocked.call('ha_distance', { person_a: 'person.ken', person_b: 'person.francisco' }, ctx),
+      /not permitted/,
+    );
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('group distance uses assigned member locations without requiring person allowlist discovery', async () => {
+  const now = new Date().toISOString();
+  const config = ConfigSchema.parse({
+    homeAssistant: { token: 'group-test', sensorEntities: ['sensor.temperature'] },
+  }).homeAssistant;
+  const tools = new Tools({ audit: async () => {} });
+  const calls: string[] = [];
+  registerHomeAssistantTools(tools, new HomeAssistant(config), config, {
+    async list() {
+      return {
+        items: [
+          { userId: '12', name: 'Ken' },
+          { userId: '13', name: 'Francisco' },
+        ],
+        total: 2,
+      };
+    },
+    async location(userId) {
+      calls.push(userId);
+      if (!['12', '13'].includes(userId))
+        throw new Error('No active location assignment in this group');
+      const source = {
+        entity_id: userId === '12' ? 'device_tracker.ken' : 'sensor.francisco_address',
+        available: true,
+        state: 'not_home',
+        last_reported: userId === '12' ? now : new Date(Date.now() - 7200000).toISOString(),
+        coordinates: { latitude: 0, longitude: userId === '12' ? 0 : 0.01, accuracy_m: 10 },
+      };
+      return userId === '12'
+        ? { tracker: source, geocoded: null }
+        : { tracker: null, geocoded: source };
+    },
+  });
+  const ctx = {
+    session: 'telegram:-42',
+    jobId: 'group-distance',
+    signal: AbortSignal.timeout(10000),
+  };
+  const result: any = await tools.call('ha_distance', { user_a: '12', user_b: '13' }, ctx);
+  assert.equal(result.distance_m, 1112);
+  assert.equal(result.available, true);
+  assert.equal(result.current, false);
+  assert.equal(result.locations[1].user_id, '13');
+  assert.equal(result.locations[1].status, 'stale');
+  assert.ok(result.locations[1].age_seconds >= 7200);
+  assert.deepEqual(calls, ['12', '13']);
+  await assert.rejects(
+    tools.call('ha_distance', { user_a: '12', user_b: '99' }, ctx),
+    /No active location assignment/,
+  );
+  await assert.rejects(
+    tools.call('ha_distance', { user_a: '12', user_b: '12' }, ctx),
+    /different members/,
+  );
+  await assert.rejects(
+    tools.call('ha_distance', { user_a: '12', user_b: '13', person_a: 'person.private' }, ctx),
+  );
 });

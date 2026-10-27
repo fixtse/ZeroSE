@@ -116,6 +116,7 @@ export interface HomeAssistantToolsPort extends HomeAssistantPort {
     signal?: AbortSignal,
   ): Promise<unknown>;
   locationEntity?(entity: string, signal?: AbortSignal): Promise<unknown>;
+  distance?(first: string, second: string, signal?: AbortSignal): Promise<unknown>;
   sensors(search?: string, signal?: AbortSignal): Promise<unknown>;
   sensor(entity: string, signal?: AbortSignal): Promise<unknown>;
   history(entity: string, start: string, end: string, signal?: AbortSignal): Promise<unknown>;

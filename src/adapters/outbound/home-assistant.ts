@@ -1,3 +1,4 @@
+import { personDistance } from '../../domain/location-distance.js';
 import { permitsLocationEntity } from '../../domain/location-access.js';
 import { jsonRequest, jsonBody } from './http.js';
 import type { AdminCatalogQuery } from '../../application/admin-catalog.js';
@@ -183,6 +184,18 @@ export class HomeAssistant {
           .map((key) => [key, state.attributes[key]]),
       ),
     };
+  }
+  async distance(first: string, second: string, signal?: AbortSignal) {
+    if (first === second) throw new Error('Choose two different people');
+    // Check both scopes before fetching either location.
+    for (const entity of [first, second])
+      if (!/^person\.[a-z0-9_]+$/.test(entity) || !permitsLocationEntity(this.config, entity))
+        throw new Error('Person entity is not permitted');
+    const [a, b] = await Promise.all([
+      this.locationEntity(first, signal),
+      this.locationEntity(second, signal),
+    ]);
+    return personDistance(a, b);
   }
   async sensors(search = '', signal?: AbortSignal) {
     const states = await this.request('states', undefined, signal);

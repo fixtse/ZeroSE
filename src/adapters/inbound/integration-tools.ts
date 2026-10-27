@@ -1,3 +1,4 @@
+import { groupDistance } from '../../application/location-distance.js';
 import { UserContext, contextLimit } from '../../application/user-context.js';
 import { z } from 'zod';
 import type { MemoryMode } from '../../domain/memory.js';
@@ -266,7 +267,7 @@ export function registerHomeAssistantTools(
   if (ha.locationEntities && ha.locationEntity) {
     tools.add(
       'ha_location_entities',
-      'Discover permitted person and zone IDs for location alerts. Search and paginate; group membership does not grant monitoring permission.',
+      'Discover permitted person and zone IDs for distance queries and location alerts. Search and paginate; group membership does not grant monitoring permission.',
       z.object({ search: z.string().max(200).default(''), ...pagination }),
       async (a, c) =>
         jsonPage(
@@ -279,6 +280,36 @@ export function registerHomeAssistantTools(
       'Read one permitted person or zone: coordinates, GPS accuracy, radius and timestamps.',
       z.object({ entity_id: z.string().regex(/^(person|zone)\.[a-z0-9_]+$/), ...resultOffset }),
       async (a, c) => jsonPage(await ha.locationEntity!(a.entity_id, c.signal), a.result_offset),
+    );
+  }
+  if (ha.distance) {
+    const personPair = z
+      .object({
+        person_a: z.string().regex(/^person\.[a-z0-9_]+$/),
+        person_b: z.string().regex(/^person\.[a-z0-9_]+$/),
+        ...resultOffset,
+      })
+      .strict()
+      .refine((a) => a.person_a !== a.person_b, 'Choose two different people');
+    const memberPair = z
+      .object({
+        user_a: z.string().regex(/^[1-9]\d{0,15}$/),
+        user_b: z.string().regex(/^[1-9]\d{0,15}$/),
+        ...resultOffset,
+      })
+      .strict()
+      .refine((a) => a.user_a !== a.user_b, 'Choose two different members');
+    tools.add(
+      'ha_distance',
+      'Read approximate straight-line distance in metres from latest reported coordinates. In groups, discover members with group_members_list and pass user_a/user_b to use their assigned locations. Otherwise discover permitted person IDs with ha_location_entities and pass person_a/person_b. Clarify ambiguous names. Old coordinates still yield distance with current=false; identify stale/uncertain people and warn using source age/accuracy. No usable coordinates means no distance. No alerts or monitoring are created.',
+      group ? z.union([memberPair, personPair]) : personPair,
+      async (a, c) =>
+        jsonPage(
+          'user_a' in a && group
+            ? await groupDistance(group, a.user_a, a.user_b, c.signal)
+            : await ha.distance!(a.person_a, a.person_b, c.signal),
+          a.result_offset,
+        ),
     );
   }
   tools.add(

@@ -1179,3 +1179,24 @@ background location updates determine detection latency and battery use.
 
 Requires a Zero HA integration advertising `location_alerts`; older integrations
 reject creation before saving a rule. Publishing code does not upgrade live HA.
+
+For direct questions such as “¿A qué distancia está Ken de Francisco?”, Zero uses
+`ha_location_entities` to resolve permitted people and `ha_distance` to fetch both
+observations and calculate the approximate straight-line distance in metres.
+The read-only tool includes each source's report time, age and GPS accuracy;
+old or imprecise observations still produce a distance with `current: false`,
+so the reply names the affected person, gives the observation age and warns that
+the actual distance may differ. Only missing or unusable coordinates prevent the
+calculation. HA report time does not guarantee the phone GPS fix is fresh.
+It creates no subscription, alert or recurring work and requires only the Zero
+update, not an additional HA integration release.
+
+In groups, resolve names with `group_members_list` and call `ha_distance` with
+`user_a`/`user_b` (Telegram member IDs). This uses the same active assignments and
+group HA connection as `location_get`, including device trackers or assigned
+geocoded-location sensors, without duplicating the person IDs in the sensor
+allowlist. Missing/inactive member assignments are rejected. This read permission
+does not grant persistent monitoring permission. A different HA account may read
+the data without the Zero integration; persistent alerts require that integration
+on the HA server used by the group. Member assignments do not choose another
+HA server or another member's credentials.
