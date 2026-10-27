@@ -99,9 +99,16 @@ test('admin catalogs use the saved chat connection, bounded query and isolated r
     200,
   );
   assert.deepEqual(calls[0], { search: 'test', limit: 5, offset: 2 });
+  assert.equal(
+    (await request(admin, 'helper/123/entities?search=todo.&domains=todo&limit=5&offset=2')).status,
+    200,
+  );
+  assert.deepEqual(calls[1], { search: 'todo.', domains: 'todo', limit: 5, offset: 2 });
+  await assert.rejects(request(admin, 'helper/123/entities?domains=todo.*'));
+
   assert.equal((await request(admin, 'helper/123/services')).value.items[0].id, 'light.turn_on');
   assert.equal((await request(admin, 'helper/123/rules?kind=alert&offset=3')).status, 200);
-  assert.deepEqual(calls[1], ['helper:123', 'alert', 3, 20]);
+  assert.deepEqual(calls[2], ['helper:123', 'alert', 3, 20]);
   assert.equal((await request(admin, 'zero/123/rules')).status, 404);
   await assert.rejects(request(admin, 'helper/123/entities?limit=51'));
   f.profile.capabilities = [];
@@ -330,4 +337,48 @@ test('entity catalogs filter domains before pagination', async (t) => {
   );
   assert.equal(page.total, 2);
   assert.equal(page.items[0].id, 'device_tracker.phone');
+});
+
+test('admin entity prefix search returns every matching domain across bounded pages', async (t) => {
+  const { HomeAssistant } = await import('../src/adapters/outbound/home-assistant.js');
+  const f = setup();
+  t.mock.method(globalThis, 'fetch', async () =>
+    Response.json([
+      { entity_id: 'sensor.unrelated', attributes: { friendly_name: 'todo. should not match' } },
+      ...Array.from({ length: 25 }, (_, index) => ({
+        entity_id: 'todo.list_' + index,
+        attributes: { friendly_name: 'Lista ' + index },
+      })),
+      { entity_id: 'weather.home', attributes: { friendly_name: 'Casa' } },
+    ]),
+  );
+  const admin = new Admin(
+    f.config,
+    f.repository,
+    async () => {},
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    (config) => {
+      const ha = new HomeAssistant(config.homeAssistant);
+      return {
+        entities: (query, signal) => ha.entityCatalog(query, signal),
+        services: async () => ({ items: [], total: 0 }),
+      };
+    },
+  );
+  const first = await request(admin, 'helper/123/entities?search=todo.&domains=todo&limit=20');
+  const second = await request(
+    admin,
+    'helper/123/entities?search=todo.&domains=todo&limit=20&offset=20',
+  );
+  assert.equal(first.status, 200);
+  assert.equal(first.value.total, 25);
+  assert.equal(first.value.items.length, 20);
+  assert.equal(second.value.total, 25);
+  assert.equal(second.value.items.length, 5);
+  assert(
+    [...first.value.items, ...second.value.items].every((item) => item.id.startsWith('todo.')),
+  );
 });

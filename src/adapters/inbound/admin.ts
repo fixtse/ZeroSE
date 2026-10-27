@@ -294,11 +294,6 @@ export class Admin {
       const query = z
         .object({
           search: z.string().max(200).default(''),
-          domains: z
-            .string()
-            .regex(/^[a-z_]+(?:,[a-z_]+)*$/)
-            .max(200)
-            .optional(),
           limit: z.coerce.number().int().min(1).max(50).default(20),
           pageToken: z.string().max(4096).default(''),
         })
@@ -339,6 +334,11 @@ export class Admin {
       const query = z
         .object({
           search: z.string().max(200).default(''),
+          domains: z
+            .string()
+            .regex(/^[a-z_]+(?:,[a-z_]+)*$/)
+            .max(200)
+            .optional(),
           offset: z.coerce.number().int().min(0).max(1000000).default(0),
           limit: z.coerce.number().int().min(1).max(50).default(20),
         })

@@ -2642,3 +2642,11 @@ h1 {
 .member-pagination span {
   line-height: 1;
 }
+
+.ha-entity-command {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+}
+.ha-entity-command:focus-within {
+  border-color: var(--primary);
+}

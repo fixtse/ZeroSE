@@ -3,7 +3,18 @@ import { Badge } from './ui/badge';
 import { HAEntityPicker } from './ha-entity-picker';
 import { TimezoneOptions } from './timezone-options';
 import { notifyWarning } from '../lib/notifications';
-import { Brain, RefreshCw, Save, Trash2 } from 'lucide-react';
+import {
+  Brain,
+  ListTodo,
+  NotebookText,
+  RefreshCw,
+  Save,
+  Trash2,
+  UserRound,
+  Users,
+  Workflow,
+} from 'lucide-react';
+import { HomeAssistantIcon } from './home-assistant-icon';
 import { useUrlState } from '../hooks/use-url-state';
 import { GoogleConnectionSettings } from './google-connection';
 import { GoogleDestinationPicker } from './google-destination-picker';
@@ -80,6 +91,10 @@ export function ProfileEditor({
   const [configuredHA, setConfiguredHA] = useState(false);
   const [useConfiguredHA, setUseConfiguredHA] = useState(false);
   const [provider, setProvider] = useUrlState('profileTab', 'profile');
+  const membersAvailable = current?.kind === 'group' && current.hasHomeAssistant;
+  useEffect(() => {
+    if (provider === 'members' && !membersAvailable) setProvider('profile');
+  }, [provider, membersAvailable, setProvider]);
   const enabledGoogleServices = Object.entries(googleServices).filter(([service]) =>
     service === 'tasks'
       ? current?.capabilities.includes('tasks') &&
@@ -219,22 +234,44 @@ export function ProfileEditor({
           <fieldset disabled={busy}>
             <Tabs value={provider} onValueChange={setProvider} className="provider-settings">
               <TabsList aria-label="Proveedor de configuración" className="provider-tabs-list">
-                <TabsTrigger value="profile">Perfil</TabsTrigger>
-                {current && <TabsTrigger value="context">Contexto</TabsTrigger>}
-                {current?.kind === 'group' && (
-                  <TabsTrigger value="members">Integrantes</TabsTrigger>
+                <TabsTrigger value="profile">
+                  <UserRound aria-hidden="true" />
+                  Perfil
+                </TabsTrigger>
+                {current && (
+                  <TabsTrigger value="context">
+                    <NotebookText aria-hidden="true" />
+                    Contexto
+                  </TabsTrigger>
                 )}
                 {current && (
                   <TabsTrigger value="memory">
-                    <Brain />
+                    <Brain aria-hidden="true" />
                     Memoria
                   </TabsTrigger>
                 )}
-                <TabsTrigger value="google">Google</TabsTrigger>
-                {tasksEnabled && <TabsTrigger value="tasks">Tareas</TabsTrigger>}
-                <TabsTrigger value="home-assistant">Home Assistant</TabsTrigger>
+                <TabsTrigger value="google">
+                  <Workflow aria-hidden="true" />
+                  Google
+                </TabsTrigger>
+                {tasksEnabled && (
+                  <TabsTrigger value="tasks">
+                    <ListTodo aria-hidden="true" />
+                    Tareas
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="home-assistant">
+                  <HomeAssistantIcon aria-hidden="true" />
+                  Home Assistant
+                </TabsTrigger>
+                {membersAvailable && (
+                  <TabsTrigger value="members">
+                    <Users aria-hidden="true" />
+                    Integrantes
+                  </TabsTrigger>
+                )}
               </TabsList>
-              {current?.kind === 'group' && (
+              {membersAvailable && (
                 <TabsContent value="members" forceMount data-settings-provider="members">
                   <GroupMembers profile={current} active={provider === 'members'} />
                 </TabsContent>
