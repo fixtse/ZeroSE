@@ -7,6 +7,7 @@ import { notifyWarning } from '../lib/notifications';
 import {
   Brain,
   ListTodo,
+  AudioLines,
   NotebookText,
   RefreshCw,
   Save,
@@ -264,6 +265,10 @@ export function ProfileEditor({
                 <TabsTrigger value="home-assistant">
                   <HomeAssistantIcon aria-hidden="true" />
                   Home Assistant
+                </TabsTrigger>
+                <TabsTrigger value="speech">
+                  <AudioLines aria-hidden="true" />
+                  Voz
                 </TabsTrigger>
                 {membersAvailable && (
                   <TabsTrigger value="members">
@@ -558,7 +563,6 @@ export function ProfileEditor({
                       domains="sensor,binary_sensor,person,zone"
                       defaultValues={current.homeAssistant?.sensorEntities || []}
                     />
-                    <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
                     <ProfileCatalogs profile={current} />
                   </>
                 ) : (
@@ -568,6 +572,9 @@ export function ProfileEditor({
                       : 'Las entidades estarán disponibles cuando este usuario tenga una conexión de Home Assistant.'}
                   </p>
                 )}
+              </TabsContent>
+              <TabsContent value="speech" forceMount data-settings-provider="speech">
+                <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
               </TabsContent>
             </Tabs>
             <p className="settings-help">
