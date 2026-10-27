@@ -95,8 +95,14 @@ export class Access {
       if (kind === 'user' && String(message.from?.id) !== chatId) return;
       if (bot !== 'zero' && kind === 'group') {
         const mentions = telegramMentions(message);
-        if (!mentions.length || !mentions.includes((await this.botUsername(bot)).toLowerCase()))
-          return;
+        const replySender = message.reply_to_message?.from;
+        const replyUsername =
+          replySender?.is_bot === true && typeof replySender.username === 'string'
+            ? replySender.username.toLowerCase()
+            : '';
+        if (!mentions.length && !replyUsername) return;
+        const username = (await this.botUsername(bot)).toLowerCase();
+        if (!username || (!mentions.includes(username) && replyUsername !== username)) return;
       }
     }
     return this.store.enqueue(

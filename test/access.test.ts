@@ -106,7 +106,7 @@ test('discovery records Helper contacts as pending, never inherits sender permis
   }
 });
 
-test('Helper groups require an explicit mention on the incoming text or media caption', async () => {
+test('Helper groups accept mentions and direct replies to their own bot messages', async () => {
   const f = await fixture();
   const repository = new PostgresAccess(f.store.db, f.config.apiKey);
   await repository.initialize(f.config);
@@ -124,6 +124,9 @@ test('Helper groups require an explicit mention on the incoming text or media ca
     for (const type of ['group', 'supergroup']) {
       for (const message of [
         { text: 'hello' },
+        { text: 'hello', reply_to_message: { from: { is_bot: true, username: 'another_bot' } } },
+        { text: 'hello', reply_to_message: { from: { is_bot: false, username: 'del_chat_ai_bot' } } },
+        { text: 'hello', external_reply: { from: { is_bot: true, username: 'del_chat_ai_bot' } } },
         { video, forward_origin: { type: 'user' } },
         { text: 'transcribe', reply_to_message: { video } },
         { text: 'hello', reply_to_message: { from: { is_bot: true }, ...addressed } },
@@ -141,6 +144,8 @@ test('Helper groups require an explicit mention on the incoming text or media ca
       }
       for (const message of [
         addressed,
+        { text: 'hello', reply_to_message: { from: { is_bot: true, username: 'DEL_CHAT_AI_BOT' } } },
+        { video, reply_to_message: { from: { is_bot: true, username: 'del_chat_ai_bot' } } },
         { ...addressed, reply_to_message: { video } },
         { text: '😀 @DEL_CHAT_AI_BOT', entities: [{ ...mention, offset: 3 }] },
         { video, caption: addressed.text, caption_entities: addressed.entities },
@@ -179,7 +184,7 @@ test('Helper groups require an explicit mention on the incoming text or media ca
       }),
     );
     assert.equal(lookups, beforePrivate, 'Private messages do not need a bot username');
-    assert.equal(lookups, 14, 'Unaddressed messages never fetch the bot identity');
+    assert.equal(lookups, 20, 'Unaddressed messages never fetch the bot identity');
   } finally {
     await f.close();
   }
