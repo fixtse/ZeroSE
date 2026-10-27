@@ -814,10 +814,11 @@ an enabled chat refreshes its menu; disabling it clears that chat's command list
 Telegram registration fails, access settings remain saved and the web interface reports
 the menu failure without automatically retrying. Save the chat again to update its menu.
 
-In enabled groups, each assistant processes only messages that explicitly mention its Telegram username
-in the message text or media caption, including `/command@username`. Replies without a mention,
-ordinary conversation, and forwarded media without a mention are ignored before queueing or
-media downloads. Reply to a video with `@your_bot_username` to request its transcript.
+In enabled groups, each assistant processes messages that explicitly mention its Telegram username
+in the message text or media caption, including `/command@username`, or directly reply to a message
+from that assistant. The group setting **Responder cuando contesten a un mensaje del asistente**
+controls direct replies and is enabled by default; disable it to require a mention. Replies to other users or bots, ordinary conversation, and forwarded media
+without a mention are ignored before queueing or media downloads. Reply to a video with `@your_bot_username` to request its transcript.
 Private chats and Zero retain their existing behavior; group welcome and migration events
 are handled separately. Each assistant resolves its username through `getMe` on demand and caches it
 for the configured token.

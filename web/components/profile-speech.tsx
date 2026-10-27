@@ -104,8 +104,8 @@ export function ProfileSpeech({
     }
   }
   return (
-    <details className="settings-section">
-      <summary>Voz · transcripción y síntesis</summary>
+    <section className="settings-section">
+      <h3>Voz · transcripción y síntesis</h3>
       <p>
         Predeterminado conserva la transcripción actual y Edge TTS. Para consultar motores de Home
         Assistant, guarda primero su conexión y habilita ese permiso.
@@ -294,6 +294,6 @@ export function ProfileSpeech({
       <small>
         La prueba usa la selección actual sin guardarla. Guarda el perfil para aplicar los cambios.
       </small>
-    </details>
+    </section>
   );
 }

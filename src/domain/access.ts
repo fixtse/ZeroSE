@@ -31,6 +31,7 @@ export interface AccessProfile {
   memoryMode?: MemoryMode;
   timezone?: string;
   voiceReplies?: boolean;
+  respondToReplies?: boolean;
   speech?: SpeechSettings;
   memoryPolicy?: MemoryPolicy;
   assistantId?: string;

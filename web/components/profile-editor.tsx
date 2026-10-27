@@ -7,6 +7,7 @@ import { notifyWarning } from '../lib/notifications';
 import {
   Brain,
   ListTodo,
+  AudioLines,
   NotebookText,
   RefreshCw,
   Save,
@@ -145,6 +146,7 @@ export function ProfileEditor({
         label: String(data.get('label') || '').trim(),
         enabled: data.has('enabled'),
         voiceReplies: data.has('voiceReplies'),
+        ...(kind === 'group' ? { respondToReplies: data.has('respondToReplies') } : {}),
         timezone: String(data.get('timezone') || '').trim(),
         memoryMode: data.get('memoryMode'),
         speech,
@@ -265,6 +267,10 @@ export function ProfileEditor({
                   <HomeAssistantIcon aria-hidden="true" />
                   Home Assistant
                 </TabsTrigger>
+                <TabsTrigger value="speech">
+                  <AudioLines aria-hidden="true" />
+                  Voz
+                </TabsTrigger>
                 {membersAvailable && (
                   <TabsTrigger value="members">
                     <Users aria-hidden="true" />
@@ -333,6 +339,14 @@ export function ProfileEditor({
                   label="Respuestas de voz"
                   defaultChecked={current?.voiceReplies !== false}
                 />
+                {kind === 'group' && (
+                  <CheckField
+                    id="profile-respond-to-replies"
+                    name="respondToReplies"
+                    label="Responder cuando contesten a un mensaje del asistente"
+                    defaultChecked={current?.respondToReplies !== false}
+                  />
+                )}
                 <div className="settings-grid">
                   <Field
                     id="profile-timezone"
@@ -558,7 +572,6 @@ export function ProfileEditor({
                       domains="sensor,binary_sensor,person,zone"
                       defaultValues={current.homeAssistant?.sensorEntities || []}
                     />
-                    <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
                     <ProfileCatalogs profile={current} />
                   </>
                 ) : (
@@ -568,6 +581,9 @@ export function ProfileEditor({
                       : 'Las entidades estarán disponibles cuando este usuario tenga una conexión de Home Assistant.'}
                   </p>
                 )}
+              </TabsContent>
+              <TabsContent value="speech" forceMount data-settings-provider="speech">
+                <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
               </TabsContent>
             </Tabs>
             <p className="settings-help">

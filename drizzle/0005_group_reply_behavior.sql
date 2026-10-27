@@ -1,0 +1,1 @@
+ALTER TABLE "access_profiles" ADD COLUMN "respond_to_replies" boolean DEFAULT true NOT NULL;
