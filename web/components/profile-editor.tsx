@@ -117,7 +117,10 @@ export function ProfileEditor({
       requestAnimationFrame(() => invalid.reportValidity());
       return;
     }
-    const data = new FormData(form, (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null);
+    const data = new FormData(
+      form,
+      (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null,
+    );
     void run(async () => {
       const bot = current?.bot || (String(data.get('bot')) as Profile['bot']),
         chatId = current?.chatId || String(data.get('chatId') || '').trim();
@@ -129,9 +132,14 @@ export function ProfileEditor({
         timezone: String(data.get('timezone') || '').trim(),
         memoryMode: data.get('memoryMode'),
         speech,
-        capabilities: Object.keys(capabilities).filter((id) => data.has('cap-' + id) || (id === 'homeAssistant' && (data.get('saveHAConnection') === 'true' || useConfiguredHA))),
+        capabilities: Object.keys(capabilities).filter(
+          (id) =>
+            data.has('cap-' + id) ||
+            (id === 'homeAssistant' &&
+              (data.get('saveHAConnection') === 'true' || useConfiguredHA)),
+        ),
         confirmTaskProviderChange: data.has('confirmTaskProviderChange'),
-        
+
         useConfiguredHomeAssistant: kind === 'group' && useConfiguredHA,
       };
       if (data.has('modelsLoaded')) {
@@ -141,20 +149,23 @@ export function ProfileEditor({
       const homeAssistant: Record<string, unknown> = {};
       for (const key of Object.keys(haFields))
         if (data.has('ha-' + key)) homeAssistant[key] = String(data.get('ha-' + key) || '').trim();
-        else if (key !== 'token' && key !== 'url') homeAssistant[key] = current?.homeAssistant?.[key as keyof NonNullable<Profile['homeAssistant']>] || '';
-      if (current?.source !== 'home_assistant' && !data.has('ha-url')) homeAssistant.url = current?.homeAssistant?.url || '';
+        else if (key !== 'token' && key !== 'url')
+          homeAssistant[key] =
+            current?.homeAssistant?.[key as keyof NonNullable<Profile['homeAssistant']>] || '';
+      if (current?.source !== 'home_assistant' && !data.has('ha-url'))
+        homeAssistant.url = current?.homeAssistant?.url || '';
       homeAssistant.taskListEntity = String(
         data.get('ha-taskListEntity') || current?.homeAssistant?.taskListEntity || '',
       ).trim();
       homeAssistant.taskProvider =
         data.get('ha-taskProvider') || current?.homeAssistant?.taskProvider || 'google';
-      homeAssistant.sensorEntities = String(data.get('ha-sensorEntities') ?? current?.homeAssistant?.sensorEntities?.join(',') ?? '')
+      homeAssistant.sensorEntities = String(
+        data.get('ha-sensorEntities') ?? current?.homeAssistant?.sensorEntities?.join(',') ?? '',
+      )
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
-      if (
-        (current?.hasHomeAssistant || homeAssistant.url || homeAssistant.token || useConfiguredHA)
-      )
+      if (current?.hasHomeAssistant || homeAssistant.url || homeAssistant.token || useConfiguredHA)
         value.homeAssistant = homeAssistant;
       const result = await api<{ saved: boolean; warning?: string }>(
         path({ bot, chatId }),
@@ -186,7 +197,11 @@ export function ProfileEditor({
           <div className="profile-title-row">
             <DialogTitle>
               {current ? 'Perfil · ' + current.label : 'Añadir usuario o grupo'}
-              {current && <Badge variant="secondary" className="ml-2 align-middle">{current.kind === 'group' ? 'Grupo' : 'Usuario privado'}</Badge>}
+              {current && (
+                <Badge variant="secondary" className="ml-2 align-middle">
+                  {current.kind === 'group' ? 'Grupo' : 'Usuario privado'}
+                </Badge>
+              )}
             </DialogTitle>
             {current && (
               <AssistantAssignment
@@ -225,32 +240,41 @@ export function ProfileEditor({
                 </TabsContent>
               )}
               <TabsContent value="profile" forceMount data-settings-provider="profile">
-                {!current && <div className="settings-grid">
-                  <AssistantConnectionField disabled={busy} />
-                  <SelectField
-                    id="profile-kind"
-                    name="kind"
-                    label="Tipo de perfil"
-                    defaultValue="user"
-                    onChange={(event) => {
-                      setKind(event.target.value as Profile['kind']);
-                      setUseConfiguredHA(false);
-                    }}
-                    disabled={busy}
-                  >
-                    <option value="user">Usuario privado</option>
-                    <option value="group">Grupo</option>
-                  </SelectField>
-                </div>}
-                {current ? <p className="settings-help">{current.source === 'home_assistant' ? 'Home Assistant user ID' : 'Chat ID'}: {current.chatId}</p> : <Field
-                  id="profile-chat-id"
-                  name="chatId"
-                  label="Chat ID"
-                  inputMode="numeric"
-                  required
-                  pattern="-?[0-9]{1,16}"
-                  placeholder="123456789 o -1001234567890"
-                />}
+                {!current && (
+                  <div className="settings-grid">
+                    <AssistantConnectionField disabled={busy} />
+                    <SelectField
+                      id="profile-kind"
+                      name="kind"
+                      label="Tipo de perfil"
+                      defaultValue="user"
+                      onChange={(event) => {
+                        setKind(event.target.value as Profile['kind']);
+                        setUseConfiguredHA(false);
+                      }}
+                      disabled={busy}
+                    >
+                      <option value="user">Usuario privado</option>
+                      <option value="group">Grupo</option>
+                    </SelectField>
+                  </div>
+                )}
+                {current ? (
+                  <p className="settings-help">
+                    {current.source === 'home_assistant' ? 'Home Assistant user ID' : 'Chat ID'}:{' '}
+                    {current.chatId}
+                  </p>
+                ) : (
+                  <Field
+                    id="profile-chat-id"
+                    name="chatId"
+                    label="Chat ID"
+                    inputMode="numeric"
+                    required
+                    pattern="-?[0-9]{1,16}"
+                    placeholder="123456789 o -1001234567890"
+                  />
+                )}
                 <Field
                   id="profile-label"
                   name="label"
@@ -407,34 +431,103 @@ export function ProfileEditor({
                 {kind === 'group' && current?.source !== 'home_assistant' && (
                   <section className="settings-section">
                     <h3>Conexión de Home Assistant</h3>
-                    {configuredHA && <CheckField
-                      id="profile-use-configured-ha"
-                      checked={useConfiguredHA}
-                      onCheckedChange={(checked) => setUseConfiguredHA(checked === true)}
-                      label="Usar la conexión Home Assistant configurada"
-                    />}
-                    {!useConfiguredHA && <div className="settings-grid">
-                      <Field id="profile-ha-url" name="ha-url" label="URL de Home Assistant" type="url" defaultValue={current?.homeAssistant?.url || ''} />
-                      <Field id="profile-ha-token" name="ha-token" label="Long-lived access token" type="password" autoComplete="off" placeholder={current?.homeAssistant?.tokenHint || 'Introduce un token'} />
-                    </div>}
+                    {configuredHA && (
+                      <CheckField
+                        id="profile-use-configured-ha"
+                        checked={useConfiguredHA}
+                        onCheckedChange={(checked) => setUseConfiguredHA(checked === true)}
+                        label="Usar la conexión Home Assistant configurada"
+                      />
+                    )}
+                    {!useConfiguredHA && (
+                      <div className="settings-grid">
+                        <Field
+                          id="profile-ha-url"
+                          name="ha-url"
+                          label="URL de Home Assistant"
+                          type="url"
+                          defaultValue={current?.homeAssistant?.url || ''}
+                        />
+                        <Field
+                          id="profile-ha-token"
+                          name="ha-token"
+                          label="Long-lived access token"
+                          type="password"
+                          autoComplete="off"
+                          placeholder={current?.homeAssistant?.tokenHint || 'Introduce un token'}
+                        />
+                      </div>
+                    )}
                     <div className="form-actions">
-                      <Button type="submit" name="saveHAConnection" value="true" disabled={busy} size="icon" tooltip="Guardar conexión de Home Assistant"><Save /></Button>
+                      <Button
+                        type="submit"
+                        name="saveHAConnection"
+                        value="true"
+                        disabled={busy}
+                        size="icon"
+                        tooltip="Guardar conexión de Home Assistant"
+                      >
+                        <Save />
+                      </Button>
                       <small>Guarda la conexión para seleccionar sus entidades.</small>
                     </div>
                   </section>
                 )}
-                {current?.hasHomeAssistant ? <>
-                  <div className="settings-grid">
-                    {(kind === 'group' ? ['shoppingListEntity', 'weatherEntity'] : ['shoppingListEntity', 'weatherEntity', 'locationEntity', 'geocodedLocationEntity']).map((key) => (
-                      <HAEntityPicker key={key} profile={current} id={'profile-ha-' + key} name={'ha-' + key} label={haFields[key as keyof typeof haFields]} domains={key === 'shoppingListEntity' ? 'todo' : key === 'weatherEntity' ? 'weather' : key === 'locationEntity' ? 'person,device_tracker' : 'sensor'} defaultValue={String(current.homeAssistant?.[key as keyof NonNullable<Profile['homeAssistant']>] || '')} />
-                    ))}
-                  </div>
-                  <p className="settings-help">La entidad de tiempo se usa para consultar el pronóstico y evaluar alertas meteorológicas.</p>
-                  <Field id="profile-ha-sensors" name="ha-sensorEntities" label="Sensores permitidos (separados por coma)" defaultValue={(current.homeAssistant?.sensorEntities || []).join(', ')} />
-                  <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
-                  <ProfileCatalogs profile={current} />
-                </> : <p className="settings-help">{kind === 'group' ? 'Guarda primero la conexión de Home Assistant.' : 'Las entidades estarán disponibles cuando este usuario tenga una conexión de Home Assistant.'}</p>}
-
+                {current?.hasHomeAssistant ? (
+                  <>
+                    <div className="settings-grid">
+                      {(kind === 'group'
+                        ? ['shoppingListEntity', 'weatherEntity']
+                        : [
+                            'shoppingListEntity',
+                            'weatherEntity',
+                            'locationEntity',
+                            'geocodedLocationEntity',
+                          ]
+                      ).map((key) => (
+                        <HAEntityPicker
+                          key={key}
+                          profile={current}
+                          id={'profile-ha-' + key}
+                          name={'ha-' + key}
+                          label={haFields[key as keyof typeof haFields]}
+                          domains={
+                            key === 'shoppingListEntity'
+                              ? 'todo'
+                              : key === 'weatherEntity'
+                                ? 'weather'
+                                : key === 'locationEntity'
+                                  ? 'person,device_tracker'
+                                  : 'sensor'
+                          }
+                          defaultValue={String(
+                            current.homeAssistant?.[
+                              key as keyof NonNullable<Profile['homeAssistant']>
+                            ] || '',
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <p className="settings-help">
+                      La entidad de tiempo se usa para consultar el pronóstico y evaluar alertas
+                      meteorológicas.
+                    </p>
+                    <Field
+                      id="profile-ha-sensors"
+                      name="ha-sensorEntities"
+                      label="Sensores permitidos (separados por coma)"
+                      defaultValue={(current.homeAssistant?.sensorEntities || []).join(', ')}
+                    />
+                    <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
+                    <ProfileCatalogs profile={current} />
+                  </>
+                ) : (
+                  <p className="settings-help">
+                    {kind === 'group'
+                      ? 'Guarda primero la conexión de Home Assistant.'
+                      : 'Las entidades estarán disponibles cuando este usuario tenga una conexión de Home Assistant.'}
+                  </p>
+                )}
               </TabsContent>
             </Tabs>
             <p className="settings-help">

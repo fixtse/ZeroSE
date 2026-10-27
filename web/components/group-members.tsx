@@ -1,15 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import {
-  ArrowLeft,
-  ArrowRight,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Save,
-  Search,
-  Trash2,
-} from 'lucide-react';
+import { ArrowLeft, ArrowRight, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import { api, type Profile, type CatalogPage } from '../lib/api';
 import { useUrlState } from '../hooks/use-url-state';
 import { notifyError } from '../lib/notifications';
@@ -230,65 +221,89 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         </div>
       )}
       {editing && (
-        <Dialog open onOpenChange={(open) => { if (!open && !busy) setSelected(''); }}>
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) setSelected('');
+          }}
+        >
           <DialogContent className="member-editor">
-          <DialogHeader>
-            <DialogTitle>{selected === 'new' ? 'Añadir integrante' : editing.name}</DialogTitle>
-            <DialogDescription>Datos y entidades de este integrante del grupo.</DialogDescription>
-          </DialogHeader>
-          <div className="settings-grid">
-            <Field
-              id="member-user-id"
-              label="ID de usuario de Telegram"
-              value={editing.userId}
-              readOnly={selected !== 'new'}
-              inputMode="numeric"
-              maxLength={16}
-              onChange={(event) => update('userId', event.target.value)}
-            />
-            {selected === 'new' ? <Field
-              id="member-name"
-              label="Nombre del integrante"
-              value={editing.name}
-              maxLength={100}
-              onChange={(event) => update('name', event.target.value)}
-            /> : <p>Nombre: {editing.name}</p>}
-            {profile.hasHomeAssistant && <>
-              <HAEntityPicker profile={profile} id="member-location" label="Entidad de ubicación del integrante" domains="person,device_tracker" value={editing.locationEntity} onChange={(value) => update('locationEntity', value)} />
-              <HAEntityPicker profile={profile} id="member-address" label="Entidad de dirección del integrante" domains="sensor" value={editing.geocodedLocationEntity} onChange={(value) => update('geocodedLocationEntity', value)} />
-            </>}
-
-          </div>
-          <p className="settings-help">
-            {profile.hasHomeAssistant
-              ? 'La ubicación asignada podrá consultarse desde este grupo cuando Home Assistant esté permitido. Usa person.* o device_tracker.* para ubicación y sensor.* para dirección.'
-              : 'Guarda primero una conexión en Home Assistant para asignar entidades.'}{' '}
-            Guarda los integrantes con su propio botón; el botón del perfil guarda sus permisos y
-            conexiones.
-          </p>
-          <div className="form-actions">
-            <Button
-              type="button"
-              size="icon"
-              tooltip="Guardar integrante"
-              disabled={busy || !valid}
-              onClick={requestSave}
-            >
-              <Save />
-            </Button>
-            {original && (
+            <DialogHeader>
+              <DialogTitle>{selected === 'new' ? 'Añadir integrante' : editing.name}</DialogTitle>
+              <DialogDescription>Datos y entidades de este integrante del grupo.</DialogDescription>
+            </DialogHeader>
+            <div className="settings-grid">
+              <Field
+                id="member-user-id"
+                label="ID de usuario de Telegram"
+                value={editing.userId}
+                readOnly={selected !== 'new'}
+                inputMode="numeric"
+                maxLength={16}
+                onChange={(event) => update('userId', event.target.value)}
+              />
+              {selected === 'new' ? (
+                <Field
+                  id="member-name"
+                  label="Nombre del integrante"
+                  value={editing.name}
+                  maxLength={100}
+                  onChange={(event) => update('name', event.target.value)}
+                />
+              ) : (
+                <p>Nombre: {editing.name}</p>
+              )}
+              {profile.hasHomeAssistant && (
+                <>
+                  <HAEntityPicker
+                    profile={profile}
+                    id="member-location"
+                    label="Entidad de ubicación del integrante"
+                    domains="person,device_tracker"
+                    value={editing.locationEntity}
+                    onChange={(value) => update('locationEntity', value)}
+                  />
+                  <HAEntityPicker
+                    profile={profile}
+                    id="member-address"
+                    label="Entidad de dirección del integrante"
+                    domains="sensor"
+                    value={editing.geocodedLocationEntity}
+                    onChange={(value) => update('geocodedLocationEntity', value)}
+                  />
+                </>
+              )}
+            </div>
+            <p className="settings-help">
+              {profile.hasHomeAssistant
+                ? 'La ubicación asignada podrá consultarse desde este grupo cuando Home Assistant esté permitido. Usa person.* o device_tracker.* para ubicación y sensor.* para dirección.'
+                : 'Guarda primero una conexión en Home Assistant para asignar entidades.'}{' '}
+              Guarda los integrantes con su propio botón; el botón del perfil guarda sus permisos y
+              conexiones.
+            </p>
+            <div className="form-actions">
               <Button
                 type="button"
                 size="icon"
-                variant="destructive"
-                tooltip="Eliminar integrante"
-                disabled={busy}
-                onClick={() => setConfirm('delete')}
+                tooltip="Guardar integrante"
+                disabled={busy || !valid}
+                onClick={requestSave}
               >
-                <Trash2 />
+                <Save />
               </Button>
-            )}
-          </div>
+              {original && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  tooltip="Eliminar integrante"
+                  disabled={busy}
+                  onClick={() => setConfirm('delete')}
+                >
+                  <Trash2 />
+                </Button>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       )}

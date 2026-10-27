@@ -294,7 +294,11 @@ export class Admin {
       const query = z
         .object({
           search: z.string().max(200).default(''),
-          domains: z.string().regex(/^[a-z_]+(?:,[a-z_]+)*$/).max(200).optional(),
+          domains: z
+            .string()
+            .regex(/^[a-z_]+(?:,[a-z_]+)*$/)
+            .max(200)
+            .optional(),
           limit: z.coerce.number().int().min(1).max(50).default(20),
           pageToken: z.string().max(4096).default(''),
         })
@@ -562,7 +566,10 @@ export class Admin {
         }
         if (
           chatId.startsWith('ha:') &&
-          (!previous || input.homeAssistant?.url || input.homeAssistant?.token || input.clearHomeAssistant)
+          (!previous ||
+            input.homeAssistant?.url ||
+            input.homeAssistant?.token ||
+            input.clearHomeAssistant)
         ) {
           send(400, {
             error: 'Home Assistant connection settings are read-only for Home Assistant users.',

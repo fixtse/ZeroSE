@@ -2627,7 +2627,9 @@ h1 {
   min-width: 0;
 }
 @media (max-width: 420px) {
-  .member-search-toolbar { gap: 8px; }
+  .member-search-toolbar {
+    gap: 8px;
+  }
 }
 
 .member-pagination {

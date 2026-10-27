@@ -28,7 +28,10 @@ export class HomeAssistant {
           access.push('weather discovery');
         return { id, name: String(state.attributes?.friendly_name || id).slice(0, 200), access };
       })
-      .filter((item: { id: string }) => !query.domains || query.domains.split(',').includes(item.id.split('.')[0]))
+      .filter(
+        (item: { id: string }) =>
+          !query.domains || query.domains.split(',').includes(item.id.split('.')[0]),
+      )
       .filter((item: { id: string; name: string }) =>
         (item.id + ' ' + item.name).toLowerCase().includes(query.search.toLowerCase()),
       );
