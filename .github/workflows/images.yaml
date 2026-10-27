@@ -1,0 +1,265 @@
+name: Test and publish container
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-bookworm
+        env:
+          POSTGRES_DB: assistant_test
+          POSTGRES_USER: assistant
+          POSTGRES_PASSWORD: test-only-password
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U assistant -d assistant_test"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+    env:
+      ASSISTANT_POSTGRES_PASSWORD: compose-validation-only
+      ASSISTANT_API_KEY: compose-validation-api-key-at-least-24-characters
+      TEST_DATABASE_URL: postgresql://assistant:test-only-password@127.0.0.1:5432/assistant_test
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm check
+      - name: Initialize test extension
+        run: node --input-type=module -e "import pg from 'pg'; const c=new pg.Client({connectionString:process.env.TEST_DATABASE_URL}); await c.connect(); await c.query('CREATE EXTENSION IF NOT EXISTS vector'); await c.end();"
+      - run: pnpm test
+      - run: pnpm build
+      - name: Validate deployment definitions
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.build.yaml config --quiet
+
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.coordinates.outputs.image }}
+      package_api: ${{ steps.coordinates.outputs.package_api }}
+      metadata: ${{ steps.metadata.outputs.json }}
+      labels: ${{ steps.metadata.outputs.labels }}
+    steps:
+      - name: Image coordinates
+        id: coordinates
+        env:
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+        run: |
+          image="${GITHUB_REPOSITORY,,}"
+          owner_kind=users
+          if [[ "$OWNER_TYPE" == Organization ]]; then owner_kind=orgs; fi
+          echo "image=ghcr.io/$image" >> "$GITHUB_OUTPUT"
+          echo "package_api=$owner_kind/${image%%/*}/packages/container/${image#*/}" >> "$GITHUB_OUTPUT"
+      - name: Refuse an existing public package
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_API: ${{ steps.coordinates.outputs.package_api }}
+        run: |
+          status=$(curl --silent --show-error --output "$RUNNER_TEMP/package.json" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" --header 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/$PACKAGE_API")
+          case "$status" in
+            200) test "$(jq -r '.visibility' "$RUNNER_TEMP/package.json")" = private ;;
+            404) echo 'A new GHCR package will be private by default.' ;;
+            *) echo "::error::Cannot verify package visibility (HTTP $status)"; exit 1 ;;
+          esac
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        id: metadata
+        with:
+          images: ${{ steps.coordinates.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=pr
+
+  image:
+    name: Image (${{ matrix.arch }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify native architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          actual=$(uname -m)
+          case "$EXPECTED_ARCH:$actual" in
+            amd64:x86_64|arm64:aarch64) ;;
+            *) echo "::error::Runner architecture mismatch: $EXPECTED_ARCH:$actual"; exit 1 ;;
+          esac
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        id: build
+        with:
+          context: .
+          target: runtime
+          platforms: linux/${{ matrix.arch }}
+          outputs: ${{ github.event_name != 'pull_request' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', needs.prepare.outputs.image) || 'type=cacheonly' }}
+          labels: ${{ needs.prepare.outputs.labels }}
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,scope=image-${{ matrix.arch }},mode=max
+          provenance: mode=min
+      - name: Export image digest
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: image-digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [prepare, verify, image]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: image-digests-*
+          merge-multiple: true
+      - name: Publish and verify multi-platform manifest
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          METADATA: ${{ needs.prepare.outputs.metadata }}
+        run: |
+          mapfile -t tags < <(jq -r '.tags[]' <<< "$METADATA")
+          test "${#tags[@]}" -gt 0
+          args=()
+          for tag in "${tags[@]}"; do args+=(-t "$tag"); done
+          sources=()
+          for digest in "$RUNNER_TEMP"/digests/*; do
+            hash=${digest##*/}
+            [[ "$hash" =~ ^[a-f0-9]{64}$ ]]
+            sources+=("$IMAGE@sha256:$hash")
+          done
+          test "${#sources[@]}" -eq 2
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+          docker buildx imagetools inspect --raw "${tags[0]}" | jq -e '
+            [.manifests[].platform | select(.os == "linux") | .architecture] |
+            (index("amd64") != null) and (index("arm64") != null)'
+          docker buildx imagetools inspect "${tags[0]}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify published package is private
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_API: ${{ needs.prepare.outputs.package_api }}
+          IMAGE: ${{ needs.prepare.outputs.image }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            status=$(curl --silent --show-error --output "$RUNNER_TEMP/package.json" --write-out '%{http_code}' \
+              --header "Authorization: Bearer $GH_TOKEN" --header 'Accept: application/vnd.github+json' \
+              "$GITHUB_API_URL/$PACKAGE_API")
+            if [[ "$status" == 200 ]]; then
+              test "$(jq -r '.visibility' "$RUNNER_TEMP/package.json")" = private
+              echo "Published private multi-platform image: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo '::error::Could not confirm private package visibility after publishing.'
+          exit 1
+
+  notify:
+    needs: [prepare, verify, image, publish]
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      # An optional callback must not change the build result used by auto-deployment.
+      - name: Notify validation completion
+        continue-on-error: true
+        env:
+          CALLBACK_URL: ${{ secrets.ASSISTANT_IMAGE_VALIDATION_CALLBACK }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          callback = os.environ['CALLBACK_URL']
+          if not callback:
+              print('No completion callback configured; notification skipped.')
+              raise SystemExit(0)
+          jobs = json.loads(os.environ['JOB_RESULTS'])
+          results = [job['result'] for job in jobs.values()]
+          status = 'succeeded' if all(result == 'success' for result in results) else 'cancelled' if 'cancelled' in results else 'failed'
+          payload = dict(task='assistant-image-validation', status=status,
+                         repository=os.environ['GITHUB_REPOSITORY'],
+                         branch=os.environ['GITHUB_REF_NAME'], revision=os.environ['GITHUB_SHA'],
+                         runId=os.environ['GITHUB_RUN_ID'], attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+                         jobs={name: job['result'] for name, job in jobs.items()},
+                         runUrl=f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+          request = urllib.request.Request(callback, data=json.dumps(payload).encode(),
+                      headers={'User-Agent': 'assistant-image-validation/1.0', 'Content-Type': 'application/json'})
+          try:
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  print('Completion callback HTTP', response.status)
+          except Exception as error:
+              detail = f"{type(error).__name__} {getattr(error, 'code', 'no HTTP status')}"
+              print(f'::warning::Completion callback failed ({detail}); build result is unchanged.')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(f'Completion callback failed ({detail}). Build/publish results remain authoritative.\n')
+              raise SystemExit(1) from None
+          PY

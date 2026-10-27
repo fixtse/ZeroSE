@@ -1,0 +1,55 @@
+{
+  "name": "fixt-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26 <27",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "build": "tsc && pnpm --filter @zero/admin build",
+    "start": "node dist/src/main.js",
+    "dev": "tsx src/main.ts",
+    "test": "tsx --test --test-concurrency=1 --test-timeout=60000 test/*.test.ts && python3 -B -m unittest discover -s test/home_assistant -p 'test_*.py'",
+    "check": "tsc --noEmit && pnpm --filter @zero/admin check",
+    "login": "tsx scripts/login.ts",
+    "format": "prettier --write src scripts test web drizzle.config.ts drizzle/meta",
+    "format:check": "prettier --check src scripts test web drizzle.config.ts drizzle/meta",
+    "doctor": "tsx scripts/doctor.ts",
+    "rules:enable-owner-weather": "tsx scripts/enable-owner-weather.ts",
+    "voice:install-home-assistant": "tsx scripts/install-ha-voice.ts",
+    "migrate:sqlite": "tsx scripts/migrate-sqlite.ts",
+    "admin:password": "tsx scripts/admin-password.ts",
+    "dev:admin": "pnpm --filter @zero/admin dev",
+    "db:generate": "tsx scripts/generate-migrations.ts",
+    "db:check": "drizzle-kit check",
+    "db:migrate": "tsx scripts/migrate-database.ts",
+    "memory:migrate": "tsx scripts/migrate-mem0.ts"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.10",
+    "@better-auth/passkey": "1.7.10",
+    "@openai/codex": "0.159.2",
+    "better-auth": "1.7.10",
+    "bonjour-service": "1.4.4",
+    "drizzle-orm": "0.45.2",
+    "exceljs": "4.4.0",
+    "js-tiktoken": "1.0.21",
+    "mammoth": "1.13.0",
+    "marked": "18.1.1",
+    "pg": "8.23.1",
+    "telegramify-markdown": "1.3.3",
+    "zod": "4.1.12",
+    "mem0ai": "3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "prettier": "3.6.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  },
+  "packageManager": "pnpm@11.28.6"
+}

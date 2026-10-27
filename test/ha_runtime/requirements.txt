@@ -1,0 +1,6 @@
+homeassistant==2026.10.4
+# Match the conversation integration manifest for the pinned HA release.
+# These are integration dependencies, not dependencies of the HA core wheel.
+gazetteer-matcher==1.1.0
+hassil==3.12.1
+home-assistant-intents==2026.10.6

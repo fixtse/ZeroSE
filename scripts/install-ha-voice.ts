@@ -1,0 +1,256 @@
+import { createDatabase } from '../src/adapters/outbound/database.js';
+import { createHmac } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import pg from 'pg';
+import { PostgresServiceSettings } from '../src/adapters/outbound/postgres-service-settings.js';
+import { resolve } from 'node:path';
+import { loadRuntimeConfig } from '../src/adapters/outbound/runtime-config.js';
+import { voiceToken } from '../src/application/voice-bridge.js';
+import { connectHomeAssistant } from './ha-voice-api.js';
+
+process.umask(0o077);
+const config = await loadRuntimeConfig();
+const satellite = process.env.ASSISTANT_VOICE_SATELLITE || config.homeAssistant.voiceSatellite;
+if (!satellite)
+  throw new Error('Set ASSISTANT_VOICE_SATELLITE to the intended HA satellite entity');
+if (!/^assist_satellite\.[a-z0-9_]+$/.test(satellite)) throw new Error('Invalid satellite entity');
+// Preparation is explicit and updates the same persisted service settings as the admin UI.
+if (process.argv.includes('--prepare')) {
+  const pool = new pg.Pool({ connectionString: config.database.url });
+  try {
+    const settings = new PostgresServiceSettings(
+      createDatabase(pool),
+      process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
+    );
+    const current = await settings.read();
+    if (
+      current.value.homeAssistant.voiceSatellite &&
+      current.value.homeAssistant.voiceSatellite !== satellite
+    )
+      throw new Error('Another voice device is configured; inspect before replacing');
+    const dir = resolve(config.dataDir, 'voice-backups');
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(
+      resolve(dir, 'service-settings-' + Date.now() + '.json'),
+      JSON.stringify(current),
+      { mode: 0o600 },
+    );
+    const value = {
+      ...current.value,
+      homeAssistant: { ...current.value.homeAssistant, voiceSatellite: satellite },
+    };
+    if (!(await settings.update(current.revision, value)))
+      throw new Error('Settings changed; inspect before retrying preparation');
+    console.log(
+      'Private settings backed up and voice binding prepared. Restart the assistant explicitly before installation.',
+    );
+  } finally {
+    await pool.end();
+  }
+  process.exit(0);
+}
+if (config.homeAssistant.voiceSatellite !== satellite)
+  throw new Error('Run with --prepare before deploying the voice bridge');
+const callback = process.env.ASSISTANT_VOICE_CALLBACK_URL || `http://127.0.0.1:${config.port}`;
+const url = new URL(callback);
+if (
+  !['http:', 'https:'].includes(url.protocol) ||
+  url.username ||
+  url.password ||
+  url.pathname !== '/' ||
+  url.search ||
+  url.hash
+)
+  throw new Error('Voice callback must be an HTTP origin');
+const probe = await fetch(new URL('/v1/voice/turns/00000000-0000-4000-8000-000000000001', url), {
+  headers: { Authorization: `Bearer ${voiceToken(config.apiKey)}` },
+  signal: AbortSignal.timeout(5000),
+});
+if (probe.status !== 404 || ((await probe.json()) as any).error !== 'Voice turn not found')
+  throw new Error('Deploy the assistant voice API before installing HA integration');
+const container = process.env.ASSISTANT_HA_CONTAINER || 'home-assistant';
+const api = async (path: string) => {
+  const response = await fetch(config.homeAssistant.url.replace(/\/$/, '') + '/api/' + path, {
+    headers: { Authorization: `Bearer ${config.homeAssistant.token}` },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error('HA read failed: ' + response.status);
+  return response.json() as Promise<any>;
+};
+const before = await connectHomeAssistant(config);
+let snapshot: any;
+try {
+  snapshot = {
+    pipelines: await before.command('assist_pipeline/pipeline/list'),
+    device: await api('states/' + satellite),
+  };
+} finally {
+  before.close();
+}
+const files = Object.fromEntries(
+  [
+    'manifest.json',
+    '__init__.py',
+    'config_flow.py',
+    'conversation.py',
+    'client.py',
+    'rules.py',
+    'engine.py',
+    'settings.py',
+    'strings.json',
+    'translations/en.json',
+    'brand/icon.png',
+  ].map((name) => [
+    name,
+    readFileSync(
+      new URL('../integrations/home_assistant/assistant_zero/' + name, import.meta.url),
+    ).toString(name.endsWith('.png') ? 'base64' : 'utf8'),
+  ]),
+);
+const script = `
+import base64, datetime, json, pathlib, shutil, sys
+data = json.load(sys.stdin)
+root = pathlib.Path('/config')
+backup = root / 'backups' / ('assistant-zero-voice-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+backup.mkdir(parents=True, mode=0o700)
+for name in ['configuration.yaml', 'assistant_zero_credentials.yaml', 'custom_components/assistant_zero', '.storage/assist_pipeline.pipelines', '.storage/core.config_entries', '.storage/core.restore_state']:
+    path = root / name
+    if path.exists():
+        target = backup / path.name
+        if path.is_dir(): shutil.copytree(path, target)
+        else:
+            shutil.copy2(path, target)
+            target.chmod(0o600)
+(backup / 'voice-before.json').write_text(json.dumps(data['snapshot']))
+(backup / 'voice-before.json').chmod(0o600)
+config = (root / 'configuration.yaml').read_text()
+include = 'assistant_zero: !include assistant_zero_credentials.yaml'
+if include not in config:
+    if any(line.startswith('assistant_zero:') for line in config.splitlines()):
+        raise RuntimeError('Existing Zero YAML differs; inspect before replacing')
+    config += '\\n' + include + '\\n'
+component = root / 'custom_components' / 'assistant_zero'
+component.mkdir(parents=True, exist_ok=True)
+for name, content in data['files'].items():
+    target = component / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if name.endswith('.png'): target.write_bytes(base64.b64decode(content))
+    else: target.write_text(content)
+(root / 'assistant_zero_credentials.yaml').write_text(json.dumps(data['credentials']))
+(root / 'assistant_zero_credentials.yaml').chmod(0o600)
+(root / 'configuration.yaml').write_text(config)
+print('Installed Zero voice component. Private backup: ' + str(backup))
+`;
+execFileSync('docker', ['exec', '-i', container, 'python', '-c', script], {
+  input: JSON.stringify({
+    files,
+    snapshot,
+    credentials: {
+      url: url.origin,
+      token: voiceToken(config.apiKey),
+      satellite_id: satellite,
+      settings_token: createHmac('sha256', config.apiKey)
+        .update('assistant-home-assistant-settings-v1')
+        .digest('hex'),
+    },
+  }),
+  stdio: ['pipe', 'inherit', 'inherit'],
+});
+execFileSync(
+  'docker',
+  [
+    'exec',
+    container,
+    'python',
+    '-m',
+    'homeassistant',
+    '--script',
+    'check_config',
+    '--config',
+    '/config',
+  ],
+  { stdio: 'inherit' },
+);
+// A new Python custom integration cannot be loaded by reloading YAML domains.
+execFileSync('docker', ['restart', container], { stdio: 'inherit' });
+const deadline = Date.now() + 180000;
+let agent: string | undefined;
+while (Date.now() < deadline) {
+  try {
+    const states = await api('states');
+    agent = states.find(
+      (state: any) =>
+        state.entity_id.startsWith('conversation.') &&
+        state.attributes.friendly_name === 'Zero' &&
+        state.state !== 'unavailable',
+    )?.entity_id;
+    if (agent) break;
+  } catch {
+    /* Read-only readiness check only. */
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+if (!agent) throw new Error('Zero agent did not become ready; inspect HA logs before retrying');
+const socket = await connectHomeAssistant(config);
+try {
+  const listing = await socket.command('assist_pipeline/pipeline/list');
+  const existing = listing.pipelines.filter((pipeline: any) => pipeline.name === 'Zero');
+  if (existing.length > 1) throw new Error('Multiple Zero pipelines; inspect before changing');
+  let pipeline = existing[0];
+  if (pipeline && pipeline.conversation_engine !== agent)
+    throw new Error('Existing Zero pipeline has another agent');
+  if (!pipeline) {
+    const source = listing.pipelines.find((item: any) => item.id === listing.preferred_pipeline);
+    if (!source?.stt_engine || !source?.tts_engine)
+      throw new Error('Preferred pipeline has no configured STT/TTS');
+    const { id: _id, ...settings } = source;
+    pipeline = await socket.command('assist_pipeline/pipeline/create', {
+      ...settings,
+      name: 'Zero',
+      conversation_engine: agent,
+      conversation_language: '*',
+      prefer_local_intents: false,
+    });
+  }
+  const device = await socket.command('config/entity_registry/get', { entity_id: satellite });
+  const devices = await socket.command('assist_pipeline/device/list');
+  const selector = devices.find(
+    (item: any) => item.device_id === device.device_id,
+  )?.pipeline_entity;
+  if (!selector) throw new Error('Satellite pipeline selector not found');
+  const selection = await api('states/' + selector);
+  execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      container,
+      'python',
+      '-c',
+      "import json,pathlib,datetime,sys; p=pathlib.Path('/config/backups') / ('zero-selector-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.json'); p.write_text(sys.stdin.read()); p.chmod(0o600)",
+    ],
+    { input: JSON.stringify({ selection, pipeline }), stdio: ['pipe', 'inherit', 'inherit'] },
+  );
+  if (selection.state !== 'Zero')
+    await socket.command('call_service', {
+      domain: 'select',
+      service: 'select_option',
+      service_data: { entity_id: selector, option: 'Zero' },
+    });
+  const after = await api('states/' + selector);
+  if (after.state !== 'Zero') throw new Error('Satellite did not select Zero');
+  console.log(
+    JSON.stringify({
+      agent,
+      pipeline: pipeline.id,
+      selector,
+      selected: after.state,
+      stt: pipeline.stt_engine,
+      tts: pipeline.tts_engine,
+      language: pipeline.language,
+    }),
+  );
+} finally {
+  socket.close();
+}

@@ -1,0 +1,4 @@
+Generated with the built-in image_gen tool. Transparent PNG, preserved without edits.
+
+Final prompt:
+Use case: logo-brand. Asset type: square project/app icon for Zero, a personal AI assistant integrating home automation, calendars, and memory. Create one distinctive, polished, friendly geometric emblem: a bold zero-shaped ring with subtle house-shaped negative space, unified as one compact mark. Clean flat graphic treatment, soft precise edges, restrained high-contrast professional treatment that reads clearly on light and dark interfaces. Center the emblem with generous padding, readable at 32px. Transparent background outside the emblem. No words, letters, captions, watermark, mockup, photographic textures, or decorative surrounding objects. Deliver one square 1024x1024 icon.

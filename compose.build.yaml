@@ -1,0 +1,7 @@
+services:
+  assistant:
+    image: fixt-assistant:local
+    pull_policy: build
+    build:
+      context: .
+      target: runtime

@@ -1,0 +1,30 @@
+{
+  "name": "Assistant development",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:26-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.14",
+      "installTools": false
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": {
+    "TEST_DATABASE_URL": "postgresql://assistant:test-only-password@127.0.0.1:55432/assistant_test"
+  },
+  "forwardPorts": [
+    8788,
+    3000
+  ],
+  "portsAttributes": {
+    "8788": {
+      "label": "Isolated development assistant"
+    },
+    "3000": {
+      "label": "Next.js admin UI (static preview; use 8788 for authenticated setup)"
+    }
+  }
+}

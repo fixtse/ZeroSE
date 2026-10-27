@@ -1,0 +1,18 @@
+[Unit]
+Description=Assistant signed GitHub build deployment webhook
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/home-automation/assistant
+EnvironmentFile=%h/home-automation/assistant/.env.deploy
+ExecStart=/usr/bin/env node dist/scripts/deploy-webhook.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=900
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

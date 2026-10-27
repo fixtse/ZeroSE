@@ -1,0 +1,105 @@
+{
+  "title": "Zero Assistant",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect the discovered Zero instance",
+        "description": "Home Assistant starts the connection. Select the HA user whose long-lived token Zero may use, then approve the request in Zero. Both credentials and callbacks are configured automatically. Choose a Home Assistant URL reachable by Zero and your browser. Existing permissions and schedules are preserved.",
+        "data": {
+          "url": "Zero server URL",
+          "home_assistant_url": "Home Assistant URL",
+          "user_id": "Home Assistant user for Zero",
+          "satellite_id": "Voice satellite",
+          "manual": "Use manual tokens instead"
+        }
+      },
+      "reconfigure": {
+        "title": "Connect to Zero",
+        "description": "Connect Home Assistant Assist to the independent Zero assistant. Credentials stay private. Use the dedicated voice and settings tokens, never the administrator API key.",
+        "data": {
+          "url": "Zero server URL",
+          "token": "Voice token",
+          "satellite_id": "Authorized voice satellite",
+          "settings_token": "Settings management token",
+          "callback_url": "Rule callback URL (optional)",
+          "callback_token": "Rule callback token (optional)"
+        }
+      },
+      "manual": {
+        "title": "Connect to Zero",
+        "description": "Connect Home Assistant Assist to the independent Zero assistant. Credentials stay private. Use the dedicated voice and settings tokens, never the administrator API key.",
+        "data": {
+          "url": "Zero server URL",
+          "token": "Voice token",
+          "satellite_id": "Authorized voice satellite",
+          "settings_token": "Settings management token",
+          "callback_url": "Rule callback URL (optional)",
+          "callback_token": "Rule callback token (optional)"
+        }
+      },
+      "pair": {
+        "title": "Approve the connection in Zero",
+        "description": "Sign in to Zero, verify your Home Assistant address and select the Zero profile to link. Return here after approval."
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot read Zero settings. Check the server URL and dedicated settings token.",
+      "pairing_failed": "Could not start pairing. Check both server URLs. No operation was retried."
+    },
+    "abort": {
+      "already_configured": "Zero is already configured.",
+      "reconfigure_successful": "Connection updated.",
+      "invalid_discovery": "Zero advertised an invalid server URL. Configure the integration manually.",
+      "pairing_failed": "Could not confirm pairing. No operation was retried. Inspect Zero connections and Home Assistant profile tokens before starting another setup."
+    },
+    "flow_title": "{name}"
+  },
+  "options": {
+    "step": {
+      "assistant": {
+        "title": "Zero prompt and Home Assistant access",
+        "description": "Loaded directly from Zero. Saving updates Zero for all owner conversations, including Telegram and Assist. There is no separate HA prompt. Built-in tool and safety instructions remain managed by Zero. Assist delegation automatically allows conversation.process. Select allowed services or add custom domain.service values; comma-separated values are split when saved. Frigate is shown only when its services are available in Home Assistant. Disabling access blocks new owner tool calls; existing reminders remain scheduled.",
+        "data": {
+          "prompt": "Zero identity prompt template",
+          "homeAssistant": "Allow Zero to use Home Assistant tools",
+          "assist": "Allow delegation to Home Assistant Assist",
+          "frigate": "Allow Frigate services",
+          "services": "Allowed services (domain.service, one per line)"
+        }
+      },
+      "init": {
+        "title": "Zero Assistant",
+        "menu_options": {
+          "assistant": "Prompt and Home Assistant access",
+          "delivery": "Reminder and alert delivery",
+          "users": "Home Assistant user bindings"
+        }
+      },
+      "delivery": {
+        "title": "Reminder and alert delivery",
+        "description": "Callback settings for future events. Existing rules are preserved.",
+        "data": {
+          "callback_url": "Zero callback URL",
+          "callback_token": "Rule callback token"
+        }
+      },
+      "users": {
+        "title": "Bind Home Assistant users to Zero users",
+        "description": "Select a Home Assistant user and enter the private Zero user chat ID shown in Zero\u2019s admin page. The profile must be enabled. Its permissions, memory and conversation history also apply to Assist and Android. Current bindings appear beside user names. Leave the chat ID empty to remove a binding. Each save changes only the selected user. Zero stores the bindings; Home Assistant does not cache them.",
+        "data": {
+          "user_id": "Home Assistant user",
+          "chat_id": "Zero user chat ID (empty to unlink)"
+        }
+      }
+    },
+    "abort": {
+      "cannot_connect": "Cannot confirm Zero settings. No action was retried. Check the connection and reopen Configure to read current settings.",
+      "conflict": "Settings changed elsewhere. Reopen Configure before saving.",
+      "no_users": "No active Home Assistant users are available."
+    },
+    "error": {
+      "invalid_token": "The callback token must contain at least 24 characters.",
+      "invalid_user": "Choose an active Home Assistant user and an enabled private Zero user chat ID."
+    }
+  }
+}
