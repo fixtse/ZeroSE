@@ -73,6 +73,8 @@ export interface Profile {
   google?: GoogleSettings;
 
   homeAssistant?: {
+    connections?: { id: string; name: string; url: string }[];
+    activeConnectionId?: string;
     url: string;
     tokenHint?: string;
     taskProvider?: 'google' | 'home_assistant';

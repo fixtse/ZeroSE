@@ -1,4 +1,5 @@
 'use client';
+import { HAConnectionPicker, type HAConnectionChoice } from './ha-connection-picker';
 import { Badge } from './ui/badge';
 import { HAEntityPicker } from './ha-entity-picker';
 import { HAEntityMultiPicker } from './ha-entity-multi-picker';
@@ -90,8 +91,8 @@ export function ProfileEditor({
   );
   const [tasksEnabled, setTasksEnabled] = useState(!!profile?.capabilities.includes('tasks'));
   const [kind, setKind] = useState(profile?.kind || 'user');
-  const [configuredHA, setConfiguredHA] = useState(false);
-  const [useConfiguredHA, setUseConfiguredHA] = useState(false);
+  const [haConnections, setHAConnections] = useState<HAConnectionChoice[]>(profile?.homeAssistant?.connections || []);
+  const [activeHAConnection, setActiveHAConnection] = useState(profile?.homeAssistant?.activeConnectionId || '');
   const [provider, setProvider] = useUrlState('profileTab', 'profile');
   const membersAvailable = current?.kind === 'group' && current.hasHomeAssistant;
   useEffect(() => {
@@ -112,13 +113,12 @@ export function ProfileEditor({
     setTasksEnabled(result.capabilities.includes('tasks'));
     setSpeech(result.speech || defaultSpeech);
     setTaskProvider(result.homeAssistant?.taskProvider || 'google');
+    setHAConnections(result.homeAssistant?.connections || []);
+    setActiveHAConnection(result.homeAssistant?.activeConnectionId || '');
     setVersion((value) => value + 1);
   }
   useEffect(() => {
     if (profile) void run(refresh);
-    void api<{ available: boolean }>('/v1/admin/home-assistant/connection')
-      .then((result) => setConfiguredHA(result.available))
-      .catch(() => setConfiguredHA(false));
   }, []);
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -154,11 +154,11 @@ export function ProfileEditor({
           (id) =>
             data.has('cap-' + id) ||
             (id === 'homeAssistant' &&
-              (data.get('saveHAConnection') === 'true' || useConfiguredHA)),
+              (data.get('saveHAConnection') === 'true' || (!current?.hasHomeAssistant && haConnections.length > 0))),
         ),
-        confirmTaskProviderChange: data.has('confirmTaskProviderChange'),
 
-        useConfiguredHomeAssistant: kind === 'group' && useConfiguredHA,
+        homeAssistantConnectionIds: haConnections.map((item) => item.id),
+        ...(activeHAConnection ? { activeHomeAssistantConnectionId: activeHAConnection } : {}),
       };
       if (data.has('modelsLoaded')) {
         value.defaultModel = String(data.get('defaultModel') || '');
@@ -183,7 +183,7 @@ export function ProfileEditor({
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
-      if (current?.hasHomeAssistant || homeAssistant.url || homeAssistant.token || useConfiguredHA)
+      if (current?.hasHomeAssistant || homeAssistant.url || homeAssistant.token || haConnections.length > 0)
         value.homeAssistant = homeAssistant;
       const result = await api<{ saved: boolean; warning?: string }>(
         path({ bot, chatId }),
@@ -192,7 +192,7 @@ export function ProfileEditor({
       );
       const saved = await api<Profile>(path({ bot, chatId }));
       setCurrent(saved);
-      setUseConfiguredHA(false);
+
       setTasksEnabled(saved.capabilities.includes('tasks'));
       setSpeech(saved.speech || defaultSpeech);
       setTaskProvider(saved.homeAssistant?.taskProvider || 'google');
@@ -294,7 +294,7 @@ export function ProfileEditor({
                       defaultValue="user"
                       onChange={(event) => {
                         setKind(event.target.value as Profile['kind']);
-                        setUseConfiguredHA(false);
+
                       }}
                       disabled={busy}
                     >
@@ -383,7 +383,7 @@ export function ProfileEditor({
                       ([id]) =>
                         id !== 'homeAssistant' ||
                         current?.hasHomeAssistant ||
-                        (kind === 'group' && configuredHA),
+                        haConnections.length > 0,
                     )
                     .map(([id, label]) => (
                       <CheckField
@@ -444,15 +444,6 @@ export function ProfileEditor({
                 <TabsContent value="tasks" forceMount data-settings-provider="tasks">
                   <h3 className="settings-heading">Proveedor de tareas</h3>
                   <p>Elige Google Tasks o una lista to-do de Home Assistant para este usuario.</p>
-                  {current?.hasHomeAssistant && (
-                    <>
-                      <HATaskListPicker profile={current} />
-                      <p>
-                        Home Assistant está conectado. Puedes usar una lista to-do para las tareas
-                        de este perfil.
-                      </p>
-                    </>
-                  )}
                   <SelectField
                     id="profile-task-provider"
                     name="ha-taskProvider"
@@ -465,13 +456,8 @@ export function ProfileEditor({
                       <option value="home_assistant">Home Assistant · to-do</option>
                     )}
                   </SelectField>
-                  {taskProvider !== (current?.homeAssistant?.taskProvider || 'google') && (
-                    <CheckField
-                      id="confirm-task-provider"
-                      name="confirmTaskProviderChange"
-                      required
-                      label="Confirmo el cambio de proveedor. No se migran tareas; se conservan las credenciales anteriores."
-                    />
+                  {taskProvider === 'home_assistant' && current?.hasHomeAssistant && (
+                    <HATaskListPicker profile={current} />
                   )}
                 </TabsContent>
               )}
@@ -480,18 +466,11 @@ export function ProfileEditor({
                 forceMount
                 data-settings-provider="home-assistant"
               >
-                {kind === 'group' && current?.source !== 'home_assistant' && (
+                {(
                   <section className="settings-section">
                     <h3>Conexión de Home Assistant</h3>
-                    {configuredHA && (
-                      <CheckField
-                        id="profile-use-configured-ha"
-                        checked={useConfiguredHA}
-                        onCheckedChange={(checked) => setUseConfiguredHA(checked === true)}
-                        label="Usar la conexión Home Assistant configurada"
-                      />
-                    )}
-                    {!useConfiguredHA && (
+                    <HAConnectionPicker selected={haConnections} active={activeHAConnection} onChange={(selected, active) => { setHAConnections(selected); setActiveHAConnection(active); }} />
+                    {haConnections.length === 0 && (
                       <div className="settings-grid">
                         <Field
                           id="profile-ha-url"
@@ -583,13 +562,9 @@ export function ProfileEditor({
                 )}
               </TabsContent>
               <TabsContent value="speech" forceMount data-settings-provider="speech">
-                <ProfileSpeech profile={current} value={speech} onChange={setSpeech} />
+                <ProfileSpeech profile={current} active={provider === 'speech'} value={speech} onChange={setSpeech} />
               </TabsContent>
             </Tabs>
-            <p className="settings-help">
-              Los secretos guardados muestran solo una referencia parcial. Los cambios se aplican a
-              las próximas solicitudes.
-            </p>
           </fieldset>
         </form>
         <div className="editor-action-bar">

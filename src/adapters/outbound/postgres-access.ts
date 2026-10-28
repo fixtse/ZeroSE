@@ -259,6 +259,7 @@ export class PostgresAccess implements AccessRepository {
       {
         google: profile.google,
         homeAssistant: profile.homeAssistant,
+        pairedHomeAssistant: profile.pairedHomeAssistant,
         speech: profile.speech,
         defaultModel: profile.defaultModel,
         alternateModels: profile.alternateModels,

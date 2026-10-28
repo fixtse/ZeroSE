@@ -1,9 +1,10 @@
 'use client';
-import { ArrowRight, Check, Search } from 'lucide-react';
+import { ArrowRight, Check, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type Profile, type SpeechSettings, type CatalogPage } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
+import { SpeechLanguagePicker } from './speech-language-picker';
 import { Field, SelectField } from './settings-fields';
 interface Engine {
   id: string;
@@ -23,10 +24,12 @@ export const defaultSpeech: SpeechSettings = {
 };
 export function ProfileSpeech({
   profile,
+  active,
   value,
   onChange,
 }: {
   profile: Profile | null;
+  active: boolean;
   value: SpeechSettings;
   onChange: (speech: SpeechSettings) => void;
 }) {
@@ -35,7 +38,6 @@ export function ProfileSpeech({
     [voices, setVoices] = useState<Voice[]>([]),
     [voiceOffset, setVoiceOffset] = useState(0),
     [voiceTotal, setVoiceTotal] = useState(0),
-    [query, setQuery] = useState(''),
     [audio, setAudio] = useState(''),
     [text, setText] = useState('Hola, soy tu asistente. Esta es una prueba de voz en español.');
   const audioRef = useRef('');
@@ -69,6 +71,26 @@ export function ProfileSpeech({
     return result;
   }
   const [engineTotals, setEngineTotals] = useState({ stt: 0, tts: 0 });
+  useEffect(() => {
+    if (!active || !profile?.hasHomeAssistant || !profile.capabilities.includes('homeAssistant')) return;
+    const controller = new AbortController();
+    void Promise.all((['stt', 'tts'] as const).map(async (kind) => {
+      const result = await api<CatalogPage<Engine>>(path + 'catalog', 'POST', {
+        kind, search: '', offset: 0, limit: 50,
+      }, controller.signal);
+      return { kind, result };
+    })).then((results) => {
+      if (controller.signal.aborted) return;
+      for (const { kind, result } of results) {
+        setEngines((current) => ({ ...current, [kind]: result.items }));
+        setEngineTotals((current) => ({ ...current, [kind]: result.total }));
+      }
+    }).catch((error) => {
+      if (!controller.signal.aborted) void run(async () => { throw error; });
+    });
+    return () => controller.abort();
+  }, [active, path, profile?.hasHomeAssistant, profile?.capabilities.includes('homeAssistant')]);
+
   async function loadVoices(append = false) {
     if (value.tts === 'default') {
       setVoices([]);
@@ -79,7 +101,7 @@ export function ProfileSpeech({
       kind: 'voices',
       engine: value.tts,
       language: value.ttsLanguage,
-      search: query,
+      search: '',
       offset: append ? voiceOffset : 0,
       limit: 50,
     });
@@ -87,6 +109,25 @@ export function ProfileSpeech({
     setVoiceOffset((append ? voiceOffset : 0) + result.items.length);
     setVoiceTotal(result.total);
   }
+  useEffect(() => {
+    setVoices([]);
+    setVoiceOffset(0);
+    setVoiceTotal(0);
+    if (!active || !profile || value.tts === 'default') return;
+    const controller = new AbortController();
+    void api<CatalogPage<Voice>>(path + 'catalog', 'POST', {
+      kind: 'voices', engine: value.tts, language: value.ttsLanguage,
+      search: '', offset: 0, limit: 50,
+    }, controller.signal).then((result) => {
+      if (controller.signal.aborted) return;
+      setVoices(result.items);
+      setVoiceOffset(result.items.length);
+      setVoiceTotal(result.total);
+    }).catch((error) => {
+      if (!controller.signal.aborted) void run(async () => { throw error; });
+    });
+    return () => controller.abort();
+  }, [active, path, value.tts, value.ttsLanguage]);
   function selectEngine(kind: 'stt' | 'tts', id: string) {
     const languages = engines[kind].find((item) => item.id === id)?.languages || [
       value[(kind + 'Language') as 'sttLanguage' | 'ttsLanguage'],
@@ -110,23 +151,6 @@ export function ProfileSpeech({
         Predeterminado conserva la transcripción actual y Edge TTS. Para consultar motores de Home
         Assistant, guarda primero su conexión y habilita ese permiso.
       </p>
-      <div className="form-actions">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy || !profile}
-          onClick={() =>
-            void run(async () => {
-              const [stt, tts] = await Promise.all([loadEngines('stt'), loadEngines('tts')]);
-              setEngineTotals({ stt: stt.total, tts: tts.total });
-            })
-          }
-          size="icon"
-          tooltip="Cargar motores disponibles"
-        >
-          <Check />
-        </Button>
-      </div>
       <div className="settings-grid">
         {(['stt', 'tts'] as const).map((kind) => (
           <div key={kind}>
@@ -148,20 +172,15 @@ export function ProfileSpeech({
                 </option>
               ))}
             </SelectField>
-            <Field
+            <SpeechLanguagePicker
               id={'profile-' + kind + '-language'}
               label={'Idioma ' + kind.toUpperCase()}
               disabled={busy}
               value={value[kind === 'stt' ? 'sttLanguage' : 'ttsLanguage']}
-              pattern="(?:[a-zA-Z0-9_]|-){1,50}"
-              required
-              list={'profile-' + kind + '-languages'}
-              onChange={(event) => {
-                onChange({
-                  ...value,
-                  [kind + 'Language']: event.target.value,
-                  ...(kind === 'tts' ? { voice: '' } : {}),
-                });
+              languages={engines[kind].find((engine) => engine.id === value[kind])?.languages || []}
+              useDefaultLanguages={value[kind] === 'default'}
+              onChange={(language) => {
+                onChange({ ...value, [kind + 'Language']: language, ...(kind === 'tts' ? { voice: '' } : {}) });
                 if (kind === 'tts') {
                   setVoices([]);
                   setVoiceOffset(0);
@@ -169,13 +188,6 @@ export function ProfileSpeech({
                 }
               }}
             />
-            <datalist id={'profile-' + kind + '-languages'}>
-              {(engines[kind].find((engine) => engine.id === value[kind])?.languages || []).map(
-                (language) => (
-                  <option key={language} value={language} />
-                ),
-              )}
-            </datalist>
             {engines[kind].length < engineTotals[kind] && (
               <div className="form-actions">
                 <Button
@@ -197,6 +209,7 @@ export function ProfileSpeech({
           </div>
         ))}
       </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
       <SelectField
         id="profile-tts-voice"
         label="Voz TTS"
@@ -214,30 +227,18 @@ export function ProfileSpeech({
           </option>
         ))}
       </SelectField>
-      <Field
-        id="profile-voice-search"
-        label="Buscar voces"
-        value={query}
-        disabled={busy}
-        maxLength={200}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setVoices([]);
-          setVoiceOffset(0);
-          setVoiceTotal(0);
-        }}
-      />
-      <div className="form-actions">
         <Button
           type="button"
           variant="outline"
           disabled={busy || !profile || value.tts === 'default'}
           onClick={() => void run(() => loadVoices())}
           size="icon"
-          tooltip="Buscar voces"
+          tooltip="Recargar voces TTS"
         >
-          <Search />
+          <RefreshCw />
         </Button>
+      </div>
+      <div className="form-actions">
         {voiceOffset < voiceTotal && (
           <Button
             type="button"

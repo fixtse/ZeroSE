@@ -14,7 +14,6 @@ export function HATaskListPicker({ profile }: { profile: Profile }) {
         pattern="todo\.[a-z0-9_]+"
         defaultValue={profile.homeAssistant?.taskListEntity || ''}
       />
-      <p>Elegir una lista no cambia el proveedor ni mueve tareas.</p>
     </div>
   );
 }

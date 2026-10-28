@@ -1,3 +1,4 @@
+import type { HomeAssistantConnections } from '../../application/home-assistant-connections.js';
 import type { GoogleDestinations } from '../../application/google-destinations.js';
 import { AIAdmin, modelPermissionsSchema } from './ai-admin.js';
 import type { ProfileMemoryAdmin } from './profile-memory-admin.js';
@@ -60,6 +61,7 @@ const profileSchema = z.object({
   google: ConfigSchema.shape.google.unwrap().optional(),
   homeAssistant: ConfigSchema.shape.homeAssistant
     .unwrap()
+    .omit({ connections: true, activeConnectionId: true })
     .extend({
       locationEntity: ConfigSchema.shape.homeAssistant
         .unwrap()
@@ -75,6 +77,8 @@ const profileSchema = z.object({
   clearGoogle: z.boolean().default(false),
   clearHomeAssistant: z.boolean().default(false),
   useConfiguredHomeAssistant: z.boolean().default(false),
+  homeAssistantConnectionIds: z.array(z.string().min(1).max(250)).max(20).optional(),
+  activeHomeAssistantConnectionId: z.string().min(1).max(250).optional(),
 });
 function publicProfile(
   p: AccessProfile,
@@ -150,6 +154,12 @@ export class Admin {
     return this;
   }
 
+  private homeAssistantConnections?: Pick<HomeAssistantConnections, 'list'>;
+  withHomeAssistantConnections(connections: Pick<HomeAssistantConnections, 'list'>) {
+    this.homeAssistantConnections = connections;
+    return this;
+  }
+
   private configuredHomeAssistant?: () => Promise<Config['homeAssistant']>;
 
   withHomeAssistantConnection(connection: () => Promise<Config['homeAssistant']>) {
@@ -183,6 +193,25 @@ export class Admin {
   ): Promise<boolean> {
     if (!path.startsWith('/v1/admin/')) return false;
     if (await this.groupMembers?.handle(req, path, read, send)) return true;
+
+    if (req.method === 'GET' && path === '/v1/admin/home-assistant/connections') {
+      const params = new URL(req.url || '/', 'http://localhost').searchParams;
+      const query = z.object({
+        search: z.string().max(200).default(''),
+        offset: z.coerce.number().int().min(0).max(1000000).default(0),
+        limit: z.coerce.number().int().min(1).max(50).default(20),
+      }).parse(Object.fromEntries(params));
+      const connections = (await this.homeAssistantConnections?.list() || [])
+        .filter((item) => (item.name + ' ' + item.connection.url).toLowerCase().includes(query.search.toLowerCase()));
+      send(200, {
+        items: connections.slice(query.offset, query.offset + query.limit).map((item) => ({
+          id: item.id, name: item.name, url: item.connection.url,
+        })),
+        total: connections.length,
+        next_offset: query.offset + query.limit < connections.length ? query.offset + query.limit : null,
+      });
+      return true;
+    }
 
     if (req.method === 'GET' && path === '/v1/admin/home-assistant/connection') {
       const connection = (await this.configuredHomeAssistant?.()) || this.config.homeAssistant;
@@ -568,13 +597,10 @@ export class Admin {
         }
         if (
           chatId.startsWith('ha:') &&
-          (!previous ||
-            input.homeAssistant?.url ||
-            input.homeAssistant?.token ||
-            input.clearHomeAssistant)
+!previous
         ) {
           send(400, {
-            error: 'Home Assistant connection settings are read-only for Home Assistant users.',
+            error: 'Home Assistant users must already exist before editing their connection.',
           });
           return true;
         }
@@ -599,6 +625,26 @@ export class Admin {
           if (!configuredHA.url || !configuredHA.token) {
             send(400, { error: 'No hay una conexión Home Assistant configurada.' });
             return true;
+          }
+        }
+        let selectedConnections: { id: string; name: string; url: string }[] | undefined;
+        if (input.homeAssistantConnectionIds !== undefined) {
+          const ids = [...new Set(input.homeAssistantConnectionIds)];
+          selectedConnections = [];
+          if (ids.length) {
+            if (input.clearHomeAssistant) {
+              send(400, { error: 'No se puede borrar y seleccionar una conexión a la vez.' });
+              return true;
+            }
+            const connections = await this.homeAssistantConnections?.list() || [];
+            const selected = ids.map((id) => connections.find((item) => item.id === id));
+            const active = selected.find((item) => item?.id === input.activeHomeAssistantConnectionId);
+            if (selected.some((item) => !item) || !active) {
+              send(400, { error: 'Selecciona conexiones disponibles y un servidor activo.' });
+              return true;
+            }
+            configuredHA = active.connection;
+            selectedConnections = selected.map((item) => ({ id: item!.id, name: item!.name, url: item!.connection.url }));
           }
         }
         let google = previous?.google;
@@ -628,13 +674,6 @@ export class Admin {
         }
         const provider = input.homeAssistant?.taskProvider || previousHA?.taskProvider || 'google';
         if (
-          provider !== (previousHA?.taskProvider || 'google') &&
-          !input.confirmTaskProviderChange
-        ) {
-          send(400, { error: 'Confirma el cambio de proveedor de tareas.' });
-          return true;
-        }
-        if (
           provider === 'home_assistant' &&
           !input.clearHomeAssistant &&
           (!(input.homeAssistant?.taskListEntity ?? previousHA?.taskListEntity) ||
@@ -659,20 +698,12 @@ export class Admin {
             ...ConfigSchema.parse({}).homeAssistant,
             ...previousHA,
             ...input.homeAssistant,
-            ...(configuredHA ? { url: configuredHA.url } : {}),
+            url: configuredHA?.url || input.homeAssistant?.url || previousHA?.url || '',
             token: configuredHA?.token || input.homeAssistant?.token || previousHA?.token || '',
           };
-        if (chatId.startsWith('ha:') && previousHA && input.homeAssistant) {
-          homeAssistant = {
-            ...previousHA,
-            locationEntity: input.homeAssistant.locationEntity,
-            geocodedLocationEntity: input.homeAssistant.geocodedLocationEntity,
-            shoppingListEntity: input.homeAssistant.shoppingListEntity,
-            weatherEntity: input.homeAssistant.weatherEntity,
-            sensorEntities: input.homeAssistant.sensorEntities,
-            taskProvider: provider,
-            taskListEntity: input.homeAssistant.taskListEntity ?? previousHA.taskListEntity,
-          };
+        if (homeAssistant && selectedConnections !== undefined) {
+          homeAssistant.connections = selectedConnections;
+          homeAssistant.activeConnectionId = selectedConnections.length ? input.activeHomeAssistantConnectionId : undefined;
         }
         const profile: AccessProfile = {
           bot,
@@ -696,6 +727,8 @@ export class Admin {
           timezone: input.timezone ?? previous?.timezone ?? this.config.timezone,
           google,
           homeAssistant,
+          pairedHomeAssistant: previous?.pairedHomeAssistant ||
+            (await this.homeAssistantConnections?.list())?.find((item) => item.id === telegramSession(bot, chatId))?.connection,
         };
         if (
           profile.speech &&

@@ -124,6 +124,7 @@ export class HomeAssistantPairing {
         );
         await profiles.saveProfile({
           ...profile,
+          pairedHomeAssistant: { ...this.defaults, url: pairing.homeAssistantUrl, token: homeAssistantToken },
           capabilities:
             profile.kind === 'user'
               ? [...new Set([...profile.capabilities, 'homeAssistant' as const])]

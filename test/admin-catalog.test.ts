@@ -139,7 +139,7 @@ test('service credential edits preserve blank secrets and other services without
   assert(!JSON.stringify(result.value).includes('drive-refresh'));
 });
 
-test('task provider changes require explicit confirmation and retain direct credentials', async () => {
+test('task provider changes retain direct credentials without an extra confirmation', async () => {
   const f = setup();
   const admin = new Admin(f.config, f.repository, async () => {});
   const input = {
@@ -154,9 +154,6 @@ test('task provider changes require explicit confirmation and retain direct cred
     },
     confirmTaskProviderChange: false,
   };
-  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 400);
-  assert.equal(f.profile.homeAssistant?.taskProvider, undefined);
-  input.confirmTaskProviderChange = true;
   assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 200);
   assert.equal(f.profile.homeAssistant?.taskProvider, 'home_assistant');
   assert.equal(f.profile.homeAssistant?.token, 'private-ha-token');
@@ -166,7 +163,7 @@ test('task provider changes require explicit confirmation and retain direct cred
   assert(!JSON.stringify(result.value).includes('private-ha-token'));
   input.homeAssistant.taskProvider = 'google';
   input.confirmTaskProviderChange = false;
-  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 400);
+  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 200);
   input.homeAssistant.taskProvider = 'home_assistant';
   assert.equal(
     (
@@ -276,7 +273,7 @@ test('configured HA discovery returns only availability and rejects missing conn
   );
 });
 
-test('HA user entity preferences can change while connection credentials remain managed by HA', async () => {
+test('HA users can edit their connection and retain credentials when input is blank', async () => {
   const f = setup();
   f.profile.chatId = 'ha:' + 'a'.repeat(32);
   f.profile.homeAssistant!.voiceSatellite = 'assist_satellite.kitchen';
@@ -305,17 +302,20 @@ test('HA user entity preferences can change while connection credentials remain 
         homeAssistant: { ...input.homeAssistant, token: 'replacement' },
       })
     ).status,
-    400,
+    200,
   );
+  assert.equal(f.profile.homeAssistant?.token, 'replacement');
   assert.equal(
     (
       await request(admin, 'helper/' + f.profile.chatId, 'PUT', {
         ...input,
-        clearHomeAssistant: true,
+        homeAssistant: { ...input.homeAssistant, token: '', url: 'https://other-ha.example' },
       })
     ).status,
-    400,
+    200,
   );
+  assert.equal(f.profile.homeAssistant?.token, 'replacement');
+  assert.equal(f.profile.homeAssistant?.url, 'https://other-ha.example');
 });
 
 test('entity catalogs filter domains before pagination', async (t) => {
@@ -381,4 +381,36 @@ test('admin entity prefix search returns every matching domain across bounded pa
   assert(
     [...first.value.items, ...second.value.items].every((item) => item.id.startsWith('todo.')),
   );
+});
+
+
+test('profiles select several Zero connections and use only the chosen active server', async () => {
+  const f = setup();
+  const connections = [
+    { id: 'telegram:1', name: 'Home', connection: { ...f.config.homeAssistant, url: 'https://home.example', token: 'home-private-token' } },
+    { id: 'telegram:2', name: 'Cabin', connection: { ...f.config.homeAssistant, url: 'https://cabin.example', token: 'cabin-private-token' } },
+  ];
+  const admin = new Admin(f.config, f.repository, async () => {}).withHomeAssistantConnections({ async list() { return connections; } });
+  const input = { kind: 'user', label: 'Test', enabled: true, capabilities: ['homeAssistant'],
+    homeAssistantConnectionIds: connections.map((item) => item.id), activeHomeAssistantConnectionId: 'telegram:2',
+    homeAssistant: { weatherEntity: 'weather.home' },
+  };
+  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 200);
+  assert.equal(f.profile.homeAssistant?.url, 'https://cabin.example');
+  assert.equal(f.profile.homeAssistant?.token, 'cabin-private-token');
+  assert.equal(f.profile.homeAssistant?.connections?.length, 2);
+  assert.equal(f.profile.homeAssistant?.weatherEntity, 'weather.home');
+  assert.equal((await request(admin, 'helper/123', 'PUT', { ...input, activeHomeAssistantConnectionId: 'telegram:1' })).status, 200);
+  assert.equal(f.profile.homeAssistant?.token, 'home-private-token');
+  const publicValue = JSON.stringify((await request(admin, 'helper/123')).value);
+  assert(!publicValue.includes('home-private-token'));
+  assert(!publicValue.includes('cabin-private-token'));
+  assert.equal((await request(admin, 'helper/123', 'PUT', { ...input, activeHomeAssistantConnectionId: 'unknown' })).status, 400);
+  assert.equal((await request(admin, 'helper/123', 'PUT', { ...input, homeAssistantConnectionIds: ['missing'] })).status, 400);
+  assert.equal(f.profile.homeAssistant?.token, 'home-private-token');
+  let result: any;
+  await admin.handle({ method: 'GET', url: '/v1/admin/home-assistant/connections?search=cabin&limit=1' } as IncomingMessage,
+    '/v1/admin/home-assistant/connections', async () => undefined, (status, value) => { assert.equal(status, 200); result = value; });
+  assert.deepEqual(result, { items: [{ id: 'telegram:2', name: 'Cabin', url: 'https://cabin.example' }], total: 1, next_offset: null });
+  assert(!JSON.stringify(result).includes('private-token'));
 });

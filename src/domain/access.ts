@@ -37,6 +37,7 @@ export interface AccessProfile {
   assistantId?: string;
   google?: Config['google'];
   homeAssistant?: Config['homeAssistant'];
+  pairedHomeAssistant?: Config['homeAssistant'];
 }
 export interface BotSettings {
   id: BotId;

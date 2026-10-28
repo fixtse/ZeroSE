@@ -1,3 +1,4 @@
+import { HomeAssistantConnections } from './application/home-assistant-connections.js';
 import { homeAssistantBinding } from './application/zero-settings.js';
 import { GoogleDestinations } from './application/google-destinations.js';
 import { GoogleConnection } from './application/google-connection.js';
@@ -749,6 +750,7 @@ const codex = new AIAgent(
     new GroupMembersAdmin(accessRepository, groupMembers),
   )
     .withHomeAssistantConnection(homeAssistantConnection)
+    .withHomeAssistantConnections(new HomeAssistantConnections(zeroSettings, accessRepository))
     .withGoogleDestinations(
       new GoogleDestinations(
         accessRepository,
