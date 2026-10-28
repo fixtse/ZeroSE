@@ -7,6 +7,7 @@ import { TimezoneOptions } from './timezone-options';
 import { notifyWarning } from '../lib/notifications';
 import {
   Brain,
+  BellRing,
   ListTodo,
   AudioLines,
   NotebookText,
@@ -206,6 +207,8 @@ export function ProfileEditor({
       setTasksEnabled(saved.capabilities.includes('tasks'));
       setSpeech(saved.speech || defaultSpeech);
       setTaskProvider(saved.homeAssistant?.taskProvider || 'google');
+      setHAConnections(saved.homeAssistant?.connections || []);
+      setActiveHAConnection(saved.homeAssistant?.activeConnectionId || '');
       setVersion((item) => item + 1);
       await onChanged();
       if (result.warning) notifyWarning(result.warning);
@@ -277,6 +280,12 @@ export function ProfileEditor({
                   <HomeAssistantIcon aria-hidden="true" />
                   Home Assistant
                 </TabsTrigger>
+                {current && (
+                  <TabsTrigger value="notifications">
+                    <BellRing aria-hidden="true" />
+                    Alertas y recordatorios
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="speech">
                   <AudioLines aria-hidden="true" />
                   Voz
@@ -380,10 +389,6 @@ export function ProfileEditor({
                   </SelectField>
                 </div>
                 <TimezoneOptions id="timezone-options" />
-                <small>
-                  El reinicio sigue esta zona horaria. La memoria se extrae tras cada conversación.
-                  Desactivar la memoria conserva los recuerdos existentes y deja de consultarlos.
-                </small>
                 <ProfileModels key={version} profile={current} />
                 <h3 className="settings-heading">Herramientas permitidas</h3>
                 <div className="settings-grid">
@@ -476,7 +481,7 @@ export function ProfileEditor({
                 data-settings-provider="home-assistant"
               >
                 {
-                  <section className="settings-section">
+                  <section className="ha-connection-settings">
                     <h3>Conexión de Home Assistant</h3>
                     <HAConnectionPicker
                       selected={haConnections}
@@ -487,7 +492,7 @@ export function ProfileEditor({
                       }}
                     />
                     {haConnections.length === 0 && (
-                      <div className="settings-grid">
+                      <div className="ha-manual-connection">
                         <Field
                           id="profile-ha-url"
                           name="ha-url"
@@ -495,29 +500,28 @@ export function ProfileEditor({
                           type="url"
                           defaultValue={current?.homeAssistant?.url || ''}
                         />
-                        <Field
-                          id="profile-ha-token"
-                          name="ha-token"
-                          label="Long-lived access token"
-                          type="password"
-                          autoComplete="off"
-                          placeholder={current?.homeAssistant?.tokenHint || 'Introduce un token'}
-                        />
+                        <div className="ha-token-save">
+                          <Field
+                            id="profile-ha-token"
+                            name="ha-token"
+                            label="Long-lived access token"
+                            type="password"
+                            autoComplete="off"
+                            placeholder={current?.homeAssistant?.tokenHint || 'Introduce un token'}
+                          />
+                          <Button
+                            type="submit"
+                            name="saveHAConnection"
+                            value="true"
+                            disabled={busy}
+                            size="icon"
+                            tooltip="Guardar conexión de Home Assistant"
+                          >
+                            <Save />
+                          </Button>
+                        </div>
                       </div>
                     )}
-                    <div className="form-actions">
-                      <Button
-                        type="submit"
-                        name="saveHAConnection"
-                        value="true"
-                        disabled={busy}
-                        size="icon"
-                        tooltip="Guardar conexión de Home Assistant"
-                      >
-                        <Save />
-                      </Button>
-                      <small>Guarda la conexión para seleccionar sus entidades.</small>
-                    </div>
                   </section>
                 }
                 {current?.hasHomeAssistant ? (
@@ -567,7 +571,6 @@ export function ProfileEditor({
                       domains="sensor,binary_sensor,person,zone"
                       defaultValues={current.homeAssistant?.sensorEntities || []}
                     />
-                    <ProfileCatalogs profile={current} />
                   </>
                 ) : (
                   <p className="settings-help">
@@ -577,6 +580,15 @@ export function ProfileEditor({
                   </p>
                 )}
               </TabsContent>
+              {current && (
+                <TabsContent
+                  value="notifications"
+                  forceMount
+                  data-settings-provider="notifications"
+                >
+                  <ProfileCatalogs profile={current} active={provider === 'notifications'} />
+                </TabsContent>
+              )}
               <TabsContent value="speech" forceMount data-settings-provider="speech">
                 <ProfileSpeech
                   profile={current}

@@ -45,6 +45,7 @@ export interface RuleRepository {
     kind: NotificationRule['kind'] | undefined,
     offset: number,
     limit: number,
+    options?: { includeAlerts?: boolean; excludeCancelled?: boolean },
   ): Promise<{ items: NotificationRule[]; total: number; next_offset: number | null }>;
   wakeReminders(session: string, date: string): Promise<NotificationRule[]>;
   completeWakeReminders(session: string, rules: NotificationRule[]): Promise<void>;

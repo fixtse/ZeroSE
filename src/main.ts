@@ -748,6 +748,7 @@ const codex = new AIAgent(
       }),
     ),
     new GroupMembersAdmin(accessRepository, groupMembers),
+    rules,
   )
     .withHomeAssistantConnection(homeAssistantConnection)
     .withHomeAssistantConnections(new HomeAssistantConnections(zeroSettings, accessRepository))

@@ -2656,3 +2656,135 @@ h1 {
 .ha-entity-command input {
   margin-top: 0;
 }
+
+/* Compact profile chrome and one grounded surface for each editor body. */
+.profile-editor > [data-slot='dialog-header'] {
+  gap: 8px;
+  padding-bottom: 14px;
+}
+.profile-editor > [data-slot='dialog-header'] [data-slot='dialog-description'] {
+  margin: 0;
+}
+.profile-editor > form {
+  margin: 0;
+}
+.profile-editor .provider-settings {
+  gap: 12px;
+}
+.profile-editor .provider-tabs-list {
+  margin: 0;
+  justify-content: flex-start;
+}
+.profile-editor .provider-tabs-list [role='tab'] {
+  flex: 0 0 auto;
+}
+.profile-editor .provider-tabs-list [role='tab'][data-state='active'] {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+}
+.profile-editor .provider-settings > [data-slot='tabs-content'] {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.profile-editor .provider-settings > [data-slot='tabs-content'] > :first-child {
+  margin-top: 0;
+}
+.profile-editor .provider-settings > [data-slot='tabs-content'] > .settings-section:first-child,
+.profile-editor .google-settings > .settings-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.profile-editor .settings-field > label {
+  margin-top: 0;
+}
+.profile-editor .settings-field input,
+.profile-editor .settings-field select {
+  height: 40px;
+  padding: 8px 12px;
+}
+.ha-connection-settings {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.ha-connection-settings h3,
+.notification-toolbar h3 {
+  margin: 0;
+}
+.ha-connection-trigger {
+  width: 100%;
+  min-height: 40px;
+  height: auto;
+  justify-content: space-between;
+  text-align: left;
+  white-space: normal;
+}
+.ha-connection-trigger > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ha-manual-connection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.ha-token-save {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.ha-token-save > .settings-field {
+  flex: 1;
+}
+.ha-token-save > .icon-action-trigger {
+  margin-bottom: 2px;
+}
+.notification-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.notification-toolbar .action-group {
+  align-items: flex-end;
+}
+.notification-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.notification-description {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notification-description .settings-help {
+  margin: 0;
+}
+@media (max-width: 650px) {
+  .profile-editor > [data-slot='dialog-header'] {
+    padding-bottom: 12px;
+    text-align: left;
+  }
+  .profile-editor .provider-settings > [data-slot='tabs-content'] {
+    padding: 14px;
+  }
+  .ha-manual-connection {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .notification-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

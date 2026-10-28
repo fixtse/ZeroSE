@@ -63,21 +63,30 @@ export class PostgresRules implements RuleRepository {
     kind: NotificationRule['kind'] | undefined,
     offset: number,
     limit: number,
+    options?: { includeAlerts?: boolean; excludeCancelled?: boolean },
   ) {
     const filter = and(
       eq(rules.session, session),
-      kind ? eq(sql`${rules.value}->>'kind'`, kind) : ne(sql`${rules.value}->>'kind'`, 'alert'),
+      kind
+        ? eq(sql`${rules.value}->>'kind'`, kind)
+        : options?.includeAlerts
+          ? undefined
+          : ne(sql`${rules.value}->>'kind'`, 'alert'),
+    );
+    const visibleFilter = and(
+      filter,
+      options?.excludeCancelled ? ne(sql`${rules.value}->>'status'`, 'cancelled') : undefined,
     );
     const rows = await this.db
       .select({ ...getTableColumns(rules), total: sql<number>`count(*) over()`.mapWith(Number) })
       .from(rules)
-      .where(filter)
+      .where(visibleFilter)
       .orderBy(desc(rules.created), desc(rules.id))
       .offset(offset)
       .limit(limit);
     const total =
       rows[0]?.total ??
-      (await this.db.select({ total: count() }).from(rules).where(filter))[0].total;
+      (await this.db.select({ total: count() }).from(rules).where(visibleFilter))[0].total;
     return {
       items: rows.map((row) => this.decode(row)),
       total,

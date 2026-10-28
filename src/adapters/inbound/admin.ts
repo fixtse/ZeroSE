@@ -30,7 +30,7 @@ import type {
   GoogleDestinationKind,
   AdminCatalogFactory,
 } from '../../application/admin-catalog.js';
-import type { RuleRepository } from '../../application/notification-rules.js';
+import type { NotificationRules, RuleRepository } from '../../application/notification-rules.js';
 import { defaultAssistantId } from '../../domain/assistant-definition.js';
 
 const speechSchema = z.object({
@@ -188,6 +188,7 @@ export class Admin {
     private googleDestinations?: GoogleDestinationFactory,
     private profileMemory?: ProfileMemoryAdmin,
     private groupMembers?: GroupMembersAdmin,
+    private notificationRules?: NotificationRules,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -360,6 +361,62 @@ export class Admin {
       }
       return true;
     }
+    const ruleMutation = new RegExp(
+      '^/v1/admin/profiles/(' +
+        assistantIdPattern +
+        ')/(-?\\d{1,16}|ha:[a-f0-9]{32})/rules/([a-f0-9-]{36})$',
+    ).exec(path);
+    if (ruleMutation && (req.method === 'PATCH' || req.method === 'DELETE')) {
+      const profile = await this.repository.profile(ruleMutation[1] as BotId, ruleMutation[2]);
+      if (!profile) {
+        send(404, { error: 'Chat no encontrado.' });
+        return true;
+      }
+      if (!this.notificationRules) {
+        send(503, { error: 'Gestión de alertas no disponible.' });
+        return true;
+      }
+      const session = telegramSession(profile.bot, profile.chatId);
+      const rule = await this.notificationRules.repository.read(session, ruleMutation[3]);
+      if (!rule) {
+        send(404, { error: 'Alerta o recordatorio no encontrado.' });
+        return true;
+      }
+      if (rule.scheduler_state === 'uncertain' || rule.scheduler_state === 'installing') {
+        send(409, {
+          error:
+            'El planificador tiene un cambio pendiente de confirmación. Consulta su estado antes de hacer otro cambio.',
+        });
+        return true;
+      }
+      const operation =
+        req.method === 'DELETE'
+          ? 'cancel'
+          : z.object({ operation: z.enum(['pause', 'resume']) }).parse(await read()).operation;
+      try {
+        const result = await this.notificationRules.change(
+          session,
+          rule.id,
+          operation,
+          undefined,
+          new Date(),
+          AbortSignal.timeout(15000),
+        );
+        send(200, {
+          ...result,
+          warning:
+            result.scheduler_state === 'uncertain'
+              ? 'Cambio guardado en Zero. No se pudo confirmar la desactivación en el planificador. Recarga para consultar el estado antes de hacer otro cambio.'
+              : undefined,
+        });
+      } catch {
+        send(502, {
+          error:
+            'No se pudo confirmar el cambio en el planificador. Recarga para consultar el estado antes de hacer otro cambio. No se ha reintentado.',
+        });
+      }
+      return true;
+    }
     const catalogMatch = new RegExp(
       '^/v1/admin/profiles/(' +
         assistantIdPattern +
@@ -396,6 +453,7 @@ export class Admin {
             kind,
             query.offset,
             query.limit,
+            { includeAlerts: true, excludeCancelled: true },
           );
           send(200, {
             ...result,
