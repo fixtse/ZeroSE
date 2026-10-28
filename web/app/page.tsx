@@ -743,13 +743,6 @@ export default function Home() {
               {tab === 'ai' && <AISettingsEditor />}
               {tab === 'security' && (
                 <>
-                  <div className="page-heading">
-                    <div>
-                      <div className="eyebrow">CONTROL DE ACCESO</div>
-                      <h1>Seguridad de tu cuenta.</h1>
-                      <p>Gestiona el acceso a Zero y tus opciones de recuperación.</p>
-                    </div>
-                  </div>
                   {ingress ? (
                     <Card className="panel">
                       <h2>Administración desde Home Assistant</h2>

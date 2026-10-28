@@ -2881,15 +2881,256 @@ h1 {
 .service-advanced[open] > .settings-grid {
   margin-top: 16px;
 }
-.service-save-bar {
-  display: flex;
-  justify-content: flex-end;
-}
 @media (max-width: 650px) {
   .service-settings .service-panel {
     padding: 14px;
   }
   .service-settings-heading h2 {
     font-size: 20px;
+  }
+}
+
+/* Compact settings chrome and task-focused editor surfaces. */
+.ai-settings {
+  display: grid;
+  padding: 0;
+  gap: 16px;
+}
+.ai-settings-header .form-actions {
+  margin: 0;
+  flex-wrap: nowrap;
+}
+.ai-settings .provider-settings,
+.security-settings .provider-settings {
+  gap: 12px;
+}
+.ai-settings .provider-tabs-list,
+.security-settings .provider-tabs-list {
+  margin: 0;
+}
+.ai-settings .provider-tabs-list [role='tab'][data-state='active'],
+.security-settings .provider-tabs-list [role='tab'][data-state='active'] {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+}
+.ai-settings .provider-settings > [data-slot='tabs-content'] {
+  padding: 20px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  gap: 16px;
+}
+.ai-settings .settings-field > label,
+.security-settings .settings-field > label {
+  margin-top: 0;
+}
+.ai-settings .settings-field input,
+.ai-settings .settings-field select,
+.security-settings .settings-field input {
+  height: 40px;
+  padding: 8px 12px;
+}
+.ai-heading-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-heading-label svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted-foreground);
+}
+.ai-editor-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--muted) 24%, var(--card));
+  overflow: hidden;
+}
+.ai-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 10px;
+}
+.ai-editor-trigger {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: 12px 14px;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+.ai-editor-trigger > svg {
+  transition: transform 150ms ease;
+}
+.ai-editor-summary {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.ai-editor-summary strong,
+.ai-editor-summary small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-editor-summary small,
+.ai-editor-status {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+.ai-editor-status {
+  white-space: nowrap;
+}
+.ai-editor-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.ai-editor-body[hidden] {
+  display: none;
+}
+.ai-editor-body > p,
+.ai-editor-body > .secret-editor,
+.ai-editor-body > .ai-model-options {
+  grid-column: 1 / -1;
+}
+.secret-editor {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.secret-editor-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.secret-editor-preview {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.security-settings {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.security-settings h2,
+.security-settings h3,
+.security-settings p {
+  margin: 0;
+}
+.security-settings .provider-settings > [data-slot='tabs-content'] {
+  margin: 0;
+}
+.security-panel {
+  padding: 20px;
+  gap: 16px;
+}
+.security-panel-heading,
+.security-panel-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.security-panel-heading {
+  justify-content: space-between;
+}
+.security-panel p {
+  max-width: 75ch;
+}
+.security-panel fieldset,
+.security-enrollment {
+  display: grid;
+  gap: 16px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.security-inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 760px;
+}
+.security-inline-form > .settings-field {
+  flex: 1;
+}
+.security-inline-form > .icon-action-trigger {
+  margin-bottom: 2px;
+}
+.security-enrollment {
+  background: var(--background);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.security-enrollment pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.security-key-list {
+  display: grid;
+  gap: 8px;
+}
+.security-key-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.security-key-row > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--muted-foreground);
+}
+.security-key-row strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .ai-settings .provider-settings > [data-slot='tabs-content'],
+  .security-panel {
+    padding: 14px;
+  }
+  .ai-editor-body {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px;
+  }
+  .ai-editor-trigger {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px;
+  }
+  .ai-editor-summary {
+    flex-basis: calc(100% - 24px);
+  }
+  .ai-editor-status {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-editor-trigger > svg {
+    transition: none;
   }
 }

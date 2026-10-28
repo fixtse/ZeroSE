@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import {
   AudioLines,
   BookOpen,
@@ -195,8 +195,10 @@ function SettingsForm({
   busy,
   scope,
   save,
+  formId,
 }: {
   settings: Settings;
+  formId: string;
   busy: boolean;
   scope: 'services' | 'codex';
   save: (data: FormData, extra: Record<string, unknown>) => void;
@@ -293,6 +295,7 @@ function SettingsForm({
   };
   return (
     <form
+      id={formId}
       noValidate
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -437,15 +440,6 @@ function SettingsForm({
           ))}
         </Tabs>
         <TimezoneOptions id="service-timezone-options" />
-        <div className="service-save-bar">
-          <Button
-            disabled={busy}
-            size="icon"
-            tooltip={scope === 'codex' ? 'Guardar parámetros CLI' : 'Guardar ajustes'}
-          >
-            <Save />
-          </Button>
-        </div>
       </fieldset>
     </form>
   );
@@ -458,6 +452,7 @@ export function ServiceSettings({
   onSkip: () => void;
   scope?: 'services' | 'codex';
 }) {
+  const formId = useId();
   const [settings, setSettings] = useState<Settings>();
   const { busy, run, setNotice } = useAdminTask();
   const endpoint = '/v1/admin/setup/' + scope;
@@ -522,6 +517,15 @@ export function ServiceSettings({
           >
             <RefreshCw />
           </Button>
+          <Button
+            type="submit"
+            form={formId}
+            disabled={busy || !settings}
+            size="icon"
+            tooltip={scope === 'codex' ? 'Guardar parámetros CLI' : 'Guardar ajustes'}
+          >
+            <Save />
+          </Button>
           {scope === 'codex' && (
             <Button type="button" variant="ghost" size="icon" tooltip="Cerrar" onClick={onSkip}>
               <X />
@@ -533,6 +537,7 @@ export function ServiceSettings({
         <SettingsForm
           key={settings.revision}
           settings={settings}
+          formId={formId}
           busy={busy}
           scope={scope}
           save={save}

@@ -1,15 +1,22 @@
 'use client';
+import { AIEditorCard } from './ai-editor-card';
+import { SecretEditor } from './secret-editor';
 import { notifyError } from '../lib/notifications';
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
+  Brain,
+  Cpu,
+  FlaskConical,
+  ListOrdered,
+  MessagesSquare,
   DatabaseZap,
   Plus,
   RefreshCw,
   Save,
   Settings2,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Popover } from 'radix-ui';
@@ -28,7 +35,6 @@ import {
 import { useUrlState } from '../hooks/use-url-state';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
 import { Field, SelectField, CheckField } from './settings-fields';
 import {
   AlertDialog,
@@ -105,6 +111,8 @@ export function AISettingsEditor() {
   const [reprocessing, setReprocessing] = useState(false);
   const [progress, setProgress] = useState('');
   const [tab, setTab] = useUrlState('aiTab', 'conversation');
+  const [connectionEditor, setConnectionEditor] = useUrlState('aiConnection', '');
+  const [modelEditor, setModelEditor] = useUrlState('aiModel', '');
   const [savedProviders, setSavedProviders] = useState<Provider[]>([]);
   const [savedModels, setSavedModels] = useState<AIModel[]>([]);
   const { busy, setNotice, run } = useAdminTask();
@@ -162,9 +170,39 @@ export function AISettingsEditor() {
     );
   }
   return (
-    <Card className="ai-settings">
+    <section className="ai-settings">
       <div className="ai-settings-header">
         <h2>Proveedores IA</h2>
+        {value && (
+          <div className="form-actions">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Recargar configuración"
+              tooltip="Recargar configuración guardada"
+              disabled={busy || reprocessing}
+              onClick={() => void run(load)}
+            >
+              <RefreshCw aria-hidden="true" className={busy ? 'animate-spin' : undefined} />
+            </Button>
+            <Button
+              type="submit"
+              form="ai-settings-form"
+              disabled={
+                busy ||
+                reprocessing ||
+                value.models.some((m) => !m.model || !m.provider) ||
+                (['gemini', 'provider'].includes(value.embeddings?.mode || '') &&
+                  !value.embeddings?.model)
+              }
+              size="icon"
+              tooltip="Guardar configuración IA"
+            >
+              <Save />
+            </Button>
+          </div>
+        )}
       </div>
       <p>
         Configura conexiones y modelos. El modelo predeterminado se aplica a los perfiles sin
@@ -172,8 +210,24 @@ export function AISettingsEditor() {
       </p>
       {value && (
         <form
+          id="ai-settings-form"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
+            const invalid = event.currentTarget.querySelector<HTMLInputElement | HTMLSelectElement>(
+              'input:invalid,select:invalid',
+            );
+            if (invalid) {
+              const card = invalid.closest<HTMLElement>('[data-ai-editor]');
+              if (card) {
+                setTab('conversation');
+                if (card.dataset.aiEditor === 'connection')
+                  setConnectionEditor(card.dataset.editorId!);
+                else setModelEditor(card.dataset.editorId!);
+              }
+              requestAnimationFrame(() => invalid.reportValidity());
+              return;
+            }
             void run(async () => {
               await api('/v1/admin/ai', 'PUT', {
                 revision: value.revision,
@@ -202,36 +256,19 @@ export function AISettingsEditor() {
             <Tabs value={tab} onValueChange={setTab} className="provider-settings">
               <div className="ai-settings-toolbar">
                 <TabsList aria-label="Tipo de IA" className="provider-tabs-list">
-                  <TabsTrigger value="conversation">Conversación</TabsTrigger>
-                  <TabsTrigger value="embeddings">Embeddings de memoria</TabsTrigger>
-                  <TabsTrigger value="reranking">Reranking</TabsTrigger>
+                  <TabsTrigger value="conversation">
+                    <MessagesSquare aria-hidden="true" />
+                    Conversación
+                  </TabsTrigger>
+                  <TabsTrigger value="embeddings">
+                    <Brain aria-hidden="true" />
+                    Embeddings de memoria
+                  </TabsTrigger>
+                  <TabsTrigger value="reranking">
+                    <ListOrdered aria-hidden="true" />
+                    Reranking
+                  </TabsTrigger>
                 </TabsList>
-                <div className="form-actions">
-                  {' '}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Recargar configuración"
-                    tooltip="Recargar configuración guardada"
-                    disabled={busy}
-                    onClick={() => void run(load)}
-                  >
-                    <RefreshCw aria-hidden="true" className={busy ? 'animate-spin' : undefined} />
-                  </Button>{' '}
-                  <Button
-                    type="submit"
-                    disabled={
-                      value.models.some((m) => !m.model || !m.provider) ||
-                      (['gemini', 'provider'].includes(value.embeddings?.mode || '') &&
-                        !value.embeddings?.model)
-                    }
-                    size="icon"
-                    tooltip="Guardar configuración IA"
-                  >
-                    <Save />
-                  </Button>
-                </div>
               </div>
               <TabsContent value="conversation">
                 <div className="ai-section-heading">
@@ -248,21 +285,23 @@ export function AISettingsEditor() {
                     <Button
                       type="button"
                       disabled={value.providers.length >= 30}
-                      onClick={() =>
+                      onClick={() => {
+                        const id = 'connection-' + crypto.randomUUID();
+                        setConnectionEditor(id);
                         setValue({
                           ...value,
                           providers: [
                             ...value.providers,
                             {
-                              id: 'connection-' + crypto.randomUUID(),
+                              id,
                               name: '',
                               kind: 'openai',
                               baseUrl: '',
                               apiKey: '',
                             },
                           ],
-                        })
-                      }
+                        });
+                      }}
                       size="icon"
                       tooltip="Añadir conexión"
                     >
@@ -273,18 +312,78 @@ export function AISettingsEditor() {
                 <p>Añade las cuentas que usarán tus modelos.</p>
                 {value.providers.map((p, i) =>
                   p.scope && p.scope !== 'conversation' ? null : (
-                    <div className="ai-settings-entry ai-connection" key={p.id}>
-                      <div className="ai-entry-heading">
-                        <strong>{kinds[p.kind as keyof typeof kinds]}</strong>
-                        <span>
-                          {savedProviders.some(
-                            (saved) =>
-                              saved.id === p.id && JSON.stringify(saved) === JSON.stringify(p),
-                          )
-                            ? 'Guardada'
-                            : 'Sin guardar'}
-                        </span>
-                      </div>
+                    <AIEditorCard
+                      key={p.id}
+                      id={p.id}
+                      kind="connection"
+                      title={p.name || kinds[p.kind as keyof typeof kinds]}
+                      detail={
+                        p.baseUrl || (p.name ? kinds[p.kind as keyof typeof kinds] : undefined)
+                      }
+                      status={
+                        savedProviders.some(
+                          (saved) =>
+                            saved.id === p.id && JSON.stringify(saved) === JSON.stringify(p),
+                        )
+                          ? 'Guardada'
+                          : 'Sin guardar'
+                      }
+                      actions={
+                        <>
+                          <Button
+                            type="button"
+                            size="icon"
+                            tooltip={
+                              savedProviders.some((saved) => saved.id === p.id)
+                                ? savedProviders.some(
+                                    (saved) =>
+                                      saved.id === p.id &&
+                                      JSON.stringify(saved) === JSON.stringify(p),
+                                  )
+                                  ? 'Eliminar conexión'
+                                  : 'Descartar cambios'
+                                : 'Cancelar conexión'
+                            }
+                            variant="ghost"
+                            onClick={() => {
+                              const saved = savedProviders.find((item) => item.id === p.id);
+                              if (saved && JSON.stringify(saved) !== JSON.stringify(p)) {
+                                setValue({
+                                  ...value,
+                                  providers: value.providers.map((item, n) =>
+                                    n === i ? saved : item,
+                                  ),
+                                  models: value.models.map((item) =>
+                                    item.provider === p.id
+                                      ? savedModels.find(
+                                          (original) =>
+                                            original.id === item.id && original.provider === p.id,
+                                        ) || item
+                                      : item,
+                                  ),
+                                });
+                              } else {
+                                setValue({
+                                  ...value,
+                                  providers: value.providers.filter((_, n) => n !== i),
+                                });
+                              }
+                            }}
+                          >
+                            {savedProviders.some(
+                              (saved) =>
+                                saved.id === p.id && JSON.stringify(saved) === JSON.stringify(p),
+                            ) ? (
+                              <Trash2 />
+                            ) : (
+                              <X />
+                            )}
+                          </Button>
+                        </>
+                      }
+                      open={connectionEditor === p.id}
+                      onOpenChange={(open) => setConnectionEditor(open ? p.id : '')}
+                    >
                       <div className="ai-provider-selector">
                         <SelectField
                           id={'ai-kind-' + i}
@@ -341,109 +440,67 @@ export function AISettingsEditor() {
                             }
                             onChange={(e) => provider(i, { baseUrl: e.target.value })}
                           />
-                          <div className="ai-key-field">
-                            {' '}
-                            <Field
-                              id={'ai-key-' + i}
-                              label={p.hasApiKey ? 'API key (guardada)' : 'API key'}
-                              type="password"
-                              autoComplete="new-password"
-                              value={p.apiKey}
-                              placeholder={p.hasApiKey ? p.secretHint || '••••••••' : ''}
-                              onChange={(e) => provider(i, { apiKey: e.target.value })}
-                            />
-                            {p.hasApiKey && (
-                              <DeleteAIKey
-                                disabled={
-                                  !p.hasApiKey ||
-                                  busy ||
-                                  reprocessing ||
-                                  JSON.stringify(value) !== savedSettings
-                                }
-                                description="La clave se borrará inmediatamente de esta conexión. Los modelos que la usan necesitarán una nueva clave."
-                                onConfirm={() =>
-                                  void run(async () => {
-                                    await api('/v1/admin/ai/api-key', 'DELETE', {
-                                      revision: value.revision,
-                                      provider: p.id,
-                                    });
-                                    await load();
-                                    setNotice('API key borrada.');
-                                  })
-                                }
-                              />
-                            )}
-                          </div>
+                          <SecretEditor
+                            id={'ai-key-' + i}
+                            value={p.apiKey}
+                            configured={p.hasApiKey}
+                            hint={p.secretHint}
+                            onChange={(value) => provider(i, { apiKey: value })}
+                            deleteAction={
+                              p.hasApiKey ? (
+                                <DeleteAIKey
+                                  disabled={
+                                    !p.hasApiKey ||
+                                    busy ||
+                                    reprocessing ||
+                                    JSON.stringify(value) !== savedSettings
+                                  }
+                                  description="La clave se borrará inmediatamente de esta conexión. Los modelos que la usan necesitarán una nueva clave."
+                                  onConfirm={() =>
+                                    void run(async () => {
+                                      await api('/v1/admin/ai/api-key', 'DELETE', {
+                                        revision: value.revision,
+                                        provider: p.id,
+                                      });
+                                      await load();
+                                      setNotice('API key borrada.');
+                                    })
+                                  }
+                                />
+                              ) : undefined
+                            }
+                          />
                         </>
                       )}
-                      <div className="form-actions ai-settings-entry-actions">
-                        <Button
-                          type="button"
-                          size="icon"
-                          tooltip={
-                            savedProviders.some((saved) => saved.id === p.id)
-                              ? savedProviders.some(
-                                  (saved) =>
-                                    saved.id === p.id &&
-                                    JSON.stringify(saved) === JSON.stringify(p),
-                                )
-                                ? 'Eliminar conexión'
-                                : 'Descartar cambios'
-                              : 'Cancelar conexión'
-                          }
-                          variant="outline"
-                          onClick={() => {
-                            const saved = savedProviders.find((item) => item.id === p.id);
-                            if (saved && JSON.stringify(saved) !== JSON.stringify(p)) {
-                              setValue({
-                                ...value,
-                                providers: value.providers.map((item, n) =>
-                                  n === i ? saved : item,
-                                ),
-                                models: value.models.map((item) =>
-                                  item.provider === p.id
-                                    ? savedModels.find(
-                                        (original) =>
-                                          original.id === item.id && original.provider === p.id,
-                                      ) || item
-                                    : item,
-                                ),
-                              });
-                            } else {
-                              setValue({
-                                ...value,
-                                providers: value.providers.filter((_, n) => n !== i),
-                              });
-                            }
-                          }}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </div>
+                    </AIEditorCard>
                   ),
                 )}
                 <div className="ai-section-heading">
-                  <h3>Modelos</h3>
+                  <h3 className="ai-heading-label">
+                    <Cpu aria-hidden="true" />
+                    Modelos
+                  </h3>
                   <div className="ai-heading-actions">
                     <span>{value.models.length} configurados</span>
                     <Button
                       type="button"
                       disabled={value.models.length >= 100}
-                      onClick={() =>
+                      onClick={() => {
+                        const id = 'model-' + crypto.randomUUID();
+                        setModelEditor(id);
                         setValue({
                           ...value,
                           models: [
                             ...value.models,
                             {
-                              id: 'model-' + crypto.randomUUID(),
+                              id,
                               label: '',
                               provider: '',
                               model: '',
                             },
                           ],
-                        })
-                      }
+                        });
+                      }}
                       size="icon"
                       tooltip="Añadir modelo"
                     >
@@ -455,13 +512,47 @@ export function AISettingsEditor() {
                   Elige una conexión, selecciona un modelo y ajusta su esfuerzo de razonamiento.
                 </p>
                 {value.models.map((m, i) => (
-                  <div className="ai-settings-entry ai-model" key={m.id}>
-                    <div className="ai-entry-heading">
-                      <strong>{m.label || 'Nuevo modelo'}</strong>
-                      <span>
-                        {m.id === value.defaultModel ? 'Predeterminado' : 'Modelo ' + (i + 1)}
-                      </span>
-                    </div>
+                  <AIEditorCard
+                    key={m.id}
+                    id={m.id}
+                    kind="model"
+                    title={m.label || m.model || 'Nuevo modelo'}
+                    detail={
+                      value.providers.find((provider) => provider.id === m.provider)?.name ||
+                      kinds[
+                        value.providers.find((provider) => provider.id === m.provider)
+                          ?.kind as keyof typeof kinds
+                      ]
+                    }
+                    status={
+                      m.id === value.defaultModel
+                        ? 'Predeterminado'
+                        : savedModels.some(
+                              (saved) =>
+                                saved.id === m.id && JSON.stringify(saved) === JSON.stringify(m),
+                            )
+                          ? 'Guardado'
+                          : 'Sin guardar'
+                    }
+                    actions={
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="danger"
+                          onClick={() =>
+                            setValue({ ...value, models: value.models.filter((_, n) => n !== i) })
+                          }
+                          size="icon"
+                          tooltip="Eliminar modelo"
+                        >
+                          <Trash2 />
+                        </Button>
+                      </>
+                    }
+                    open={modelEditor === m.id}
+                    onOpenChange={(open) => setModelEditor(open ? m.id : '')}
+                  >
                     <SelectField
                       id={'ai-model-provider-' + i}
                       label="Conexión"
@@ -526,20 +617,7 @@ export function AISettingsEditor() {
                         </div>
                       )}
                     </div>
-                    <div className="form-actions ai-settings-entry-actions">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          setValue({ ...value, models: value.models.filter((_, n) => n !== i) })
-                        }
-                        size="icon"
-                        tooltip="Eliminar modelo"
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </div>
+                  </AIEditorCard>
                 ))}
 
                 <SelectField
@@ -569,11 +647,11 @@ export function AISettingsEditor() {
                   Ordena hasta 20 recuerdos del mismo perfil. Puedes reutilizar cualquier conexión
                   compatible o crear una exclusiva de reranking, sin añadir modelos a Conversación.
                 </p>
-                <CheckField
-                  id="reranking-enabled"
-                  label="Activar reranking"
-                  checked={!!value.reranking?.enabled}
-                  onCheckedChange={(checked) =>
+                <SelectField
+                  id="reranking-mode"
+                  label="Reranking"
+                  value={value.reranking?.enabled ? value.reranking.api || 'model' : 'disabled'}
+                  onChange={(event) =>
                     setValue(
                       (current) =>
                         current && {
@@ -582,12 +660,26 @@ export function AISettingsEditor() {
                             provider: '',
                             model: '',
                             ...current.reranking,
-                            enabled: checked === true,
+                            enabled: event.target.value !== 'disabled',
+                            api:
+                              event.target.value === 'disabled'
+                                ? current.reranking?.api || 'model'
+                                : event.target.value === 'rerank'
+                                  ? 'rerank'
+                                  : 'model',
+                            ...(event.target.value !== 'disabled' &&
+                            event.target.value !== (current.reranking?.api || 'model')
+                              ? { model: '' }
+                              : {}),
                           },
                         },
                     )
                   }
-                />
+                >
+                  <option value="disabled">Desactivar reranking (orden de búsqueda)</option>
+                  <option value="model">Modelo de IA (respuesta estructurada)</option>
+                  <option value="rerank">API rerank (Cohere, Jina o compatible)</option>
+                </SelectField>
                 {value.reranking?.enabled && (
                   <>
                     <MemoryConnection
@@ -616,27 +708,6 @@ export function AISettingsEditor() {
                         )
                       }
                     />
-                    <SelectField
-                      id="reranking-api"
-                      label="Tipo de reranking"
-                      value={value.reranking.api || 'model'}
-                      onChange={(event) =>
-                        setValue(
-                          (current) =>
-                            current && {
-                              ...current,
-                              reranking: {
-                                ...current.reranking!,
-                                api: event.target.value as 'model' | 'rerank',
-                                model: '',
-                              },
-                            },
-                        )
-                      }
-                    >
-                      <option value="model">Modelo de IA (respuesta estructurada)</option>
-                      <option value="rerank">API rerank (Cohere, Jina o compatible)</option>
-                    </SelectField>
                     <div className="ai-model-options">
                       {value.reranking.api === 'rerank' ? (
                         <Field
@@ -722,7 +793,7 @@ export function AISettingsEditor() {
                           })
                         }
                       >
-                        <Check />
+                        <FlaskConical />
                       </Button>
                       <small>Guarda antes de probar. La prueba no envía recuerdos.</small>
                     </div>
@@ -862,7 +933,7 @@ export function AISettingsEditor() {
           </fieldset>
         </form>
       )}
-    </Card>
+    </section>
   );
 }
 export function ProfileModels({
@@ -1147,10 +1218,10 @@ function ProviderModels({
           >
             <RefreshCw />
           </Button>
+          {actions}
         </div>
       </div>
       {error && <p role="alert">{error}</p>}
-      <div className="form-actions ai-catalog-actions">{actions}</div>
     </div>
   );
 }
@@ -1329,14 +1400,12 @@ function MemoryConnection({
                   change({ baseUrl: event.target.value, hasApiKey: false, secretHint: undefined })
                 }
               />
-              <Field
+              <SecretEditor
                 id={scope + '-key'}
-                label={connection.hasApiKey ? 'API key (guardada)' : 'API key'}
-                type="password"
-                autoComplete="new-password"
                 value={connection.apiKey}
-                placeholder={connection.hasApiKey ? connection.secretHint || '••••••••' : ''}
-                onChange={(event) => change({ apiKey: event.target.value })}
+                configured={connection.hasApiKey}
+                hint={connection.secretHint}
+                onChange={(apiKey) => change({ apiKey })}
               />
             </>
           )}
@@ -1419,19 +1488,15 @@ function EmbeddingEditor({
       </SelectField>
       {value.mode === 'gemini' && (
         <>
-          <div className="ai-key-field">
-            {' '}
-            <Field
-              id="ai-embedding-key"
-              label={value.hasApiKey ? 'API key de Gemini (guardada)' : 'API key de Gemini'}
-              type="password"
-              autoComplete="new-password"
-              value={value.apiKey}
-              placeholder={value.hasApiKey ? value.secretHint || '••••••••' : ''}
-              onChange={(e) => onChange({ ...value, apiKey: e.target.value })}
-            />
-            {value.hasApiKey && deleteKey}
-          </div>
+          <SecretEditor
+            id="ai-embedding-key"
+            label="API key de Gemini"
+            value={value.apiKey}
+            configured={value.hasApiKey}
+            hint={value.secretHint}
+            onChange={(apiKey) => onChange({ ...value, apiKey })}
+            deleteAction={value.hasApiKey ? deleteKey : undefined}
+          />
         </>
       )}
       {value.mode === 'provider' && (
@@ -1535,7 +1600,7 @@ function EmbeddingTest({
       size="icon"
       tooltip="Probar embeddings"
     >
-      <Check />
+      <FlaskConical />
     </Button>
   );
 }
