@@ -330,7 +330,10 @@ export function createHttpServer(
           return send(200, {
             webhookProbe: challenge.data,
             assistantId: id,
-            enabled: settings.enabled && settings.transport !== 'polling' && settings.transport !== 'disabled',
+            enabled:
+              settings.enabled &&
+              settings.transport !== 'polling' &&
+              settings.transport !== 'disabled',
           });
         }
         if (

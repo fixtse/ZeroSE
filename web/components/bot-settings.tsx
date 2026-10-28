@@ -276,8 +276,11 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
           </div>
           {status && (
             <div role="status">
-              {value.enabled && value.transport === 'webhook' && status.url &&
-              status.url === status.expectedUrl && status.reachable === true ? (
+              {value.enabled &&
+              value.transport === 'webhook' &&
+              status.url &&
+              status.url === status.expectedUrl &&
+              status.reachable === true ? (
                 <p className="flex items-center gap-2">
                   <Check className="size-4 text-primary" aria-hidden="true" />
                   Webhook verificado
@@ -298,7 +301,9 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                   </p>
                   {status.url && <p>Webhook actual: {status.url}</p>}
                   <p>Mensajes pendientes: {status.pending}</p>
-                  {value.enabled && value.transport === 'webhook' && status.reachable === false &&
+                  {value.enabled &&
+                    value.transport === 'webhook' &&
+                    status.reachable === false &&
                     status.lastError && (
                       <p>
                         Último error registrado

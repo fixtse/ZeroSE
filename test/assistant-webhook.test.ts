@@ -49,13 +49,14 @@ test('Helper webhook authenticates independently, preserves polling dedupe and k
     message: { chat: { id: -10, type: 'group', title: 'Pending group' }, group_chat_created: true },
   };
   try {
-    const probe = (secret: string) => fetch(base + '/telegram/assistants/helper/webhook', {
-      method: 'POST',
-      headers: {
-        'X-Telegram-Bot-Api-Secret-Token': secret,
-        'X-Zero-Webhook-Probe': 'e7b87ca1-c63f-44ad-86eb-d5b9e3d7b607',
-      },
-    });
+    const probe = (secret: string) =>
+      fetch(base + '/telegram/assistants/helper/webhook', {
+        method: 'POST',
+        headers: {
+          'X-Telegram-Bot-Api-Secret-Token': secret,
+          'X-Zero-Webhook-Probe': 'e7b87ca1-c63f-44ad-86eb-d5b9e3d7b607',
+        },
+      });
     assert.equal((await probe('zero-secret')).status, 401);
     assert.deepEqual(await (await probe('helper-secret')).json(), {
       webhookProbe: 'e7b87ca1-c63f-44ad-86eb-d5b9e3d7b607',
@@ -157,30 +158,44 @@ test('webhook registration preserves pending updates, uses the bot secret and ne
 
 test('webhook status probes only the saved registered endpoint and rejects failed or unrelated responses', async () => {
   const settings: BotSettings = {
-    id: 'helper', token: '999:test', enabled: true, transport: 'webhook',
-    webhookSecret: 'secret', webhookUrl: url,
+    id: 'helper',
+    token: '999:test',
+    enabled: true,
+    transport: 'webhook',
+    webhookSecret: 'secret',
+    webhookUrl: url,
   };
   let registeredUrl = url;
   let mode = 'ok';
   let probes = 0;
-  const control = new TelegramWebhook(() => ({
-    async call(method) {
-      assert.equal(method, 'getWebhookInfo');
-      return { url: registeredUrl, pending_update_count: 0,
-        last_error_message: 'old 502', last_error_date: 123 };
+  const control = new TelegramWebhook(
+    () => ({
+      async call(method) {
+        assert.equal(method, 'getWebhookInfo');
+        return {
+          url: registeredUrl,
+          pending_update_count: 0,
+          last_error_message: 'old 502',
+          last_error_date: 123,
+        };
+      },
+    }),
+    async (input, init) => {
+      probes++;
+      assert.equal(String(input), url);
+      assert.equal(init?.method, 'POST');
+      assert.equal(init?.redirect, 'error');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('X-Telegram-Bot-Api-Secret-Token'), 'secret');
+      if (mode === 'network') throw new Error('private connection detail');
+      if (mode === '502') return new Response('', { status: 502 });
+      return Response.json({
+        webhookProbe: mode === 'wrong' ? 'stale' : headers.get('X-Zero-Webhook-Probe'),
+        assistantId: 'helper',
+        enabled: mode !== 'disabled',
+      });
     },
-  }), async (input, init) => {
-    probes++;
-    assert.equal(String(input), url);
-    assert.equal(init?.method, 'POST');
-    assert.equal(init?.redirect, 'error');
-    const headers = new Headers(init?.headers);
-    assert.equal(headers.get('X-Telegram-Bot-Api-Secret-Token'), 'secret');
-    if (mode === 'network') throw new Error('private connection detail');
-    if (mode === '502') return new Response('', { status: 502 });
-    return Response.json({ webhookProbe: mode === 'wrong' ? 'stale' : headers.get('X-Zero-Webhook-Probe'),
-      assistantId: 'helper', enabled: mode !== 'disabled' });
-  });
+  );
   const healthy = await control.status(settings);
   assert.equal(healthy.reachable, true);
   assert.equal(healthy.lastError, 'old 502');
@@ -197,7 +212,10 @@ test('webhook status probes only the saved registered endpoint and rejects faile
   registeredUrl = url;
   await control.status({ ...settings, enabled: false });
   await control.status({ ...settings, transport: 'polling' });
-  await control.status({ ...settings, webhookUrl: 'http://example.com/telegram/assistants/helper/webhook' });
+  await control.status({
+    ...settings,
+    webhookUrl: 'http://example.com/telegram/assistants/helper/webhook',
+  });
   assert.equal(probes, before);
 });
 
