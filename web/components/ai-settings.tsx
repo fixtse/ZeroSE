@@ -425,7 +425,31 @@ export function AISettingsEditor() {
                 )}
                 <div className="ai-section-heading">
                   <h3>Modelos</h3>
-                  <span>{value.models.length} configurados</span>
+                  <div className="ai-heading-actions">
+                    <span>{value.models.length} configurados</span>
+                    <Button
+                      type="button"
+                      disabled={value.models.length >= 100}
+                      onClick={() =>
+                        setValue({
+                          ...value,
+                          models: [
+                            ...value.models,
+                            {
+                              id: 'model-' + crypto.randomUUID(),
+                              label: '',
+                              provider: '',
+                              model: '',
+                            },
+                          ],
+                        })
+                      }
+                      size="icon"
+                      tooltip="Añadir modelo"
+                    >
+                      <Plus />
+                    </Button>
+                  </div>
                 </div>
                 <p>
                   Elige una conexión, selecciona un modelo y ajusta su esfuerzo de razonamiento.
@@ -517,23 +541,7 @@ export function AISettingsEditor() {
                     </div>
                   </div>
                 ))}
-                <Button
-                  type="button"
-                  disabled={value.models.length >= 100}
-                  onClick={() =>
-                    setValue({
-                      ...value,
-                      models: [
-                        ...value.models,
-                        { id: 'model-' + crypto.randomUUID(), label: '', provider: '', model: '' },
-                      ],
-                    })
-                  }
-                  size="icon"
-                  tooltip="Añadir modelo"
-                >
-                  <Plus />
-                </Button>
+
                 <SelectField
                   id="ai-default"
                   label="Modelo predeterminado"

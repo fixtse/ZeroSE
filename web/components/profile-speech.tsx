@@ -1,5 +1,5 @@
 'use client';
-import { ArrowRight, Check, RefreshCw } from 'lucide-react';
+import { ArrowRight, Check, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type Profile, type SpeechSettings, type CatalogPage } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
@@ -246,6 +246,7 @@ export function ProfileSpeech({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
         <SelectField
           id="profile-tts-voice"
+          className="h-12"
           label="Voz TTS"
           value={value.voice}
           disabled={busy}
@@ -268,6 +269,7 @@ export function ProfileSpeech({
           onClick={() => void run(() => loadVoices())}
           size="icon"
           tooltip="Recargar voces TTS"
+          className="size-12"
         >
           <RefreshCw />
         </Button>
@@ -287,18 +289,19 @@ export function ProfileSpeech({
         )}
         <small>{voiceTotal ? voiceOffset + ' de ' + voiceTotal + ' voces' : ''}</small>
       </div>
-      <Field
-        id="profile-speech-text"
-        label="Texto de prueba"
-        value={text}
-        disabled={busy}
-        maxLength={1000}
-        onChange={(event) => {
-          setText(event.target.value);
-          clearAudio();
-        }}
-      />
-      <div className="form-actions">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+        <Field
+          id="profile-speech-text"
+          className="h-12"
+          label="Texto de prueba"
+          value={text}
+          disabled={busy}
+          maxLength={1000}
+          onChange={(event) => {
+            setText(event.target.value);
+            clearAudio();
+          }}
+        />
         <Button
           type="button"
           variant="outline"
@@ -321,8 +324,9 @@ export function ProfileSpeech({
           }
           size="icon"
           tooltip="Probar voz seleccionada"
+          className="size-12"
         >
-          <Check />
+          <Play />
         </Button>
       </div>
       {audio && <audio src={audio} controls className="speech-preview" />}
