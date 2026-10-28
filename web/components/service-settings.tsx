@@ -28,6 +28,8 @@ import {
 import { api } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
+import { Switch } from './ui/switch';
+import { Label } from './ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Field, SelectField } from './settings-fields';
 import { TimezoneOptions } from './timezone-options';
@@ -66,7 +68,6 @@ const fieldNames: Record<string, string> = {
   url: 'URL del servicio',
   apiKey: 'Clave API',
   token: 'Token de acceso',
-  callbackUrl: 'URL de entrega de eventos',
   enabled: 'Activado',
   ffmpegCommand: 'Ejecutable de FFmpeg',
   asrUrl: 'URL de transcripción de audio',
@@ -89,6 +90,18 @@ function fieldLabel(path: string) {
   if (path === 'schedules.enabled') return 'Horarios automáticos';
   const label = fieldNames[parts.at(-1)!] || parts.at(-1)!;
   return label;
+}
+
+function BooleanField({ field }: { field: ServiceField }) {
+  const [checked, setChecked] = useState(field.value === true);
+  const id = 'service-' + field.path;
+  return (
+    <div className="service-switch-field">
+      <Label htmlFor={id}>{fieldLabel(field.path)}</Label>
+      <Switch id={id} checked={checked} onCheckedChange={setChecked} disabled={field.readOnly} />
+      <input type="hidden" name={field.path} value={String(checked)} disabled={field.readOnly} />
+    </div>
+  );
 }
 
 function SecretField({
@@ -210,13 +223,7 @@ function SettingsForm({
           ))}
         </SelectField>
       );
-    if (field.type === 'boolean')
-      return (
-        <SelectField key={field.path} {...common} defaultValue={String(field.value)}>
-          <option value="true">Activado</option>
-          <option value="false">Desactivado</option>
-        </SelectField>
-      );
+    if (field.type === 'boolean') return <BooleanField key={field.path} field={field} />;
     if (field.type === 'list')
       return (
         <label key={field.path} className="service-list-field">
@@ -327,7 +334,10 @@ function SettingsForm({
                     </summary>
                     <div className="settings-grid mt-4">
                       {settings.fields
-                        .filter((field) => groupFor(field) === group)
+                        .filter(
+                          (field) =>
+                            groupFor(field) === group && field.path !== 'schedulerSE.callbackUrl',
+                        )
                         .map(renderField)}
                     </div>
                   </details>
@@ -415,7 +425,12 @@ function SettingsForm({
                 </>
               ) : (
                 <div className="settings-grid">
-                  {settings.fields.filter((field) => groupFor(field) === group).map(renderField)}
+                  {settings.fields
+                    .filter(
+                      (field) =>
+                        groupFor(field) === group && field.path !== 'schedulerSE.callbackUrl',
+                    )
+                    .map(renderField)}
                 </div>
               )}
             </TabsContent>

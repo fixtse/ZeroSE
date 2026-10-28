@@ -4,12 +4,12 @@ import { ArrowUpRight, Link2, RefreshCw } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
-import { Field } from './settings-fields';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 
 interface Pairing {
   state: string;
   serviceUrl?: string;
-  callbackUrl?: string;
   approvalUrl?: string;
   expiresAt?: string;
 }
@@ -56,44 +56,45 @@ export function SchedulerSEPairing({
         pública configurada en Zero. Guarda antes cualquier otro ajuste pendiente.
       </p>
       {!active ? (
-        <div className="flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <Field
+        <div className="scheduler-pairing-field">
+          <Label htmlFor="scheduler-pairing-url">URL de SchedulerSE</Label>
+          <div className="flex min-w-0 items-center gap-2">
+            <Input
               id="scheduler-pairing-url"
-              label="URL de SchedulerSE"
               type="url"
+              className="h-10 flex-1"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               placeholder="https://scheduler.example.com"
             />
+            <Button
+              type="button"
+              size="icon-lg"
+              tooltip="Iniciar conexión con SchedulerSE"
+              disabled={busy || !url.trim()}
+              onClick={() =>
+                void run(async () => {
+                  setPairing(await api<Pairing>(endpoint, 'POST', { url: url.trim() }));
+                })
+              }
+            >
+              <Link2 />
+            </Button>
+            <Button
+              type="button"
+              size="icon-lg"
+              variant="outline"
+              tooltip="Recuperar estado de la conexión"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await inspect();
+                })
+              }
+            >
+              <RefreshCw />
+            </Button>
           </div>
-          <Button
-            type="button"
-            size="icon"
-            tooltip="Iniciar conexión con SchedulerSE"
-            disabled={busy || !url.trim()}
-            onClick={() =>
-              void run(async () => {
-                setPairing(await api<Pairing>(endpoint, 'POST', { url: url.trim() }));
-              })
-            }
-          >
-            <Link2 />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            tooltip="Recuperar estado de la conexión"
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                await inspect();
-              })
-            }
-          >
-            <RefreshCw />
-          </Button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -133,11 +134,10 @@ export function SchedulerSEPairing({
               </Button>
             </div>
           </div>
-          <p className="break-all text-sm">Entrega de eventos: {pairing.callbackUrl}</p>
           <p role="status" className="text-sm text-muted-foreground">
             {pairing.state === 'uncertain' || pairing.state === 'saving'
               ? 'El guardado no está confirmado. Comprueba el estado; la escritura no se repetirá.'
-              : 'Abre SchedulerSE, revisa la dirección de entrega y aprueba la solicitud. Después comprueba la aprobación aquí.'}
+              : 'Abre SchedulerSE, revisa los permisos y aprueba la solicitud. Después comprueba la aprobación aquí.'}
           </p>
           {pairing.expiresAt && (
             <p className="text-sm text-muted-foreground">

@@ -3133,3 +3133,18 @@ h1 {
     transition: none;
   }
 }
+
+.scheduler-pairing-field > label {
+  margin: 0 0 7px;
+}
+.service-switch-field {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.service-switch-field > label {
+  margin: 0;
+  cursor: pointer;
+}
