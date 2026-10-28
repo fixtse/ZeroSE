@@ -105,6 +105,7 @@ export interface Settings {
     userId: string;
     userName: string;
     profileName: string;
+    assistantId?: string;
     profileRoute?: string;
   }[];
 }

@@ -27,6 +27,7 @@ import { AIAdmin } from './adapters/inbound/ai-admin.js';
 import { PostgresAI } from './adapters/outbound/postgres-ai.js';
 import { AIAgent } from './application/ai-agent.js';
 import { HttpAIAgent } from './adapters/outbound/http-ai-agent.js';
+import { homeAssistantUserName } from './adapters/outbound/home-assistant-user-name.js';
 import { homeAssistantCommand } from './adapters/outbound/home-assistant-socket.js';
 import { UserContext } from './application/user-context.js';
 import { AssistantTelegram } from './application/assistant-telegram.js';
@@ -880,15 +881,7 @@ const codex = new AIAgent(
         const profile = await accessRepository.profile(bot, chatId);
         const connection =
           profile?.pairedHomeAssistant || profile?.homeAssistant || config.homeAssistant;
-        if (!connection.url || !connection.token) return undefined;
-        const users = await homeAssistantCommand(
-          connection,
-          { type: 'config/auth/list' },
-          AbortSignal.timeout(5000),
-        );
-        if (!Array.isArray(users)) return undefined;
-        const user = users.find((user) => user.id === userId);
-        return typeof user?.name === 'string' ? user.name : undefined;
+        return homeAssistantUserName(connection, userId);
       },
     ),
   );

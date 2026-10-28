@@ -374,12 +374,14 @@ test('admin HA links resolve names independently of profile search and preserve 
         userId: f.input.userId,
         userName: 'Ana en casa',
         profileName: 'Ana',
+        assistantId: 'salem',
         profileRoute: 'salem/42',
       },
       {
         userId: 'd'.repeat(32),
-        userName: 'Usuario de Home Assistant sin nombre',
+        userName: 'Nombre de Home Assistant no disponible',
         profileName: 'Perfil no disponible',
+        assistantId: undefined,
         profileRoute: undefined,
       },
     ]);

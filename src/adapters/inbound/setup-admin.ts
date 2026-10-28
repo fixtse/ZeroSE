@@ -133,8 +133,9 @@ export class SetupAdmin {
               liveName ||
               (user?.label && !user.label.includes(userId)
                 ? user.label
-                : 'Usuario de Home Assistant sin nombre'),
+                : 'Nombre de Home Assistant no disponible'),
             profileName: profile?.label || 'Perfil no disponible',
+            assistantId: profile ? profile.assistantId || profile.bot : undefined,
             profileRoute:
               profile && binding
                 ? binding.bot + '/' + encodeURIComponent(binding.chatId)

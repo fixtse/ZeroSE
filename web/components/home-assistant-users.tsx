@@ -1,7 +1,8 @@
 'use client';
 
-import { Pencil, Unlink } from 'lucide-react';
+import { Unlink } from 'lucide-react';
 import type { Settings } from '../lib/api';
+import { AssistantAvatar } from './assistant-image';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import {
@@ -33,26 +34,27 @@ export function HomeAssistantUsers({
       <p>Cada usuario utiliza los permisos y la memoria de su perfil vinculado en Zero.</p>
       <div className="people-list">
         {(settings.homeAssistantUserProfiles || []).map((user) => (
-          <div
-            className="person-row flex flex-wrap items-center justify-between gap-4 border-b py-4"
-            key={user.userId}
-          >
-            <div className="person-summary min-w-0 break-words">
-              <strong>{user.userName}</strong>
-              <p>Perfil de Zero: {user.profileName}</p>
-            </div>
-            <div className="person-actions">
-              {user.profileRoute && (
+          <div className="ha-user-row" key={user.userId}>
+            <div className="ha-user-summary">
+              {user.profileRoute && user.assistantId && (
                 <Button
                   variant="outline"
                   size="icon"
-                  tooltip="Editar perfil vinculado"
+                  className="ha-user-avatar"
+                  tooltip={'Editar perfil de ' + user.profileName}
                   aria-label={'Editar perfil de ' + user.profileName}
                   onClick={() => onEdit(user.profileRoute!)}
                 >
-                  <Pencil />
+                  <span className="assistant-avatar">
+                    <AssistantAvatar id={user.assistantId} />
+                  </span>
                 </Button>
               )}
+              <div className="person-details break-words">
+                <strong>{user.userName}</strong>
+              </div>
+            </div>
+            <div className="person-actions">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button

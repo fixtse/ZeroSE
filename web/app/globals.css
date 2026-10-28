@@ -3145,3 +3145,29 @@ h1 {
   margin: 0;
   cursor: pointer;
 }
+
+/* Home Assistant identity and its assistant stay aligned at every viewport width. */
+.ha-user-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ha-user-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ha-user-avatar {
+  flex: none;
+  padding: 0;
+}
+.ha-user-avatar .assistant-avatar {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+}
