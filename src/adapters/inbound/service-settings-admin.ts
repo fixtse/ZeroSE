@@ -27,7 +27,6 @@ function flatten(value: object, prefix = ''): Record<string, unknown> {
 // User/assistant connections and AI selection have dedicated editors. Keep persisted
 // legacy values private and untouched when saving unrelated infrastructure settings.
 const dedicatedGroups = new Set(['memory', 'codex', 'telegram', 'google', 'homeAssistant']);
-const codexPaths = new Set(['codex.command', 'codex.args', 'codex.home', 'codex.timeoutMs']);
 const fields = Object.entries(flatten(template)).map(([path, value]) => ({
   path,
   group: path.split('.')[0],
@@ -41,7 +40,7 @@ const fields = Object.entries(flatten(template)).map(([path, value]) => ({
 export class ServiceSettingsAdmin {
   constructor(
     private settings: ServiceSettingsPort,
-    private apply?: (value: ServiceConfig, scope: 'services' | 'codex') => Promise<void>,
+    private apply?: (value: ServiceConfig) => Promise<void>,
     private speechCatalog?: (
       kind: 'languages' | 'voices',
       language: string,
@@ -90,17 +89,16 @@ export class ServiceSettingsAdmin {
         }
       return true;
     }
-    const codex = path === '/v1/admin/setup/codex';
-    if (!codex && path !== '/v1/admin/setup/services') return false;
-    const editableFields = fields.filter((field) =>
-      codex ? codexPaths.has(field.path) : !dedicatedGroups.has(field.group),
+    if (path !== '/v1/admin/setup/services') return false;
+    const editableFields = fields.filter(
+      (field) => !dedicatedGroups.has(field.group) && field.path !== 'reader.url',
     );
     if (req.method === 'GET') {
       const current = await this.settings.read();
       const values = flatten(current.value);
       send(200, {
         revision: current.revision,
-        restartRequired: codex,
+        restartRequired: false,
         fields: editableFields.map((field) => ({
           ...field,
           value:
@@ -172,11 +170,10 @@ export class ServiceSettingsAdmin {
         return true;
       }
       const saved = await this.settings.update(input.revision, parsed.data);
-      if (saved && this.apply)
-        await this.apply((await this.settings.read()).value, codex ? 'codex' : 'services');
+      if (saved && this.apply) await this.apply((await this.settings.read()).value);
       send(
         saved ? 200 : 409,
-        saved ? { saved: true, restartRequired: codex } : { error: 'Recarga antes de guardar.' },
+        saved ? { saved: true, restartRequired: false } : { error: 'Recarga antes de guardar.' },
       );
     } else send(405, { error: 'Method not allowed' });
     return true;

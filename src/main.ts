@@ -835,8 +835,7 @@ const codex = new AIAgent(
       },
       new ServiceSettingsAdmin(
         serviceSettings,
-        async (saved, scope) => {
-          if (scope === 'codex') return;
+        async (saved) => {
           // Normalize optional persisted settings to the same defaults used at startup.
           const value = ServiceConfigSchema.parse(saved);
           // Replace only infrastructure settings. In-flight scoped jobs keep their snapshot.

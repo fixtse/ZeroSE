@@ -31,6 +31,8 @@ async function setup() {
     registrations = 0,
     reads = 0,
     fail = false;
+  let removals = 0;
+  let removalHook: (() => Promise<void>) | undefined;
   const changed: string[] = [];
   const connections = new AssistantTelegram(
     repository,
@@ -48,6 +50,12 @@ async function setup() {
         assert.equal((await repository.bot(value.id))?.webhookSecret, value.webhookSecret);
         if (fail) throw Error('Uncertain');
       },
+      remove: async (value) => {
+        removals++;
+        assert.equal((await repository.bot(value.id))?.token, value.token);
+        if (fail) throw Error('Uncertain removal');
+        await removalHook?.();
+      },
       status: async (value) => {
         reads++;
         return { url: value.webhookUrl || '', pending: 2 };
@@ -63,6 +71,10 @@ async function setup() {
     definitions,
     connections,
     changed,
+    removalCount: () => removals,
+    onRemoval: (hook: () => Promise<void>) => {
+      removalHook = hook;
+    },
     counts: () => ({ validations, registrations, reads }),
     fail: () => {
       fail = true;
@@ -296,6 +308,90 @@ test('connection migration rewrites stored routes without changing secrets or re
     );
     assert.equal((await f.repository.bot('helper'))?.webhookSecret, 'saved-secret');
     assert.deepEqual(f.counts(), { validations: 0, registrations: 0, reads: 0 });
+  } finally {
+    await f.close();
+  }
+});
+
+test('removing Telegram clears credentials and disables polling only after confirmed webhook removal', async () => {
+  const f = await setup();
+  try {
+    const a = await f.definitions.create({ name: 'Planner', prompt: 'Plan' });
+    await f.connections.save(a.id, {
+      token: '222:planner',
+      enabled: true,
+      transport: 'polling',
+      webhookUrl: '',
+      revision: 0,
+      clearToken: false,
+    });
+    const before = await f.connections.read(a.id);
+    await assert.rejects(f.connections.remove(a.id, 0), /Recarga/);
+    assert.equal(f.removalCount(), 0);
+    await f.connections.remove(a.id, before.revision);
+    const saved = await f.repository.bot(a.id);
+    assert.equal(saved?.token, '');
+    assert.equal(saved?.webhookSecret, undefined);
+    assert.equal(saved?.enabled, false);
+    assert.equal(saved?.transport, 'disabled');
+    assert.equal((await f.connections.read(a.id)).configured, false);
+    assert.equal(f.removalCount(), 1);
+    assert.equal(f.changed.at(-1), a.id);
+    assert(await f.definitions.get(a.id));
+  } finally {
+    await f.close();
+  }
+});
+
+test('uncertain webhook removal retains the saved token and is never retried automatically', async () => {
+  const f = await setup();
+  try {
+    const a = await f.definitions.create({ name: 'Planner', prompt: 'Plan' });
+    await f.connections.save(a.id, {
+      token: '222:planner',
+      enabled: true,
+      transport: 'webhook',
+      webhookUrl: 'https://zero.fixture' + telegramWebhookPath(a.id),
+      revision: 0,
+      clearToken: false,
+    });
+    const before = await f.repository.bot(a.id);
+    const changes = f.changed.length;
+    f.fail();
+    await assert.rejects(f.connections.remove(a.id, before!.revision!), /Uncertain/);
+    assert.deepEqual(await f.repository.bot(a.id), before);
+    assert.equal(f.removalCount(), 1);
+    assert.equal(f.changed.length, changes);
+  } finally {
+    await f.close();
+  }
+});
+
+test('confirmed webhook removal preserves a concurrently replaced Telegram credential', async () => {
+  const f = await setup();
+  try {
+    const a = await f.definitions.create({ name: 'Planner', prompt: 'Plan' });
+    const input = {
+      token: '222:planner',
+      enabled: true,
+      transport: 'polling' as const,
+      webhookUrl: '',
+      revision: 0,
+      clearToken: false,
+    };
+    await f.connections.save(a.id, input);
+    const before = await f.connections.read(a.id);
+    f.onRemoval(async () => {
+      await f.connections.save(a.id, {
+        ...input,
+        token: '333:replacement',
+        revision: before.revision,
+      });
+    });
+    await assert.rejects(f.connections.remove(a.id, before.revision), /conexión cambió/);
+    assert.equal((await f.repository.bot(a.id))?.token, '333:replacement');
+    assert.equal((await f.repository.bot(a.id))?.enabled, true);
+    assert.equal(f.removalCount(), 1);
   } finally {
     await f.close();
   }

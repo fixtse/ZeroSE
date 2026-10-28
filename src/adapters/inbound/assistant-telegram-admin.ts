@@ -52,7 +52,9 @@ export class AssistantTelegramAdmin {
           if (error instanceof TelegramConnectionConflict) throw error;
           send(502, {
             error:
-              'No se pudo confirmar el cambio del webhook en Telegram. Consulta el estado antes de repetirlo; no se ha reintentado.',
+              action === 'remove'
+                ? 'No se pudo confirmar la desactivación completa de Telegram. Recarga la conexión y consulta su estado antes de repetir; no se ha reintentado.'
+                : 'No se pudo confirmar el cambio del webhook en Telegram. Consulta el estado antes de repetirlo; no se ha reintentado.',
           });
         }
       } else send(405, { error: 'Method not allowed' });

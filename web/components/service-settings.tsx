@@ -9,9 +9,7 @@ import {
   RefreshCw,
   Save,
   Settings2,
-  Terminal,
   Trash2,
-  X,
 } from 'lucide-react';
 import { useUrlState } from '../hooks/use-url-state';
 import { SecretEditor } from './secret-editor';
@@ -49,11 +47,10 @@ interface Settings {
 const names: Record<string, string> = {
   general: 'General',
   media: 'Vídeo y voz',
-  reader: 'Lectura de páginas',
+  reader: 'Jina AI',
   places: 'Mapas y rutas',
   braveApiKey: 'Búsqueda de imágenes',
   schedulerSE: 'SchedulerSE',
-  codex: 'Codex',
 };
 const icons = {
   general: Settings2,
@@ -62,15 +59,10 @@ const icons = {
   places: Map,
   braveApiKey: Image,
   schedulerSE: CalendarClock,
-  codex: Terminal,
 };
 const fieldNames: Record<string, string> = {
   timezone: 'Zona horaria',
   concurrency: 'Conversaciones simultáneas',
-  command: 'Ejecutable de Codex',
-  args: 'Argumentos de Codex',
-  home: 'Directorio de sesión de Codex',
-  timeoutMs: 'Tiempo máximo de respuesta (ms)',
   url: 'URL del servicio',
   apiKey: 'Clave API',
   token: 'Token de acceso',
@@ -163,20 +155,15 @@ function SecretField({
 function SettingsForm({
   settings,
   busy,
-  scope,
   save,
   formId,
 }: {
   settings: Settings;
   formId: string;
   busy: boolean;
-  scope: 'services' | 'codex';
   save: (data: FormData, extra: Record<string, unknown>) => void;
 }) {
-  const [tab, setTab] = useUrlState(
-    scope === 'codex' ? 'codexTab' : 'settingsTab',
-    scope === 'codex' ? 'codex' : 'general',
-  );
+  const [tab, setTab] = useUrlState('settingsTab', 'general');
   const [cleared, setCleared] = useState<string[]>([]);
   const get = (path: string) =>
     String(settings.fields.find((field) => field.path === path)?.value ?? '');
@@ -282,15 +269,13 @@ function SettingsForm({
         const extra: Record<string, unknown> = Object.fromEntries(
           cleared.map((path) => [path, null]),
         );
-        if (scope === 'services') {
-          extra['media.audioExtractionUrl'] =
-            extraction === 'internal'
-              ? ''
-              : new FormData(event.currentTarget).get('media.audioExtractionUrl');
-          extra['media.speech.tts'] = tts;
-          extra['media.speech.stt'] = stt;
-          if (tts === 'default') extra['media.voice'] = voice;
-        }
+        extra['media.audioExtractionUrl'] =
+          extraction === 'internal'
+            ? ''
+            : new FormData(event.currentTarget).get('media.audioExtractionUrl');
+        extra['media.speech.tts'] = tts;
+        extra['media.speech.stt'] = stt;
+        if (tts === 'default') extra['media.voice'] = voice;
         save(new FormData(event.currentTarget), extra);
       }}
     >
@@ -415,17 +400,11 @@ function SettingsForm({
   );
 }
 
-export function ServiceSettings({
-  onSkip,
-  scope = 'services',
-}: {
-  onSkip: () => void;
-  scope?: 'services' | 'codex';
-}) {
+export function ServiceSettings() {
   const formId = useId();
   const [settings, setSettings] = useState<Settings>();
   const { busy, run, setNotice } = useAdminTask();
-  const endpoint = '/v1/admin/setup/' + scope;
+  const endpoint = '/v1/admin/setup/services';
   async function load() {
     setSettings(await api<Settings>(endpoint));
   }
@@ -469,13 +448,13 @@ export function ServiceSettings({
       }
       await api(endpoint, 'PUT', { revision: settings!.revision, changes });
       await load();
-      setNotice(scope === 'codex' ? 'Parámetros CLI guardados.' : 'Ajustes guardados y aplicados.');
+      setNotice('Ajustes guardados y aplicados.');
     });
   }
   return (
     <section className="service-settings">
       <div className="service-settings-heading">
-        <h2>{scope === 'codex' ? 'Parámetros CLI' : 'Ajustes'}</h2>
+        <h2>Ajustes</h2>
         <div className="action-group">
           <Button
             type="button"
@@ -492,15 +471,10 @@ export function ServiceSettings({
             form={formId}
             disabled={busy || !settings}
             size="icon"
-            tooltip={scope === 'codex' ? 'Guardar parámetros CLI' : 'Guardar ajustes'}
+            tooltip="Guardar ajustes"
           >
             <Save />
           </Button>
-          {scope === 'codex' && (
-            <Button type="button" variant="ghost" size="icon" tooltip="Cerrar" onClick={onSkip}>
-              <X />
-            </Button>
-          )}
         </div>
       </div>
       {settings ? (
@@ -509,7 +483,6 @@ export function ServiceSettings({
           settings={settings}
           formId={formId}
           busy={busy}
-          scope={scope}
           save={save}
         />
       ) : (

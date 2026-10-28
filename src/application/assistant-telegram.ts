@@ -157,6 +157,22 @@ export class AssistantTelegram {
     if (!value.token || !this.webhooks.remove)
       throw new Error('No se puede eliminar este webhook.');
     await this.webhooks.remove(value);
+    // Clear credentials only after Telegram confirms removal. Preserve concurrent edits.
+    if (
+      !(await this.repository.saveConnection(
+        {
+          ...value,
+          token: '',
+          webhookSecret: '',
+          enabled: false,
+          transport: 'disabled',
+        },
+        revision,
+      ))
+    )
+      throw new TelegramConnectionConflict(
+        'El webhook se eliminó, pero la conexión cambió. Recarga antes de hacer otro cambio.',
+      );
     await this.changed(id);
   }
   async status(id: string) {

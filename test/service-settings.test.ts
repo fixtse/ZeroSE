@@ -91,6 +91,7 @@ test('service catalog exposes shared infrastructure only and redacts secrets', a
     );
   }
   assert(!result.fields.some((field: any) => field.path === 'database.url'));
+  assert(!result.fields.some((field: any) => field.path === 'reader.url'));
 });
 test('service updates preserve secrets, reject stale writes, and validate without echoing secrets', async () => {
   const { admin, value } = fixture();
@@ -101,7 +102,6 @@ test('service updates preserve secrets, reject stale writes, and validate withou
         changes: {
           'reader.apiKey': '',
           'media.ffmpegCommand': '/usr/bin/ffmpeg',
-          'reader.url': 'https://reader.example/',
         },
       })
     ).status,
@@ -113,7 +113,7 @@ test('service updates preserve secrets, reject stale writes, and validate withou
   assert.equal((await request(admin, 'PUT', { revision: 1, changes: {} })).status, 409);
   const invalid = await request(admin, 'PUT', {
     revision: 2,
-    changes: { 'reader.url': 'private-invalid-value' },
+    changes: { 'places.photonUrl': 'private-invalid-value' },
   });
   assert.equal(invalid.status, 400);
   assert(!JSON.stringify(invalid.result).includes('private-invalid-value'));
@@ -333,49 +333,32 @@ test('dedicated settings cannot be discovered or changed through global services
   }
 });
 
-test('Codex provider editor changes CLI parameters without duplicating model selection', async () => {
+test('retired Codex settings are neither exposed nor editable', async () => {
   const { admin, value } = fixture();
-  const endpoint = '/v1/admin/setup/codex';
-  const { status, result } = await request(admin, 'GET', undefined, endpoint);
-  assert.equal(status, 200);
-  assert.deepEqual(result.fields.map((field: any) => field.path).sort(), [
-    'codex.args',
-    'codex.command',
-    'codex.home',
-    'codex.timeoutMs',
-  ]);
-  for (const path of ['codex.model', 'codex.effort', 'telegram.token', 'timezone']) {
-    assert.equal(
-      (await request(admin, 'PUT', { revision: 1, changes: { [path]: 'other' } }, endpoint)).status,
-      400,
+  const before = structuredClone(value().codex);
+  for (const method of ['GET', 'PUT']) {
+    const handled = await admin.handle(
+      { method } as IncomingMessage,
+      '/v1/admin/setup/codex',
+      async () => {
+        throw new Error('Retired settings must not read input');
+      },
+      () => assert.fail('Retired settings must not expose a response'),
     );
+    assert.equal(handled, false);
   }
-  const before = structuredClone(value());
-  assert.equal(
-    (
-      await request(
-        admin,
-        'PUT',
-        {
-          revision: 1,
-          changes: {
-            'codex.command': '/opt/codex',
-            'codex.args': ['--verbose'],
-            'codex.timeoutMs': 120000,
-          },
-        },
-        endpoint,
-      )
-    ).status,
-    200,
-  );
-  assert.deepEqual(value().codex, {
-    ...before.codex,
-    command: '/opt/codex',
-    args: ['--verbose'],
-    timeoutMs: 120000,
+  assert.deepEqual(value().codex, before);
+});
+
+test('Jina reader settings preserve the endpoint and reject URL-only provider changes', async () => {
+  const { admin, value } = fixture();
+  const before = value().reader?.url;
+  const rejected = await request(admin, 'PUT', {
+    revision: 1,
+    changes: { 'reader.url': 'https://other-reader.example/' },
   });
-  assert.equal((await request(admin, 'PUT', { revision: 1, changes: {} }, endpoint)).status, 409);
+  assert.equal(rejected.status, 400);
+  assert.equal(value().reader?.url, before);
 });
 
 test('service saves apply validated settings without a restart and preserve hidden speech fields', async () => {

@@ -14,7 +14,6 @@ import {
   Plus,
   RefreshCw,
   Save,
-  Settings2,
   Trash2,
   X,
 } from 'lucide-react';
@@ -23,15 +22,6 @@ import { Popover } from 'radix-ui';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { api } from '../lib/api';
-import { ServiceSettings } from './service-settings';
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from './ui/dialog';
 import { useUrlState } from '../hooks/use-url-state';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
@@ -414,9 +404,6 @@ export function AISettingsEditor() {
                               </option>
                             ))}
                         </SelectField>
-                        {p.kind === 'codex' && value.codexAvailable && (
-                          <CodexCLISettings providerId={p.id} />
-                        )}
                       </div>
                       {p.kind === 'home_assistant' && (
                         <p>
@@ -1602,33 +1589,5 @@ function EmbeddingTest({
     >
       <FlaskConical />
     </Button>
-  );
-}
-
-function CodexCLISettings({ providerId }: { providerId: string }) {
-  const [selected, setSelected] = useUrlState('codexCLI', '');
-  const open = selected === providerId;
-  const setOpen = (next: boolean) => setSelected(next ? providerId : '');
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          tooltip="Parámetros de Codex CLI"
-          aria-label="Parámetros de Codex CLI"
-        >
-          <Settings2 />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Codex CLI</DialogTitle>
-          <DialogDescription>Ejecutable y sesión del proveedor.</DialogDescription>
-        </DialogHeader>
-        <ServiceSettings scope="codex" onSkip={() => setOpen(false)} />
-      </DialogContent>
-    </Dialog>
   );
 }

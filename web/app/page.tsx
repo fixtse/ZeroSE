@@ -739,7 +739,7 @@ export default function Home() {
                   onZeroChanged={async () => setSettings(await api(base + '/settings'))}
                 />
               )}
-              {tab === 'services' && <ServiceSettings onSkip={() => setTab('settings')} />}
+              {tab === 'services' && <ServiceSettings />}
               {tab === 'ai' && <AISettingsEditor />}
               {tab === 'security' && (
                 <>

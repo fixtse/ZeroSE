@@ -40,13 +40,16 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
     [version, setVersion] = useState(0),
     [status, setStatus] = useState<Status>();
   const [token, setToken] = useState('');
-  const [clearToken, setClearToken] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [transport, setTransport] = useState<Connection['transport']>('webhook');
   const endpoint = '/v1/admin/setup/assistants/' + encodeURIComponent(id) + '/telegram';
   async function load() {
-    setValue(await api<Connection>(endpoint));
+    const connection = await api<Connection>(endpoint);
+    setValue(connection);
+    setTransport(connection.transport);
+    setWebhookUrl(connection.webhookUrl);
     setStatus(undefined);
     setToken('');
-    setClearToken(false);
     setVersion((v) => v + 1);
   }
   useEffect(() => {
@@ -61,14 +64,13 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
           token: String(data.get('token') || '').trim(),
           enabled: data.has('enabled'),
           transport: data.get('transport'),
-          webhookUrl: String(data.get('webhookUrl') || '').trim(),
-          clearToken: data.has('clearToken'),
+          webhookUrl: webhookUrl.trim(),
+          clearToken: false,
           revision: value?.revision,
         }),
       );
       setStatus(undefined);
       setToken('');
-      setClearToken(false);
       setVersion((v) => v + 1);
       setNotice('Conexión guardada. Los webhooks se registran solo con el botón de confirmación.');
       window.dispatchEvent(new CustomEvent('assistant-telegram-changed', { detail: id }));
@@ -104,79 +106,35 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                 name="token"
                 label="Token de Telegram"
                 value={token}
-                configured={value.configured && !clearToken}
+                configured={value.configured}
                 hint={value.tokenHint}
-                preview={clearToken ? 'Se eliminará al guardar' : undefined}
                 maxLength={300}
                 disabled={busy}
-                onChange={(next) => {
-                  setToken(next);
-                  if (next) setClearToken(false);
-                }}
-                deleteAction={
-                  value.configured && !clearToken ? (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="danger"
-                          disabled={busy || value.enabled}
-                          tooltip={
-                            value.enabled
-                              ? 'Desactiva Telegram antes de eliminar el token'
-                              : 'Eliminar token de Telegram'
-                          }
-                        >
-                          <Trash2 />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>¿Eliminar el token de Telegram?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            La credencial se eliminará al guardar. Los perfiles y conversaciones se
-                            conservan.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            onClick={() => {
-                              setToken('');
-                              setClearToken(true);
-                            }}
-                          >
-                            Eliminar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  ) : undefined
-                }
+                onChange={setToken}
               />
-              {clearToken && <input type="hidden" name="clearToken" value="true" />}
 
               <SelectField
                 id={'telegram-transport-' + id}
                 name="transport"
                 label="Transporte de Telegram"
-                defaultValue={value.transport}
+                value={transport}
+                onChange={(event) => setTransport(event.target.value as Connection['transport'])}
               >
                 <option value="disabled">Desactivado</option>
                 <option value="webhook">Webhook</option>
                 <option value="polling">Polling · sin URL pública</option>
               </SelectField>
-              <Field
-                id={'telegram-webhook-' + id}
-                name="webhookUrl"
-                label="URL pública del webhook"
-                type="url"
-                maxLength={2048}
-                defaultValue={value.webhookUrl}
-              />
+              {transport === 'webhook' && (
+                <Field
+                  id={'telegram-webhook-' + id}
+                  name="webhookUrl"
+                  label="URL pública del webhook"
+                  type="url"
+                  maxLength={2048}
+                  value={webhookUrl}
+                  onChange={(event) => setWebhookUrl(event.target.value)}
+                />
+              )}
               <CheckField
                 id={'telegram-enabled-' + id}
                 name="enabled"
@@ -275,18 +233,17 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                     disabled={busy || !value.configured}
                     size="icon"
                     className="danger"
-                    tooltip="Eliminar webhook de Telegram"
+                    tooltip="Desactivar Telegram y eliminar credenciales"
                   >
                     <Trash2 />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar el webhook de {name}?</AlertDialogTitle>
+                    <AlertDialogTitle>¿Desactivar Telegram de {name}?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Se conservan los mensajes pendientes. Si has guardado el transporte Polling,
-                      el asistente empezará a recibirlos por ese transporte; de lo contrario deja de
-                      recibir mensajes hasta registrar otro webhook.
+                      Se eliminarán el webhook y el token guardado y se desactivará el bot. Se
+                      conservan los perfiles, las conversaciones y los mensajes pendientes.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -299,12 +256,15 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                             confirm: true,
                             revision: value.revision,
                           });
-                          setNotice('Telegram ha confirmado la eliminación del webhook.');
-                          setStatus(undefined);
+                          await load();
+                          window.dispatchEvent(
+                            new CustomEvent('assistant-telegram-changed', { detail: id }),
+                          );
+                          setNotice('Telegram desactivado. Webhook y credenciales eliminados.');
                         })
                       }
                     >
-                      Confirmar eliminación
+                      Desactivar y eliminar
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
