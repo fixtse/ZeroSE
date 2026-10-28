@@ -27,6 +27,25 @@ export function SchedulerSEPairing({
   const [pairing, setPairing] = useState<Pairing>();
   const { busy, run, setNotice } = useAdminTask();
   const active = pairing && !['idle', 'expired', 'revoked', 'configured'].includes(pairing.state);
+  function beginPairing() {
+    void run(async () => {
+      // Reserve the tab during the click so browsers allow it before the request completes.
+      const approvalTab = window.open('about:blank', '_blank');
+      if (approvalTab) approvalTab.opener = null;
+      try {
+        const value = await api<Pairing>(endpoint, 'POST', { url: url.trim() });
+        setPairing(value);
+        if (value.approvalUrl && approvalTab && !approvalTab.closed) {
+          approvalTab.location.replace(value.approvalUrl);
+        } else {
+          approvalTab?.close();
+        }
+      } catch (error) {
+        approvalTab?.close();
+        throw error;
+      }
+    });
+  }
   async function inspect() {
     const value = await api<Pairing>(endpoint);
     setPairing(value);
@@ -72,11 +91,7 @@ export function SchedulerSEPairing({
               size="icon-lg"
               tooltip="Iniciar conexión con SchedulerSE"
               disabled={busy || !url.trim()}
-              onClick={() =>
-                void run(async () => {
-                  setPairing(await api<Pairing>(endpoint, 'POST', { url: url.trim() }));
-                })
-              }
+              onClick={beginPairing}
             >
               <Link2 />
             </Button>
