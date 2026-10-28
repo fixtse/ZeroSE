@@ -108,7 +108,13 @@ test('admin catalogs use the saved chat connection, bounded query and isolated r
 
   assert.equal((await request(admin, 'helper/123/services')).value.items[0].id, 'light.turn_on');
   assert.equal((await request(admin, 'helper/123/rules?kind=alert&offset=3')).status, 200);
-  assert.deepEqual(calls[2], ['helper:123', 'alert', 3, 20]);
+  assert.deepEqual(calls[2], [
+    'helper:123',
+    'alert',
+    3,
+    20,
+    { includeAlerts: true, excludeCancelled: true },
+  ]);
   assert.equal((await request(admin, 'zero/123/rules')).status, 404);
   await assert.rejects(request(admin, 'helper/123/entities?limit=51'));
   f.profile.capabilities = [];
