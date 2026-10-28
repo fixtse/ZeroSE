@@ -19,7 +19,7 @@ function CommandInput({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div className="flex items-center gap-2 border-b px-3">
+    <div data-slot="command-input-wrapper" className="flex items-center gap-2 border-b px-3">
       <Search className="size-4 shrink-0 text-muted-foreground" />
       <CommandPrimitive.Input
         className={cn(

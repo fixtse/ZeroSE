@@ -2650,3 +2650,9 @@ h1 {
 .ha-entity-command:focus-within {
   border-color: var(--primary);
 }
+.ha-entity-command [data-slot='command-input-wrapper'] {
+  padding-block: 8px;
+}
+.ha-entity-command input {
+  margin-top: 0;
+}
