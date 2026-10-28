@@ -124,6 +124,10 @@ export class HomeAssistantPairing {
         );
         await profiles.saveProfile({
           ...profile,
+          capabilities:
+            profile.kind === 'user'
+              ? [...new Set([...profile.capabilities, 'homeAssistant' as const])]
+              : profile.capabilities,
           homeAssistant: {
             ...(profile.kind === 'group'
               ? {
@@ -146,6 +150,9 @@ export class HomeAssistantPairing {
           if (homeAssistantProfile && profile.bot === 'zero')
             await profiles.saveProfile({
               ...homeAssistantProfile,
+              capabilities: [
+                ...new Set([...homeAssistantProfile.capabilities, 'homeAssistant' as const]),
+              ],
               homeAssistant: {
                 ...this.defaults,
                 ...homeAssistantProfile.homeAssistant,

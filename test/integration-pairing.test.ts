@@ -83,7 +83,7 @@ test('HA pairing stores credentials encrypted, binds private user, and consumes 
     const after = await f.profiles.profile('zero', '1');
     assert.equal(after?.homeAssistant?.token, 'ha-private-token');
     assert.equal(after?.homeAssistant?.url, 'https://ha.example');
-    assert.deepEqual(after?.capabilities, before?.capabilities);
+    assert.deepEqual(after?.capabilities, [...new Set([...before!.capabilities, 'homeAssistant'])]);
     assert.equal((await f.settings.read()).homeAssistantUsers?.[f.input.userId], '1');
     for (const scope of ['voice', 'rules', 'settings'] as const)
       assert.equal(await f.tokens.authorize('Bearer ' + result.token, scope), true);
@@ -288,7 +288,7 @@ test('pairing private users of another assistant preserves assignment and routes
     const paired = (await f.profiles.profile('helper', '77'))!;
     assert.equal(paired.assistantId, 'helper');
     assert.equal(paired.bot, 'helper');
-    assert.deepEqual(paired.capabilities, profile.capabilities);
+    assert.deepEqual(paired.capabilities, [...profile.capabilities, 'homeAssistant']);
     assert.equal(paired.homeAssistant?.token, 'helper-ha-token');
     assert.equal((await f.settings.read()).homeAssistantUsers?.[f.input.userId], 'helper:77');
     const { voiceUserSession } = await import('../src/application/voice-bridge.js');

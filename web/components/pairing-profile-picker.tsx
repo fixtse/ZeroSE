@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { Label } from './ui/label';
-import { Input } from './ui/input';
 import { Button } from './ui/button';
 
 export interface PairingTarget {
@@ -27,7 +26,6 @@ export function PairingProfilePicker({
   selected?: PairingTarget;
   onSelect(target?: PairingTarget): void;
 }) {
-  const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<Page>();
   const [loading, setLoading] = useState(false);
@@ -42,7 +40,7 @@ export function PairingProfilePicker({
         '/v1/admin/setup/pairings/' +
           encodeURIComponent(pairingId) +
           '/profiles?' +
-          new URLSearchParams({ search, offset: String(offset), limit: '20' }),
+          new URLSearchParams({ offset: String(offset), limit: '20' }),
         'GET',
         undefined,
         controller.signal,
@@ -64,19 +62,9 @@ export function PairingProfilePicker({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [pairingId, search, offset]);
+  }, [pairingId, offset]);
   return (
     <div className="grid min-w-0 gap-2">
-      <Label htmlFor="pairing-profile-search">Buscar usuario o grupo</Label>
-      <Input
-        id="pairing-profile-search"
-        value={search}
-        onChange={(event) => {
-          setSearch(event.target.value);
-          setOffset(0);
-        }}
-        placeholder="Nombre o ID del chat"
-      />
       <Label htmlFor="pairing-profile">Conectar a usuario o grupo</Label>
       <select
         id="pairing-profile"
@@ -115,7 +103,7 @@ export function PairingProfilePicker({
             : error ||
               (page?.total
                 ? `${offset + 1}–${Math.min(offset + 20, page.total)} de ${page.total} perfiles`
-                : 'No hay perfiles activos con esta búsqueda.')}
+                : 'No hay perfiles activos.')}
         </small>
         <Button
           type="button"

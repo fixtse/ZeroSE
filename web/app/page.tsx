@@ -54,7 +54,7 @@ export default function Home() {
   const [authenticated, setAuthenticated] = useState(false),
     [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useUrlState('page', 'settings');
+  const [tab, setTab] = useUrlState('page', 'people');
   const [profiles, setProfiles] = useState<Profile[]>([]),
     [total, setTotal] = useState(0),
     [offset, setOffset] = useState(0),
@@ -536,7 +536,7 @@ export default function Home() {
                     <p>
                       {pairingTarget?.kind === 'group'
                         ? 'Al aprobar, la conexión Home Assistant de este grupo se actualizará con un token cifrado. Sus herramientas y avisos usarán este servidor. Los vínculos privados de voz se gestionan por separado. Se conservan sus permisos actuales.'
-                        : 'Al aprobar, Home Assistant creará un token de larga duración y Zero lo guardará cifrado en el perfil seleccionado, actualizando su conexión. Se generará un token de Zero para voz, ajustes y alertas. Se conservan los permisos y la memoria del perfil.'}
+                        : 'Al aprobar, Home Assistant creará un token de larga duración y Zero lo guardará cifrado en el perfil seleccionado, actualizando su conexión. Se generará un token de Zero para voz, ajustes y alertas. Se activará el permiso Home Assistant. Se conservan los demás permisos y la memoria del perfil.'}
                     </p>
                     <Button
                       disabled={busy || !pairingTarget || pairing.state !== 'pending'}
@@ -560,8 +560,8 @@ export default function Home() {
                     </Button>
                   </form>
                   <small>
-                    Busca por nombre o ID. Solo aparecen usuarios y grupos activos de tus
-                    asistentes; puedes activarlos en Usuarios.
+                    Solo aparecen usuarios y grupos activos de tus asistentes; puedes activarlos en
+                    Usuarios.
                   </small>
                 </Card>
               )}
