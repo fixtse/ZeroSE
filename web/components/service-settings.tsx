@@ -4,9 +4,8 @@ import {
   AudioLines,
   BookOpen,
   CalendarClock,
-  Image,
+  Search,
   Map,
-  RefreshCw,
   Save,
   Settings2,
   Trash2,
@@ -49,7 +48,7 @@ const names: Record<string, string> = {
   media: 'Vídeo y voz',
   reader: 'Jina AI',
   places: 'Mapas y rutas',
-  braveApiKey: 'Búsqueda de imágenes',
+  braveApiKey: 'Brave Search',
   schedulerSE: 'SchedulerSE',
 };
 const icons = {
@@ -57,7 +56,7 @@ const icons = {
   media: AudioLines,
   reader: BookOpen,
   places: Map,
-  braveApiKey: Image,
+  braveApiKey: Search,
   schedulerSE: CalendarClock,
 };
 const fieldNames: Record<string, string> = {
@@ -305,6 +304,7 @@ function SettingsForm({
               data-service-panel={group}
             >
               <h3>{names[group] || group}</h3>
+              {group === 'braveApiKey' && <p>Búsqueda web e imágenes con la misma clave.</p>}
               {group === 'media' ? (
                 <>
                   <div className="settings-grid">
@@ -456,16 +456,6 @@ export function ServiceSettings() {
       <div className="service-settings-heading">
         <h2>Ajustes</h2>
         <div className="action-group">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            size="icon"
-            tooltip="Recargar ajustes"
-            onClick={() => void run(load)}
-          >
-            <RefreshCw />
-          </Button>
           <Button
             type="submit"
             form={formId}
