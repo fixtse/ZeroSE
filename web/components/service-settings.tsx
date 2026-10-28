@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useUrlState } from '../hooks/use-url-state';
 import { SecretEditor } from './secret-editor';
+import { SchedulerSEPairing } from './schedulerse-pairing';
 import { ServiceSpeechPicker } from './service-speech-picker';
 import {
   AlertDialog,
@@ -156,8 +157,10 @@ function SettingsForm({
   busy,
   save,
   formId,
+  reload,
 }: {
   settings: Settings;
+  reload: () => Promise<void>;
   formId: string;
   busy: boolean;
   save: (data: FormData, extra: Record<string, unknown>) => void;
@@ -305,7 +308,31 @@ function SettingsForm({
             >
               <h3>{names[group] || group}</h3>
               {group === 'braveApiKey' && <p>Búsqueda web e imágenes con la misma clave.</p>}
-              {group === 'media' ? (
+              {group === 'schedulerSE' ? (
+                <>
+                  <SchedulerSEPairing
+                    configured={
+                      !!settings.fields.find((field) => field.path === 'schedulerSE.token')
+                        ?.configured
+                    }
+                    tokenHint={
+                      settings.fields.find((field) => field.path === 'schedulerSE.token')
+                        ?.secretHint
+                    }
+                    onSaved={reload}
+                  />
+                  <details className="mt-5">
+                    <summary className="cursor-pointer">
+                      Configuración manual y conexión guardada
+                    </summary>
+                    <div className="settings-grid mt-4">
+                      {settings.fields
+                        .filter((field) => groupFor(field) === group)
+                        .map(renderField)}
+                    </div>
+                  </details>
+                </>
+              ) : group === 'media' ? (
                 <>
                   <div className="settings-grid">
                     <SelectField
@@ -474,6 +501,7 @@ export function ServiceSettings() {
           formId={formId}
           busy={busy}
           save={save}
+          reload={load}
         />
       ) : (
         <p>Cargando ajustes…</p>

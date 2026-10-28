@@ -64,7 +64,9 @@ import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
 import { NotificationRules } from './application/notification-rules.js';
 import { HomeAssistantRuleScheduler } from './adapters/outbound/ha-rule-scheduler.js';
-import { SchedulerSE } from './adapters/outbound/schedulerse.js';
+import { SchedulerSEPairing } from './application/schedulerse-pairing.js';
+import { SchedulerSEPairingClient } from './adapters/outbound/schedulerse-pairing.js';
+import { SchedulerSE, schedulerSeCallbackToken } from './adapters/outbound/schedulerse.js';
 import { PostgresRules } from './adapters/outbound/postgres-rules.js';
 import { PostgresPersonalData } from './adapters/outbound/postgres-personal-data.js';
 import { Mem0Repository, withMem0PersonalData } from './adapters/outbound/mem0-repository.js';
@@ -868,6 +870,13 @@ const codex = new AIAgent(
               : undefined;
         },
         (kind, language, query, signal) => edgeSpeechCatalog.page(kind, language, query, signal),
+        new SchedulerSEPairing(
+          serviceSettings,
+          new SchedulerSEPairingClient(),
+          credentialCrypto,
+          'Bearer ' + schedulerSeCallbackToken(config.apiKey),
+          adminAuth.origin,
+        ),
       ),
     ),
   );

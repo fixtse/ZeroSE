@@ -1,3 +1,4 @@
+import type { SchedulerSEPairing } from '../../application/schedulerse-pairing.js';
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { ServiceConfig, ServiceSettingsPort } from '../../application/service-settings.js';
@@ -47,6 +48,7 @@ export class ServiceSettingsAdmin {
       query: SpeechQuery,
       signal: AbortSignal,
     ) => Promise<SpeechPage<SpeechVoice>>,
+    private schedulerPairing?: SchedulerSEPairing,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -54,6 +56,39 @@ export class ServiceSettingsAdmin {
     read: () => Promise<unknown>,
     send: (status: number, value: unknown) => void,
   ) {
+    if (path.startsWith('/v1/admin/setup/services/schedulerse/pairing')) {
+      if (!this.schedulerPairing) {
+        send(503, { error: 'Emparejamiento no disponible.' });
+        return true;
+      }
+      try {
+        const endpoint = '/v1/admin/setup/services/schedulerse/pairing';
+        if (path === endpoint && req.method === 'GET') {
+          const status = await this.schedulerPairing.status();
+          if (status.state === 'configured' && this.apply)
+            await this.apply((await this.settings.read()).value);
+          send(200, status);
+        } else if (path === endpoint && req.method === 'POST') {
+          const input = z
+            .object({ url: z.string().max(2048) })
+            .strict()
+            .parse(await read());
+          send(201, await this.schedulerPairing.begin(input.url));
+        } else if (path === endpoint + '/finish' && req.method === 'POST') {
+          const result = await this.schedulerPairing.finish();
+          if (this.apply) await this.apply((await this.settings.read()).value);
+          send(200, result);
+        } else send(405, { error: 'Método no permitido.' });
+      } catch (error) {
+        send(409, {
+          error:
+            error instanceof Error
+              ? error.message
+              : 'No se pudo confirmar la conexión. Consulta su estado.',
+        });
+      }
+      return true;
+    }
     if (path === '/v1/admin/setup/services/speech' && req.method === 'GET') {
       const params = new URL(req.url || '/', 'http://localhost').searchParams;
       const query = z

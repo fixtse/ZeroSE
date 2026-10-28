@@ -322,6 +322,17 @@ export function createHttpServer(
           !equalSecret(req.headers['x-telegram-bot-api-secret-token'], settings.webhookSecret || '')
         )
           return send(401, { error: 'Unauthorized' });
+        // Authenticated reachability probes never enter the conversation queue.
+        if (req.headers['x-zero-webhook-probe'] !== undefined) {
+          const challenge = z.string().uuid().safeParse(req.headers['x-zero-webhook-probe']);
+          if (!challenge.success) return send(400, { error: 'Invalid webhook probe' });
+          res.setHeader('Cache-Control', 'no-store');
+          return send(200, {
+            webhookProbe: challenge.data,
+            assistantId: id,
+            enabled: settings.enabled && settings.transport !== 'polling' && settings.transport !== 'disabled',
+          });
+        }
         if (
           !settings.enabled ||
           settings.transport === 'polling' ||

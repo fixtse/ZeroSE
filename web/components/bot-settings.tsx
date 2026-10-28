@@ -1,5 +1,5 @@
 'use client';
-import { Activity, RefreshCw, Save, Trash2, Webhook } from 'lucide-react';
+import { Activity, Check, RefreshCw, Save, Trash2, TriangleAlert, Webhook } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
@@ -33,6 +33,9 @@ interface Status {
   expectedUrl: string;
   pending: number;
   lastError?: string;
+  lastErrorAt?: number;
+  reachable?: boolean;
+  probeError?: string;
 }
 export function BotSettings({ id, name }: { id: string; name: string }) {
   const { busy, setNotice, run } = useAdminTask();
@@ -180,7 +183,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                 disabled={busy || !value.configured}
                 onClick={() => void run(async () => setStatus(await api(endpoint + '/status')))}
                 size="icon"
-                tooltip="Consultar estado en Telegram"
+                tooltip="Comprobar webhook y estado en Telegram"
               >
                 <Activity />
               </Button>
@@ -273,13 +276,40 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
           </div>
           {status && (
             <div role="status">
-              <p>
-                {status.url
-                  ? 'Webhook actual: ' + status.url
-                  : 'Telegram no tiene un webhook registrado.'}
-              </p>
-              <p>Mensajes pendientes: {status.pending}</p>
-              {status.lastError && <p>{status.lastError}</p>}
+              {value.enabled && value.transport === 'webhook' && status.url &&
+              status.url === status.expectedUrl && status.reachable === true ? (
+                <p className="flex items-center gap-2">
+                  <Check className="size-4 text-primary" aria-hidden="true" />
+                  Webhook verificado
+                </p>
+              ) : (
+                <>
+                  <p className="flex items-center gap-2">
+                    <TriangleAlert className="size-4 text-primary" aria-hidden="true" />
+                    {!value.enabled || value.transport === 'disabled'
+                      ? 'Conexión de Telegram desactivada.'
+                      : value.transport === 'polling'
+                        ? 'Telegram utiliza polling.'
+                        : !status.url
+                          ? 'Telegram no tiene un webhook registrado.'
+                          : status.url !== status.expectedUrl
+                            ? 'El webhook registrado no coincide con la URL guardada.'
+                            : status.probeError || 'No se ha podido verificar el webhook.'}
+                  </p>
+                  {status.url && <p>Webhook actual: {status.url}</p>}
+                  <p>Mensajes pendientes: {status.pending}</p>
+                  {value.enabled && value.transport === 'webhook' && status.reachable === false &&
+                    status.lastError && (
+                      <p>
+                        Último error registrado
+                        {status.lastErrorAt
+                          ? ' (' + new Date(status.lastErrorAt * 1000).toLocaleString('es-ES') + ')'
+                          : ''}
+                        : {status.lastError}
+                      </p>
+                    )}
+                </>
+              )}
             </div>
           )}
         </>

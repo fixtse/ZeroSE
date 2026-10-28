@@ -1227,3 +1227,20 @@ zone does not hide valid GPS/address observations. Results expose the best
 available coordinates, their source and age; older coordinates remain usable
 with a warning. Nearby searches use that member's coordinates and every suggested
 place includes its Google Maps link.
+
+### Emparejar SchedulerSE por URL
+
+En Ajustes → SchedulerSE, introduce la URL HTTPS del servicio y abre la solicitud
+de autorización. Inicia sesión en SchedulerSE, verifica la dirección de entrega y
+aprueba. Vuelve a Zero y pulsa «Comprobar aprobación y guardar conexión»: Zero
+verifica la entrega y guarda las credenciales automáticamente, sin copiarlas.
+La dirección pública del administrador de Zero debe ser accesible desde SchedulerSE;
+se utiliza también para recibir los eventos. HTTP solo se admite en loopback.
+
+Las solicitudes caducan a los cinco minutos. Recargar el panel recupera una solicitud;
+reiniciar Zero requiere iniciar una nueva. Ante una respuesta perdida, consulta el
+estado antes de continuar: no se repiten registros ni guardados inciertos. Guarda
+otros ajustes pendientes antes de conectar. Se preservan las conexiones manuales,
+los recordatorios existentes y sus identidades. SchedulerSE bloquea la aprobación
+si sustituiría otra entrega o una conexión de polling. El descubrimiento automático
+en la red local queda fuera de este flujo; se usa la URL del servicio.

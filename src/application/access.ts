@@ -40,6 +40,9 @@ export interface WebhookStatus {
   url: string;
   pending: number;
   lastError?: string;
+  lastErrorAt?: number;
+  reachable?: boolean;
+  probeError?: string;
 }
 export interface WebhookControl {
   configure(settings: BotSettings): Promise<void>;
