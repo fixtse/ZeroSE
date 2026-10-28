@@ -70,10 +70,10 @@ export class ServiceSettingsAdmin {
           send(200, status);
         } else if (path === endpoint && req.method === 'POST') {
           const input = z
-            .object({ url: z.string().max(2048) })
+            .object({ url: z.string().max(2048), browserUrl: z.string().max(2048).optional() })
             .strict()
             .parse(await read());
-          send(201, await this.schedulerPairing.begin(input.url));
+          send(201, await this.schedulerPairing.begin(input.url, input.browserUrl));
         } else if (path === endpoint + '/finish' && req.method === 'POST') {
           const result = await this.schedulerPairing.finish();
           if (this.apply) await this.apply((await this.settings.read()).value);

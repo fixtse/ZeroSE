@@ -1230,12 +1230,25 @@ place includes its Google Maps link.
 
 ### Emparejar SchedulerSE por URL
 
-En Ajustes → SchedulerSE, introduce la URL HTTPS del servicio y abre la solicitud
-de autorización. Inicia sesión en SchedulerSE, verifica la dirección de entrega y
+En Ajustes → SchedulerSE, introduce la URL del servicio. Se abre automáticamente la solicitud
+de autorización; el botón permite volver a abrirla. Inicia sesión en SchedulerSE, verifica la dirección de entrega y
 aprueba. Vuelve a Zero y pulsa «Comprobar aprobación y guardar conexión»: Zero
 verifica la entrega y guarda las credenciales automáticamente, sin copiarlas.
 La dirección pública del administrador de Zero debe ser accesible desde SchedulerSE;
-se utiliza también para recibir los eventos. HTTP solo se admite en loopback.
+se utiliza también para recibir los eventos y sigue requiriendo HTTPS (HTTP solo en loopback).
+Para conectar con SchedulerSE se admite HTTP en redes privadas de confianza: IPv4 RFC1918,
+loopback e IPv6 ULA. Los nombres Docker, como `http://schedulerse:3000`, deben resolver
+exclusivamente a esas redes. Zero valida y fija la IP en cada conexión HTTP, también después
+del pairing; rechaza destinos públicos, link-local y redirecciones. HTTP no cifra las
+credenciales: usa una red Docker dedicada con contenedores de confianza, o HTTPS.
+
+Si SchedulerSE no está publicado, conecta ambos contenedores a esa red. En «Acceso desde
+el navegador» puedes indicar otra URL para la aprobación, sin cambiar la URL interna de
+la API. Por ejemplo, publica el puerto de SchedulerSE **solo en el loopback del servidor**
+(`127.0.0.1:4300:3000`), abre desde tu equipo un túnel
+`ssh -N -L 4300:127.0.0.1:4300 usuario@servidor` y usa `http://localhost:4300` como URL
+para aprobar. No es necesario exponer SchedulerSE a Internet. La aprobación autenticada
+en SchedulerSE sigue siendo obligatoria; Zero no actúa como proxy de su panel ni inicia sesión por ti.
 
 Las solicitudes caducan a los cinco minutos. Recargar el panel recupera una solicitud;
 reiniciar Zero requiere iniciar una nueva. Ante una respuesta perdida, consulta el

@@ -2,6 +2,7 @@ import type { CredentialCrypto } from './integration-access.js';
 import type { ServiceConfig, ServiceSettingsPort } from './service-settings.js';
 
 export interface SchedulerPairingPort {
+  validateUrl(url: string): Promise<void>;
   begin(
     url: string,
     input: {
@@ -20,6 +21,7 @@ export interface SchedulerPairingPort {
   ready(config: NonNullable<ServiceConfig['schedulerSE']>): Promise<void>;
 }
 interface Pending {
+  browserUrl: string;
   id: string;
   secret: string;
   config: NonNullable<ServiceConfig['schedulerSE']>;
@@ -27,7 +29,7 @@ interface Pending {
   expiresAt: number;
   state: 'pending' | 'checking' | 'saving' | 'uncertain' | 'configured';
 }
-function origin(value: string) {
+function origin(value: string, privateHttp = false) {
   const url = new URL(value);
   if (
     !['http:', 'https:'].includes(url.protocol) ||
@@ -38,7 +40,11 @@ function origin(value: string) {
     url.pathname !== '/'
   )
     throw new Error('Introduce la URL del servicio sin rutas, credenciales ni parámetros.');
-  if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+  if (
+    !privateHttp &&
+    url.protocol === 'http:' &&
+    !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  )
     throw new Error(
       'Usa HTTPS para intercambiar credenciales en la red. HTTP solo se admite en loopback.',
     );
@@ -56,8 +62,10 @@ export class SchedulerSEPairing {
     private publicUrl: string,
     private now = () => Date.now(),
   ) {}
-  async begin(url: string) {
-    url = origin(url);
+  async begin(url: string, browserUrl?: string) {
+    url = origin(url, true);
+    const approvalOrigin = browserUrl ? origin(browserUrl, true) : url;
+    await this.remote.validateUrl(url);
     const current = await this.settings.read();
     if (current.value.schedulerSE?.token)
       throw new Error(
@@ -67,6 +75,7 @@ export class SchedulerSEPairing {
       throw new Error('Ya hay una solicitud en curso. Consulta su estado antes de iniciar otra.');
     const callbackUrl = origin(this.publicUrl) + '/v1/triggers/schedulerse-events';
     const pending: Pending = {
+      browserUrl: approvalOrigin,
       id: this.crypto.id(),
       secret: this.crypto.secret(),
       config: { url, token: 'sse_' + this.crypto.secret(), callbackUrl, enabled: true },
@@ -92,7 +101,7 @@ export class SchedulerSEPairing {
       state,
       serviceUrl: pending.config.url,
       callbackUrl: pending.config.callbackUrl,
-      approvalUrl: pending.config.url + '/pairing/' + pending.id,
+      approvalUrl: pending.browserUrl + '/pairing/' + pending.id,
       expiresAt: new Date(pending.expiresAt).toISOString(),
     };
   }

@@ -31,6 +31,7 @@ function fixture() {
     },
   };
   const remote: SchedulerPairingPort = {
+    validateUrl: async () => {},
     begin: async (_url, input) => {
       registered = input;
     },
@@ -125,9 +126,8 @@ test('lost registration response retains a GET-only recovery handle', async () =
   assert.equal(registrations, 1);
 });
 
-test('pairing refuses replacement credentials, expired requests and insecure network origins', async () => {
+test('pairing refuses replacement credentials, expired requests and malformed origins', async () => {
   const f = fixture();
-  await assert.rejects(f.pairing.begin('http://192.168.1.5:8080'), /HTTPS/);
   await assert.rejects(f.pairing.begin('https://user:secret@scheduler.example'), /sin rutas/);
   await f.pairing.begin('https://scheduler.example');
   f.approve();
@@ -136,6 +136,32 @@ test('pairing refuses replacement credentials, expired requests and insecure net
   assert.equal(f.writes, 0);
   f.value.schedulerSE = { url: 'https://existing.example', token: 'saved', enabled: true };
   await assert.rejects(f.pairing.begin('https://scheduler.example'), /conservado/);
+});
+
+test('private Docker URL stays separate from browser approval and is validated before registration', async () => {
+  const f = fixture();
+  const checked: string[] = [];
+  f.remote.validateUrl = async (url) => {
+    checked.push(url);
+  };
+  const started = await f.pairing.begin('http://schedulerse:3000', 'http://localhost:4300');
+  assert.deepEqual(checked, ['http://schedulerse:3000']);
+  assert.equal(started.serviceUrl, 'http://schedulerse:3000');
+  assert.match(started.approvalUrl, /^http:\/\/localhost:4300\/pairing\//);
+  const recovered = await f.pairing.status();
+  assert.ok('approvalUrl' in recovered);
+  assert.equal(recovered.approvalUrl, started.approvalUrl);
+  f.approve();
+  await f.pairing.finish();
+  assert.equal(f.value.schedulerSE?.url, 'http://schedulerse:3000');
+  assert.equal(JSON.stringify(f.value).includes('4300'), false);
+  const blocked = fixture();
+  blocked.remote.validateUrl = async () => {
+    throw new Error('HTTPS required');
+  };
+  await assert.rejects(blocked.pairing.begin('http://public.example'), /HTTPS/);
+  assert.equal((await blocked.pairing.status()).state, 'idle');
+  assert.equal(blocked.registered, undefined);
 });
 
 test('concurrent finishing cannot write twice and connection edits win over pairing', async () => {

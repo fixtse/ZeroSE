@@ -2,12 +2,17 @@ import { z } from 'zod';
 import type { SchedulerPairingPort } from '../../application/schedulerse-pairing.js';
 import { SchedulerSE } from './schedulerse.js';
 import { boundedBody, jsonBody } from './http.js';
+import { schedulerFetch, schedulerHttpAddress } from './schedulerse-http.js';
 
 /** No redirects, retries or remote error-body forwarding: credentials must never
  * follow a redirect or appear in an admin error response. */
 export class SchedulerSEPairingClient implements SchedulerPairingPort {
+  async validateUrl(value: string) {
+    const url = new URL(value);
+    if (url.protocol === 'http:') await schedulerHttpAddress(url);
+  }
   private async request(url: string, options: RequestInit) {
-    const response = await fetch(url, {
+    const response = await schedulerFetch(url, {
       ...options,
       redirect: 'error',
       signal: AbortSignal.timeout(10000),

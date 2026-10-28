@@ -1,7 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { NotificationRule } from '../../domain/notification-rule.js';
 import type { RuleSchedulerPort, RuleEvent } from '../../application/notification-rules.js';
-import { jsonRequest, jsonBody, RemoteError } from './http.js';
+import { jsonBody, RemoteError } from './http.js';
+import { schedulerFetch } from './schedulerse-http.js';
 
 export function schedulerSeCallbackToken(apiKey: string) {
   return createHmac('sha256', apiKey).update('zero-schedulerse-callback-v1').digest('hex');
@@ -22,9 +23,9 @@ export class SchedulerSE implements RuleSchedulerPort {
         .update(JSON.stringify([config.url, config.token]))
         .digest('hex');
   }
-  private request(path: string, method = 'GET', value?: unknown, signal?: AbortSignal) {
+  private async request(path: string, method = 'GET', value?: unknown, signal?: AbortSignal) {
     if (!this.config.url || !this.config.token) throw new Error('SchedulerSE is not configured');
-    return jsonRequest(
+    const response = await schedulerFetch(
       this.config.url.replace(/\/$/, '') + '/api/agent/v1' + path,
       {
         method,
@@ -37,8 +38,10 @@ export class SchedulerSE implements RuleSchedulerPort {
           ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
           : AbortSignal.timeout(10000),
       },
-      'SchedulerSE',
     );
+    if (!response.ok) throw new RemoteError('SchedulerSE', response.status);
+    if (response.status === 204) return null;
+    return response.json();
   }
   async ready(signal?: AbortSignal) {
     const connection = await this.request('/connection', 'GET', undefined, signal);

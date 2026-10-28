@@ -24,6 +24,7 @@ export function SchedulerSEPairing({
   onSaved: () => Promise<void>;
 }) {
   const [url, setUrl] = useState('');
+  const [browserUrl, setBrowserUrl] = useState('');
   const [pairing, setPairing] = useState<Pairing>();
   const { busy, run, setNotice } = useAdminTask();
   const active = pairing && !['idle', 'expired', 'revoked', 'configured'].includes(pairing.state);
@@ -33,7 +34,10 @@ export function SchedulerSEPairing({
       const approvalTab = window.open('about:blank', '_blank');
       if (approvalTab) approvalTab.opener = null;
       try {
-        const value = await api<Pairing>(endpoint, 'POST', { url: url.trim() });
+        const value = await api<Pairing>(endpoint, 'POST', {
+          url: url.trim(),
+          ...(browserUrl.trim() ? { browserUrl: browserUrl.trim() } : {}),
+        });
         setPairing(value);
         if (value.approvalUrl && approvalTab && !approvalTab.closed) {
           approvalTab.location.replace(value.approvalUrl);
@@ -71,8 +75,9 @@ export function SchedulerSEPairing({
         automáticamente.
       </p>
       <p className="text-sm text-muted-foreground">
-        Usa HTTPS en la red local. Zero debe ser accesible desde SchedulerSE mediante la dirección
-        pública configurada en Zero. Guarda antes cualquier otro ajuste pendiente.
+        HTTP se admite solo en una red privada de confianza, sin cifrado. Para destinos públicos,
+        usa HTTPS. SchedulerSE debe poder acceder a la dirección pública configurada en Zero. Guarda
+        antes cualquier otro ajuste pendiente.
       </p>
       {!active ? (
         <div className="scheduler-pairing-field">
@@ -110,6 +115,25 @@ export function SchedulerSEPairing({
               <RefreshCw />
             </Button>
           </div>
+          <details className="mt-3 space-y-2">
+            <summary className="cursor-pointer text-sm">Acceso desde el navegador</summary>
+            <Label htmlFor="scheduler-browser-url">
+              URL de SchedulerSE para aprobar (opcional)
+            </Label>
+            <Input
+              id="scheduler-browser-url"
+              type="url"
+              value={browserUrl}
+              onChange={(event) => setBrowserUrl(event.target.value)}
+              placeholder="http://localhost:3000"
+              aria-describedby="scheduler-browser-help"
+            />
+            <p id="scheduler-browser-help" className="text-sm text-muted-foreground">
+              Si usas un nombre interno de Docker, indica aquí la dirección accesible desde tu
+              navegador, por ejemplo mediante un túnel SSH. Solo se usa para abrir la aprobación; la
+              conexión de Zero utiliza la URL anterior.
+            </p>
+          </details>
         </div>
       ) : (
         <div className="space-y-3">
