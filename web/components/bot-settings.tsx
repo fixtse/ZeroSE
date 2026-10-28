@@ -3,6 +3,7 @@ import { Activity, RefreshCw, Save, Trash2, Webhook } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
+import { SecretEditor } from './secret-editor';
 import { Button } from './ui/button';
 import { Field, CheckField, SelectField } from './settings-fields';
 import {
@@ -38,10 +39,14 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
   const [value, setValue] = useState<Connection>(),
     [version, setVersion] = useState(0),
     [status, setStatus] = useState<Status>();
+  const [token, setToken] = useState('');
+  const [clearToken, setClearToken] = useState(false);
   const endpoint = '/v1/admin/setup/assistants/' + encodeURIComponent(id) + '/telegram';
   async function load() {
     setValue(await api<Connection>(endpoint));
     setStatus(undefined);
+    setToken('');
+    setClearToken(false);
     setVersion((v) => v + 1);
   }
   useEffect(() => {
@@ -62,6 +67,8 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
         }),
       );
       setStatus(undefined);
+      setToken('');
+      setClearToken(false);
       setVersion((v) => v + 1);
       setNotice('Conexión guardada. Los webhooks se registran solo con el botón de confirmación.');
       window.dispatchEvent(new CustomEvent('assistant-telegram-changed', { detail: id }));
@@ -92,15 +99,66 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
             className="telegram-connection-form"
           >
             <fieldset disabled={busy}>
-              <Field
+              <SecretEditor
                 id={'telegram-token-' + id}
                 name="token"
-                label="Token del bot de Telegram"
-                type="password"
-                autoComplete="off"
+                label="Token de Telegram"
+                value={token}
+                configured={value.configured && !clearToken}
+                hint={value.tokenHint}
+                preview={clearToken ? 'Se eliminará al guardar' : undefined}
                 maxLength={300}
-                placeholder={value.tokenHint || (value.configured ? '••••••••' : '123456:token')}
+                disabled={busy}
+                onChange={(next) => {
+                  setToken(next);
+                  if (next) setClearToken(false);
+                }}
+                deleteAction={
+                  value.configured && !clearToken ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="danger"
+                          disabled={busy || value.enabled}
+                          tooltip={
+                            value.enabled
+                              ? 'Desactiva Telegram antes de eliminar el token'
+                              : 'Eliminar token de Telegram'
+                          }
+                        >
+                          <Trash2 />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar el token de Telegram?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            La credencial se eliminará al guardar. Los perfiles y conversaciones se
+                            conservan.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                              setToken('');
+                              setClearToken(true);
+                            }}
+                          >
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : undefined
+                }
               />
+              {clearToken && <input type="hidden" name="clearToken" value="true" />}
+
               <SelectField
                 id={'telegram-transport-' + id}
                 name="transport"
@@ -125,11 +183,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                 label="Activar Telegram para este asistente"
                 defaultChecked={value.enabled}
               />
-              <CheckField
-                id={'telegram-clear-' + id}
-                name="clearToken"
-                label="Borrar el token guardado (desactiva primero Telegram)"
-              />
+
               <p>
                 Los secretos guardados muestran solo una referencia parcial. Cambiar de bot conserva
                 los perfiles y conversaciones existentes.

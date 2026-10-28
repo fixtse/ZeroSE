@@ -6,8 +6,6 @@ import {
   CalendarClock,
   Image,
   Map,
-  Pencil,
-  Plus,
   RefreshCw,
   Save,
   Settings2,
@@ -16,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useUrlState } from '../hooks/use-url-state';
+import { SecretEditor } from './secret-editor';
 import { ServiceSpeechPicker } from './service-speech-picker';
 import {
   AlertDialog,
@@ -109,84 +108,55 @@ function SecretField({
   cleared: boolean;
   onClear: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const label = fieldLabel(field.path);
   return (
-    <div className="service-secret">
-      <div className="service-secret-heading">
-        <span>{label}</span>
-        <div className="action-group">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={field.readOnly}
-            tooltip={
-              editing
-                ? 'Cancelar cambio de ' + label
-                : (field.configured ? 'Cambiar ' : 'Añadir ') + label
-            }
-            onClick={() => setEditing(!editing)}
-          >
-            {editing ? <X /> : field.configured ? <Pencil /> : <Plus />}
-          </Button>
-          {field.configured && !cleared && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="danger"
-                  size="icon-sm"
-                  tooltip={'Eliminar ' + label}
-                  disabled={field.readOnly}
+    <SecretEditor
+      key={String(cleared)}
+      id={'service-' + field.path}
+      name={field.path}
+      label={label}
+      configured={field.configured && !cleared}
+      hint={field.secretHint}
+      preview={cleared ? 'Se eliminará al guardar' : undefined}
+      disabled={field.readOnly}
+      deleteAction={
+        field.configured && !cleared ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="danger"
+                size="icon-sm"
+                tooltip={'Eliminar ' + label}
+                disabled={field.readOnly}
+              >
+                <Trash2 />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar {label.toLowerCase()}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  La credencial se eliminará al guardar los ajustes.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => {
+                    onClear();
+                  }}
                 >
-                  <Trash2 />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar {label.toLowerCase()}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    La credencial se eliminará al guardar los ajustes.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => {
-                      setEditing(false);
-                      onClear();
-                    }}
-                  >
-                    Eliminar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-      </div>
-      {editing ? (
-        <Field
-          id={'service-' + field.path}
-          name={field.path}
-          label={'Nueva ' + label.toLowerCase()}
-          type="password"
-          autoComplete="new-password"
-          placeholder={field.secretHint || 'Introduce la credencial'}
-        />
-      ) : (
-        <span className="service-secret-preview">
-          {cleared
-            ? 'Se eliminará al guardar'
-            : field.configured
-              ? field.secretHint || '•••••••• · Configurada'
-              : 'Sin configurar'}
-        </span>
-      )}
-    </div>
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : undefined
+      }
+    />
   );
 }
 

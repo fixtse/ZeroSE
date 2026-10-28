@@ -1,5 +1,6 @@
 'use client';
 import { HAConnectionPicker, type HAConnectionChoice } from './ha-connection-picker';
+import { SecretEditor } from './secret-editor';
 import { Badge } from './ui/badge';
 import { HAEntityPicker } from './ha-entity-picker';
 import { HAEntityMultiPicker } from './ha-entity-multi-picker';
@@ -500,26 +501,26 @@ export function ProfileEditor({
                           type="url"
                           defaultValue={current?.homeAssistant?.url || ''}
                         />
-                        <div className="ha-token-save">
-                          <Field
-                            id="profile-ha-token"
-                            name="ha-token"
-                            label="Long-lived access token"
-                            type="password"
-                            autoComplete="off"
-                            placeholder={current?.homeAssistant?.tokenHint || 'Introduce un token'}
-                          />
-                          <Button
-                            type="submit"
-                            name="saveHAConnection"
-                            value="true"
-                            disabled={busy}
-                            size="icon"
-                            tooltip="Guardar conexión de Home Assistant"
-                          >
-                            <Save />
-                          </Button>
-                        </div>
+                        <SecretEditor
+                          id="profile-ha-token"
+                          name="ha-token"
+                          label="Token de acceso"
+                          configured={!!current?.homeAssistant?.tokenHint}
+                          hint={current?.homeAssistant?.tokenHint}
+                          disabled={busy}
+                          actions={
+                            <Button
+                              type="submit"
+                              name="saveHAConnection"
+                              value="true"
+                              disabled={busy}
+                              size="icon"
+                              tooltip="Guardar conexión de Home Assistant"
+                            >
+                              <Save />
+                            </Button>
+                          }
+                        />
                       </div>
                     )}
                   </section>

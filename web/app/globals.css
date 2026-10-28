@@ -1815,9 +1815,6 @@ textarea:focus-visible {
   padding: 8px 10px;
 }
 
-.ai-settings .provider-tabs-list {
-  padding: 8px;
-}
 .ai-model > .settings-field {
   grid-column: 1 / -1;
 }
@@ -2850,29 +2847,6 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.service-secret {
-  align-self: start;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  min-width: 0;
-}
-.service-secret-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.service-secret-preview {
-  color: var(--muted-foreground);
-  overflow-wrap: anywhere;
-  font-size: 13px;
-}
-.service-secret .settings-field {
-  margin-top: 10px;
-}
 .service-advanced summary {
   cursor: pointer;
   color: var(--muted-foreground);
@@ -3005,22 +2979,47 @@ h1 {
   grid-column: 1 / -1;
 }
 .secret-editor {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  align-self: end;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.secret-editor > .secret-editor-label {
+  flex: none;
+  max-width: 36%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.secret-editor-value {
+  flex: 1;
   min-width: 0;
 }
-.secret-editor-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-}
 .secret-editor-preview {
+  display: block;
   color: var(--muted-foreground);
   font-size: 13px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.secret-editor .secret-editor-value input {
+  margin: 0;
+  height: 36px;
+  padding: 8px 10px;
+}
+.secret-editor > .action-group {
+  flex: none;
+  flex-wrap: nowrap;
+}
+.ha-manual-connection {
+  align-items: end;
 }
 .security-settings {
   display: grid;

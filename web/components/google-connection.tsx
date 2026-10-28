@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, Link, ShieldCheck } from 'lucide-react';
 import { api, type Profile } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
+import { SecretEditor } from './secret-editor';
 import { Field } from './settings-fields';
 import { Button } from './ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
@@ -160,14 +161,14 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
           autoComplete="off"
           onChange={(event) => setClientId(event.target.value)}
         />
-        <Field
+        <SecretEditor
           id="google-oauth-client-secret"
           label="OAuth client secret"
-          type="password"
           value={clientSecret}
-          autoComplete="new-password"
-          placeholder={google?.clientSecretHint || legacy?.clientSecretHint}
-          onChange={(event) => setClientSecret(event.target.value)}
+          configured={!!(google?.clientSecretHint || legacy?.clientSecretHint)}
+          hint={google?.clientSecretHint || legacy?.clientSecretHint}
+          disabled={busy}
+          onChange={setClientSecret}
         />
       </div>
       <Collapsible className="settings-section">
