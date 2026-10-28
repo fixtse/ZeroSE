@@ -11,6 +11,7 @@ import { HomeAssistantMobileRecovery } from './adapters/outbound/home-assistant-
 import { PostgresServiceSettings } from './adapters/outbound/postgres-service-settings.js';
 import { EdgeSpeechCatalog } from './adapters/outbound/edge-speech-catalog.js';
 import { ServiceSettingsAdmin } from './adapters/inbound/service-settings-admin.js';
+import { ServiceConfigSchema } from './adapters/outbound/config-schema.js';
 import { ConfiguredEmbeddings } from './application/configured-embeddings.js';
 import { memoryEmbeddings, embeddingCatalog } from './adapters/outbound/memory-embeddings.js';
 import { EmbeddingAdmin } from './adapters/inbound/embedding-admin.js';
@@ -834,16 +835,17 @@ const codex = new AIAgent(
       },
       new ServiceSettingsAdmin(
         serviceSettings,
-        async (value, scope) => {
+        async (saved, scope) => {
           if (scope === 'codex') return;
+          // Normalize optional persisted settings to the same defaults used at startup.
+          const value = ServiceConfigSchema.parse(saved);
           // Replace only infrastructure settings. In-flight scoped jobs keep their snapshot.
           config.timezone = value.timezone;
           config.concurrency = value.concurrency;
           // Polling clients share this object; scoped jobs copy it when they start.
           Object.assign(config.media, structuredClone(value.media));
           if (!value.media.speech) delete config.media.speech;
-          if (config.reader && value.reader) Object.assign(config.reader, value.reader);
-          else config.reader = structuredClone(value.reader);
+          Object.assign(config.reader, value.reader);
           config.braveApiKey = value.braveApiKey;
           config.places = {
             photonUrl:
