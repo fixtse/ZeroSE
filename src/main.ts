@@ -30,6 +30,7 @@ import { ProviderAssistantImageGenerator } from './adapters/outbound/assistant-i
 import { AssistantImageAdmin } from './adapters/inbound/assistant-image-admin.js';
 import { TelegramAssistantPhoto } from './adapters/outbound/telegram-assistant-photo.js';
 import type { Config } from './domain/config.js';
+import { modelAllowsApplicationTool } from './domain/ai-tools.js';
 import { withTaskProvider } from './application/task-provider.js';
 import { HomeAssistantTasks } from './adapters/outbound/home-assistant-tasks.js';
 import { AssistantDefinitions } from './application/assistant-definitions.js';
@@ -406,6 +407,7 @@ async function services(context: ToolContext) {
   const memory = new Memory(scoped.memory, memoryRepository, configuredEmbeddings, memoryReranker);
   const settings = await zeroSettings.read();
   const permitted = (name: string) => {
+    if (!modelAllowsApplicationTool(context.aiModel, name)) return false;
     if (
       profile?.owner &&
       !settings.homeAssistant &&
@@ -421,6 +423,7 @@ async function services(context: ToolContext) {
   const tools = new Tools(
     store,
     async (name) => {
+      if (!modelAllowsApplicationTool(context.aiModel, name)) return false;
       if (
         profile?.owner &&
         (toolCapability(name) === 'homeAssistant' ||

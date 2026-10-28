@@ -304,6 +304,7 @@ export class Codex {
   ): Promise<string> {
     await this.start();
     context.signal.throwIfAborted();
+    context.aiModel ??= this.config.codex.model;
     const tools = toolsEnabled && this.resolveTools ? await this.resolveTools(context) : this.tools;
     const cwd = context.capabilities
       ? join(

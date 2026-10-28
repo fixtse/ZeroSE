@@ -65,7 +65,13 @@ test('selection is one question only, admin-approved, isolated and rechecked; ba
     repository,
     async (session) => (session === 'telegram:1' ? profile : undefined),
     cli,
-    () => ({ run: async () => 'remote' }),
+    () => ({
+      run: async (...args) => {
+        assert.equal(args[3].aiModel, 'api-model');
+        assert.equal(args[3].aiEffort, undefined);
+        return 'remote';
+      },
+    }),
   );
   const run = (session = 'telegram:1', user = true) =>
     agent.run(session, 'question', 'instructions', { ...context(user), session });

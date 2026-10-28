@@ -56,9 +56,10 @@ export class AIAgent implements AgentPort {
       throw new Error(
         'The configured AI model is unavailable. Ask the administrator to select a model.',
       );
+    // Resolve application tools against the actual model, including one-turn overrides.
+    context.aiModel = model.model;
+    context.aiEffort = model.effort;
     if (provider.kind === 'codex') {
-      context.aiModel = model.model;
-      context.aiEffort = model.effort;
       return this.codex.run(...args);
     }
     return this.remote(provider, model).run(...args);
