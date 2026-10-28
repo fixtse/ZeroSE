@@ -28,7 +28,6 @@
   Telegram, Google, or Home Assistant integrations. Keep runtime backups private.
 - Do not automatically replay interrupted jobs or retry uncertain mutating tool calls.
 
-
 ## Admin interface design
 
 - Never leave a saved API key or token field visually empty. Show the shared masked
@@ -84,10 +83,11 @@
 - Preserve `assistant_zero` entry IDs, `conversation.zero`, Assist pipelines and
   existing rule IDs/generations. Retain `/api/assistant_rules`, its storage key and
   internal manager key for compatibility; these names do not imply a separate integration.
-- SchedulerSE is an optional backend for timed reminders; HA still owns sensor and
-  weather conditions. Preserve existing scheduler identities. Never silently move
-  schedules, fail over, overwrite SchedulerSE's shared delivery connection or replay
-  uncertain mutations. Keep all connection credentials private.
+- The SchedulerSE integration is retired. Preserve stored scheduler identities and
+  private legacy settings; never silently migrate or replay schedules from a removed
+  backend. Zero owns new clock reminders and timers; Home Assistant retains installed
+  rules and owns sensor, location, weather and wake-up conditions. Backend selection
+  is internal; do not change the agents' tool names or require them to choose a backend.
 - Validate in Codespaces with the required pnpm/Compose checks and the pinned real
   HA smoke check (`test/ha_runtime/requirements.txt`, `test/ha_runtime/verify.py`).
   Check the unified package in its own repository too when its files change.

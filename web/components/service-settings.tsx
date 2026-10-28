@@ -1,18 +1,8 @@
 'use client';
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import {
-  AudioLines,
-  BookOpen,
-  CalendarClock,
-  Search,
-  Map,
-  Save,
-  Settings2,
-  Trash2,
-} from 'lucide-react';
+import { AudioLines, BookOpen, Search, Map, Save, Settings2, Trash2 } from 'lucide-react';
 import { useUrlState } from '../hooks/use-url-state';
 import { SecretEditor } from './secret-editor';
-import { SchedulerSEPairing } from './schedulerse-pairing';
 import { ServiceSpeechPicker } from './service-speech-picker';
 import {
   AlertDialog,
@@ -52,7 +42,6 @@ const names: Record<string, string> = {
   reader: 'Jina AI',
   places: 'Mapas y rutas',
   braveApiKey: 'Brave Search',
-  schedulerSE: 'SchedulerSE',
 };
 const icons = {
   general: Settings2,
@@ -60,7 +49,6 @@ const icons = {
   reader: BookOpen,
   places: Map,
   braveApiKey: Search,
-  schedulerSE: CalendarClock,
 };
 const fieldNames: Record<string, string> = {
   timezone: 'Zona horaria',
@@ -315,34 +303,7 @@ function SettingsForm({
             >
               <h3>{names[group] || group}</h3>
               {group === 'braveApiKey' && <p>Búsqueda web e imágenes con la misma clave.</p>}
-              {group === 'schedulerSE' ? (
-                <>
-                  <SchedulerSEPairing
-                    configured={
-                      !!settings.fields.find((field) => field.path === 'schedulerSE.token')
-                        ?.configured
-                    }
-                    tokenHint={
-                      settings.fields.find((field) => field.path === 'schedulerSE.token')
-                        ?.secretHint
-                    }
-                    onSaved={reload}
-                  />
-                  <details className="mt-5">
-                    <summary className="cursor-pointer">
-                      Configuración manual y conexión guardada
-                    </summary>
-                    <div className="settings-grid mt-4">
-                      {settings.fields
-                        .filter(
-                          (field) =>
-                            groupFor(field) === group && field.path !== 'schedulerSE.callbackUrl',
-                        )
-                        .map(renderField)}
-                    </div>
-                  </details>
-                </>
-              ) : group === 'media' ? (
+              {group === 'media' ? (
                 <>
                   <div className="settings-grid">
                     <SelectField
@@ -425,12 +386,7 @@ function SettingsForm({
                 </>
               ) : (
                 <div className="settings-grid">
-                  {settings.fields
-                    .filter(
-                      (field) =>
-                        groupFor(field) === group && field.path !== 'schedulerSE.callbackUrl',
-                    )
-                    .map(renderField)}
+                  {settings.fields.filter((field) => groupFor(field) === group).map(renderField)}
                 </div>
               )}
             </TabsContent>

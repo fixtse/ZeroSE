@@ -3134,9 +3134,6 @@ h1 {
   }
 }
 
-.scheduler-pairing-field > label {
-  margin: 0 0 7px;
-}
 .service-switch-field {
   display: flex;
   min-height: 40px;

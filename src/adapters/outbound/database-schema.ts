@@ -245,6 +245,13 @@ export const notificationRules = pgTable(
   },
   (table) => [
     index('notification_rules_session').on(table.session, table.created, table.id),
+    index('notification_rules_local_due').on(sql`(${table.value}->>'next_at')`, table.id)
+      .where(sql`${table.value}->>'scheduler_key' = 'zero-local-v1'
+        AND ${table.value}->>'status' = 'active'
+        AND ${table.value}->>'scheduler_state' = 'installed'
+        AND ${table.value}->>'kind' IN ('reminder', 'timer')
+        AND ${table.value}->>'wake_date' IS NULL
+        AND ${table.value}->'condition' = 'null'::jsonb`),
     uniqueIndex('notification_rules_owner_weather')
       .on(table.session)
       .where(sql`${table.value}->>'managed'='owner_weather'`),

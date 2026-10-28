@@ -1,4 +1,3 @@
-import type { SchedulerSEPairing } from '../../application/schedulerse-pairing.js';
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { ServiceConfig, ServiceSettingsPort } from '../../application/service-settings.js';
@@ -9,7 +8,6 @@ import { ServiceConfigSchema } from '../outbound/config-schema.js';
 const defaults = ServiceConfigSchema.parse({});
 const template = {
   ...defaults,
-  schedulerSE: { url: '', token: '', callbackUrl: '', enabled: false },
   media: {
     ...defaults.media,
     speech: { stt: 'default', sttLanguage: '', tts: 'default', ttsLanguage: '', voice: '' },
@@ -48,7 +46,6 @@ export class ServiceSettingsAdmin {
       query: SpeechQuery,
       signal: AbortSignal,
     ) => Promise<SpeechPage<SpeechVoice>>,
-    private schedulerPairing?: SchedulerSEPairing,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -56,39 +53,6 @@ export class ServiceSettingsAdmin {
     read: () => Promise<unknown>,
     send: (status: number, value: unknown) => void,
   ) {
-    if (path.startsWith('/v1/admin/setup/services/schedulerse/pairing')) {
-      if (!this.schedulerPairing) {
-        send(503, { error: 'Emparejamiento no disponible.' });
-        return true;
-      }
-      try {
-        const endpoint = '/v1/admin/setup/services/schedulerse/pairing';
-        if (path === endpoint && req.method === 'GET') {
-          const status = await this.schedulerPairing.status();
-          if (status.state === 'configured' && this.apply)
-            await this.apply((await this.settings.read()).value);
-          send(200, status);
-        } else if (path === endpoint && req.method === 'POST') {
-          const input = z
-            .object({ url: z.string().max(2048), browserUrl: z.string().max(2048).optional() })
-            .strict()
-            .parse(await read());
-          send(201, await this.schedulerPairing.begin(input.url, input.browserUrl));
-        } else if (path === endpoint + '/finish' && req.method === 'POST') {
-          const result = await this.schedulerPairing.finish();
-          if (this.apply) await this.apply((await this.settings.read()).value);
-          send(200, result);
-        } else send(405, { error: 'Método no permitido.' });
-      } catch (error) {
-        send(409, {
-          error:
-            error instanceof Error
-              ? error.message
-              : 'No se pudo confirmar la conexión. Consulta su estado.',
-        });
-      }
-      return true;
-    }
     if (path === '/v1/admin/setup/services/speech' && req.method === 'GET') {
       const params = new URL(req.url || '/', 'http://localhost').searchParams;
       const query = z
@@ -181,15 +145,6 @@ export class ServiceSettingsAdmin {
         for (const part of parts.slice(0, -1)) target = target[part] ??= {};
         target[parts.at(-1)!] = next === null && field.type === 'secret' ? '' : next;
       }
-      if (
-        value.schedulerSE &&
-        !value.schedulerSE.enabled &&
-        !value.schedulerSE.url &&
-        !value.schedulerSE.token &&
-        !value.schedulerSE.callbackUrl
-      )
-        delete value.schedulerSE;
-      if (value.schedulerSE?.callbackUrl === '') delete value.schedulerSE.callbackUrl;
       const parsed = ServiceConfigSchema.safeParse(value);
       if (!parsed.success) {
         send(400, {
@@ -204,7 +159,10 @@ export class ServiceSettingsAdmin {
         send(400, { error: 'Zona horaria inválida.' });
         return true;
       }
-      const saved = await this.settings.update(input.revision, parsed.data);
+      const saved = await this.settings.update(input.revision, {
+        ...current.value,
+        ...parsed.data,
+      });
       if (saved && this.apply) await this.apply((await this.settings.read()).value);
       send(
         saved ? 200 : 409,

@@ -37,7 +37,6 @@ export interface Config {
     destinationNames?: Partial<Record<'calendarId' | 'taskListId' | 'documentFolderId', string>>;
     credentials: Partial<Record<'calendar' | 'tasks' | 'docs' | 'drive', GoogleCredential>>;
   };
-  schedulerSE?: { url: string; token: string; callbackUrl?: string; enabled: boolean };
   homeAssistant: {
     connections?: { id: string; name: string; url: string }[];
     activeConnectionId?: string;

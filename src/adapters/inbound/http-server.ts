@@ -16,7 +16,6 @@ import type { DeploymentWebhookProxy } from './deployment-webhook.js';
 import { localClock } from '../../domain/time.js';
 import { rulesToken } from '../../application/rules-auth.js';
 import { voiceToken, type VoiceBridge } from '../../application/voice-bridge.js';
-import { schedulerSeCallbackToken, schedulerSeEvent } from '../outbound/schedulerse.js';
 import type { ZeroSettingsPort } from '../../application/zero-settings.js';
 import { createHmac } from 'node:crypto';
 import { weatherChangeSchema } from './weather-change-schema.js';
@@ -244,35 +243,6 @@ export function createHttpServer(
             : send(404, { error: 'Voice turn not found' });
         }
         return send(404, { error: 'Not found' });
-      }
-      if (req.method === 'POST' && path === '/v1/triggers/schedulerse-events' && rules) {
-        if (
-          !equalSecret(
-            req.headers.authorization,
-            `Bearer ${schedulerSeCallbackToken(config.apiKey)}`,
-          )
-        )
-          return send(401, { error: 'Unauthorized' });
-        const value = z
-          .object({
-            event: z.literal('schedule.due'),
-            event_id: z.string().min(1).max(200),
-            scheduled_at: z.iso.datetime({ offset: true }),
-            task: z.object({
-              id: z.string().max(64),
-              interval_seconds: z.number().int().min(0).max(31536000),
-              context: z
-                .object({
-                  integration: z.literal('zero'),
-                  rule_id: z.uuid(),
-                  generation: z.number().int().min(0),
-                })
-                .strict(),
-            }),
-          })
-          .parse(await body(req));
-        const accepted = await rules.receive(schedulerSeEvent(value));
-        return send(202, { accepted });
       }
       if (req.method === 'POST' && path === '/v1/triggers/rule-events' && rules) {
         if (

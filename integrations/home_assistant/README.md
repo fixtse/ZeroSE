@@ -25,37 +25,16 @@ is not advertised. Set `ASSISTANT_DISCOVERY=false` to disable advertisements.
 Multicast DNS requires UDP 5353 connectivity on the same LAN; use host networking
 for containers. Manual setup remains available when multicast is blocked.
 
-## Optional SchedulerSE backend
+## Reminder backend
 
-Timed reminders can use SchedulerSE independently of Home Assistant. Sensor and
-weather alerts still require Home Assistant. Existing schedules keep their backend;
-there is no automatic migration or outage failover that could duplicate delivery.
-
-Configure Zero privately (not in the HA prompt):
-
-```json
-{
-  "schedulerSE": {
-    "enabled": true,
-    "url": "https://scheduler.example.com",
-    "token": "<private agent API token>",
-    "callbackUrl": "https://zero.example.com/v1/triggers/schedulerse-events"
-  }
-}
-```
-
-In SchedulerSE, configure webhook delivery to that exact callback URL. Use the
-complete Authorization header with a dedicated callback token derived as
-HMAC-SHA256(Zero apiKey, `zero-schedulerse-callback-v1`). Provision it through a
-private secret store. The adapter validates the destination and never changes
-SchedulerSE's installation-wide connection automatically. Leave `enabled` false
-until configured. No polling bridge is required, and no second assistant prompt
-is stored. SchedulerSE callbacks use stable occurrence IDs, existing Zero rule
-generations and durable duplicate suppression. Uncertain writes are not replayed.
-
-New reminders use the chosen backend; already installed HA rules remain on HA.
-SchedulerSE is optional and has not been enabled or deployed by this code change.
-The Zero bridge uses the project's existing icon.
+Zero now stores and schedules new clock reminders and timers locally in PostgreSQL,
+without an HA connection. Existing HA reminder identities and installations stay on
+HA. Sensor, location and weather conditions, plus wake-up events, remain on HA.
+Agents keep the same tools; backend selection is internal. The former SchedulerSE
+client, pairing and callback routes have been removed from Zero.
+Stored rules keep their original backend identities; removal does not migrate,
+replay or cancel external schedules. Private legacy settings remain stored but are
+not loaded as active configuration or exposed in the admin panel.
 
 ## Android and Home Assistant user identity
 

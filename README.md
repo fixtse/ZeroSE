@@ -352,40 +352,42 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 
 ### Reminders, timers and conditional alerts
 
+Clock-time reminders, countdowns and fixed-interval repetitions are stored in Zero's
+existing PostgreSQL database and run without Home Assistant. One bounded worker
+checks an indexed set of due rules approximately once per second. Accepting an
+occurrence, recording its receipt, advancing the rule and queueing its notification
+share a transaction. Competing ticks cannot enqueue the same occurrence twice.
+No model runs while waiting for a deadline or delivering an ordinary reminder.
+
+The tools remain `reminder_create`, `timer_start`, `reminders_list`, `reminder_get`
+and `reminder_change`; agents never choose a scheduler. `reminder_create` takes an
+ISO timestamp with offset and optional `repeat_seconds`, a fixed elapsed interval
+rather than a DST-aware local calendar schedule. Pause/resume, snooze and cancellation
+invalidate earlier generations, including already queued notifications. Existing
+session ordering is retained; an active conversation can delay delivery. A completed
+rule means its notification was queued, not that Telegram acknowledged delivery.
+
+Future local deadlines survive restart. One-shot deadlines missed before startup
+expire without replay; repeating reminders skip missed occurrences and retain their
+original interval anchor. During normal operation a deadline more than 60 seconds
+late is skipped in the same way. Interrupted/uncertain installations are not retried
+automatically. Existing Home Assistant rules retain their backend identity and are
+not silently copied to Zero's scheduler, even if HA becomes unavailable.
+
 Install [Zero Assistant](https://github.com/fixtse/ha-zero-assistant) through its
-README's HACS button. The single `assistant_zero` integration includes conversation,
-shared settings, reminders, and conditional alerts. Configure callback delivery
-under that integration; do not install a separate `assistant_rules` component.
+README's HACS button for sensor, location and weather alerts, wake-up briefings and
+other HA features. The single `assistant_zero` integration retains its conversation,
+shared settings and existing reminders; do not install a separate `assistant_rules`
+component. These conditions continue to be evaluated in HA, with no heartbeat or
+periodic callback to the assistant. Callbacks carry rule identities, generations and
+timestamps; permissions and generation checks apply before enqueue and delivery.
+Normal enabled Telegram chats can create local reminders without an HA connection;
+conditional alerts still require the chat's permitted HA connection. Scheduling
+from HTTP chats remains unsupported.
 
-For existing standalone installations, follow the offline migration in
-[integration notes](integrations/home_assistant/README.md). It preserves rule
-storage and voice identities and requires a private backup and HA restart.
-SchedulerSE is an optional timed-reminder backend; sensor/weather conditions
-continue to use Home Assistant.
-
-**There is no heartbeat or periodic assistant callback.** The TypeScript assistant
-creates/changes rules through the integration's authenticated API. Home Assistant
-stores them durably, schedules deadlines precisely, and listens directly to sensor
-state and weather forecast updates. Callback payloads contain only rule ID,
-generation, unique event ID and timestamps—never a chat recipient, arbitrary
-message or model-supplied URL. No model runs during evaluation or delivery.
-
-The callback validates the rule's current generation and permissions, then
-atomically records its unique event and queues a notification in the chat's
-existing ordered queue. Duplicate/stale callbacks are ignored. Permission changes,
-pausing, cancellation and snoozing suppress old queued notifications. An active
-conversation can still delay delivery. Normal enabled Telegram chats can create
-reminders/timers using the installation's HA scheduler; conditional alerts require
-the chat's own permitted HA connection. Scheduling from HTTP chats is unsupported.
-
-`reminder_create` takes an ISO timestamp with offset and optional `repeat_seconds`;
-this repeats at a fixed elapsed interval, **not** a DST-aware local daily time.
-`timer_start` takes seconds. `reminders_list`, `reminder_get` and `reminder_change`
-inspect, cancel, snooze, pause or resume rules. `reminder_get` includes the remote
-scheduler's status and latest callback outcome for inspecting uncertain effects.
-Missed deadlines expire rather than replaying on HA restart; recurring reminders
-skip missed occurrences and resume at the next future deadline. A completed local
-rule has queued its notification; it is not a Telegram delivery receipt.
+For existing standalone HA installations, follow the explicit offline migration in
+[integration notes](integrations/home_assistant/README.md). It preserves rule storage
+and voice identities and requires a private backup and authorized HA restart.
 
 `alert_create` watches permitted sensor/binary-sensor equality and numeric
 above/below conditions continuously, with an optional hold duration. Unknown,
@@ -1228,32 +1230,11 @@ available coordinates, their source and age; older coordinates remain usable
 with a warning. Nearby searches use that member's coordinates and every suggested
 place includes its Google Maps link.
 
-### Emparejar SchedulerSE por URL
+### Removed reminder backend
 
-En Ajustes → SchedulerSE, introduce la URL del servicio. Se abre automáticamente la solicitud
-de autorización; el botón permite volver a abrirla. Inicia sesión en SchedulerSE, verifica la dirección de entrega y
-aprueba. Vuelve a Zero y pulsa «Comprobar aprobación y guardar conexión»: Zero
-verifica la entrega y guarda las credenciales automáticamente, sin copiarlas.
-La dirección pública del administrador de Zero debe ser accesible desde SchedulerSE;
-se utiliza también para recibir los eventos y sigue requiriendo HTTPS (HTTP solo en loopback).
-Para conectar con SchedulerSE se admite HTTP en redes privadas de confianza: IPv4 RFC1918,
-loopback e IPv6 ULA. Los nombres Docker, como `http://schedulerse:3000`, deben resolver
-exclusivamente a esas redes. Zero valida y fija la IP en cada conexión HTTP, también después
-del pairing; rechaza destinos públicos, link-local y redirecciones. HTTP no cifra las
-credenciales: usa una red Docker dedicada con contenedores de confianza, o HTTPS.
-
-Si SchedulerSE no está publicado, conecta ambos contenedores a esa red. En «Acceso desde
-el navegador» puedes indicar otra URL para la aprobación, sin cambiar la URL interna de
-la API. Por ejemplo, publica el puerto de SchedulerSE **solo en el loopback del servidor**
-(`127.0.0.1:4300:3000`), abre desde tu equipo un túnel
-`ssh -N -L 4300:127.0.0.1:4300 usuario@servidor` y usa `http://localhost:4300` como URL
-para aprobar. No es necesario exponer SchedulerSE a Internet. La aprobación autenticada
-en SchedulerSE sigue siendo obligatoria; Zero no actúa como proxy de su panel ni inicia sesión por ti.
-
-Las solicitudes caducan a los cinco minutos. Recargar el panel recupera una solicitud;
-reiniciar Zero requiere iniciar una nueva. Ante una respuesta perdida, consulta el
-estado antes de continuar: no se repiten registros ni guardados inciertos. Guarda
-otros ajustes pendientes antes de conectar. Se preservan las conexiones manuales,
-los recordatorios existentes y sus identidades. SchedulerSE bloquea la aprobación
-si sustituiría otra entrega o una conexión de polling. El descubrimiento automático
-en la red local queda fuera de este flujo; se usa la URL del servicio.
+The SchedulerSE integration is no longer available in Zero. Its settings, pairing,
+client and dedicated event callback have been removed. Existing external schedules
+are not migrated or cancelled automatically. Stored backend identities and private
+legacy settings are retained; reminders from an unavailable backend are not routed
+to Home Assistant or the local scheduler. New clock reminders and timers use Zero's
+local scheduler; existing HA rules and additional HA conditions remain supported.

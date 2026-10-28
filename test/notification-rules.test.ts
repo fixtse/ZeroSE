@@ -267,6 +267,17 @@ test('HA callback has a scoped bearer and payload; old heartbeat route cannot tr
     assert.equal(events.length, 1);
     assert.equal(
       (
+        await fetch(base + '/v1/triggers/schedulerse-events', {
+          method: 'POST',
+          headers: { ...headers, Authorization: `Bearer ${f.config.apiKey}` },
+          body: JSON.stringify(event),
+        })
+      ).status,
+      404,
+    );
+    assert.equal(events.length, 1);
+    assert.equal(
+      (
         await fetch(base + '/v1/triggers/rule-events', {
           method: 'POST',
           headers,
@@ -420,6 +431,26 @@ test('changing the HA connection invalidates callbacks from the old integration'
       false,
     );
     assert.equal((await f.store.pool.query('SELECT count(*) FROM jobs')).rows[0].count, '0');
+  } finally {
+    await f.close();
+  }
+});
+
+test('an unavailable original backend retains its identity and never installs on a replacement', async () => {
+  const f = await setup();
+  try {
+    Object.defineProperty(f.scheduler, 'identity', { value: 'original-backend', writable: true });
+    const rule = await f.rules.create(value());
+    Object.defineProperty(f.scheduler, 'identity', { value: 'replacement-backend' });
+    const paused = await f.rules.change(rule.session, rule.id, 'pause');
+    assert.ok('scheduler_state' in paused);
+    assert.equal(paused.scheduler_state, 'uncertain');
+    assert.equal(
+      (await f.repository.read(rule.session, rule.id))?.scheduler_key,
+      'original-backend',
+    );
+    await assert.rejects(f.rules.change(rule.session, rule.id, 'resume'), /unavailable/);
+    assert.equal(f.configurations.length, 1);
   } finally {
     await f.close();
   }

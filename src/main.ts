@@ -9,6 +9,11 @@ import { ModelMemoryReranker } from './application/memory-reranker.js';
 import { ReprocessMemory } from './application/reprocess-memory.js';
 import { HomeAssistantMobileRecovery } from './adapters/outbound/home-assistant-mobile-recovery.js';
 import { PostgresServiceSettings } from './adapters/outbound/postgres-service-settings.js';
+import {
+  LocalDeadlineWorker,
+  LocalRuleScheduler,
+  selectRuleScheduler,
+} from './application/local-rule-scheduler.js';
 import { EdgeSpeechCatalog } from './adapters/outbound/edge-speech-catalog.js';
 import { ServiceSettingsAdmin } from './adapters/inbound/service-settings-admin.js';
 import { ServiceConfigSchema } from './adapters/outbound/config-schema.js';
@@ -64,9 +69,6 @@ import { Scheduler } from './application/scheduler.js';
 import { registerSearch } from './adapters/outbound/search.js';
 import { NotificationRules } from './application/notification-rules.js';
 import { HomeAssistantRuleScheduler } from './adapters/outbound/ha-rule-scheduler.js';
-import { SchedulerSEPairing } from './application/schedulerse-pairing.js';
-import { SchedulerSEPairingClient } from './adapters/outbound/schedulerse-pairing.js';
-import { SchedulerSE, schedulerSeCallbackToken } from './adapters/outbound/schedulerse.js';
 import { PostgresRules } from './adapters/outbound/postgres-rules.js';
 import { PostgresPersonalData } from './adapters/outbound/postgres-personal-data.js';
 import { Mem0Repository, withMem0PersonalData } from './adapters/outbound/mem0-repository.js';
@@ -283,6 +285,7 @@ const bots = new TelegramBots(
 );
 const ruleRepository = new PostgresRules(store.db);
 await ruleRepository.initialize();
+const localRuleScheduler = new LocalRuleScheduler(ruleRepository);
 const places = new OpenStreetMapPlaces(config.places?.photonUrl, config.places?.osrmUrl);
 const assistantTelegram = new AssistantTelegram(
   accessRepository,
@@ -308,10 +311,18 @@ const rules = new NotificationRules(
     const address = sessionAddress(session);
     const profile = await access.forSession(session);
     const scoped = profile ? scopedConfig(config, profile) : config;
-    const external =
-      profile?.owner &&
-      config.schedulerSE &&
-      (schedulerKey ? schedulerKey.startsWith('schedulerse:') : config.schedulerSE.enabled);
+    const homeAssistantScheduler =
+      kind !== 'alert'
+        ? new HomeAssistantRuleScheduler(config.homeAssistant)
+        : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
+          ? new HomeAssistantRuleScheduler(scoped.homeAssistant)
+          : undefined;
+    const scheduler = selectRuleScheduler(
+      kind,
+      schedulerKey,
+      localRuleScheduler,
+      homeAssistantScheduler,
+    );
     return {
       enabled:
         !!address &&
@@ -319,22 +330,7 @@ const rules = new NotificationRules(
         (await bots.isEnabled(address.bot)) &&
         (kind !== 'alert' ||
           (profile.capabilities.includes('homeAssistant') && !!scoped.homeAssistant.token)),
-      scheduler:
-        kind !== 'alert'
-          ? external && config.schedulerSE
-            ? new SchedulerSE(
-                {
-                  ...config.schedulerSE,
-                  callbackUrl:
-                    config.schedulerSE.callbackUrl ||
-                    `http://127.0.0.1:${config.port}/v1/triggers/schedulerse-events`,
-                },
-                (id) => ruleRepository.byId(id),
-              )
-            : new HomeAssistantRuleScheduler(config.homeAssistant)
-          : profile?.capabilities.includes('homeAssistant') && scoped.homeAssistant.token
-            ? new HomeAssistantRuleScheduler(scoped.homeAssistant)
-            : undefined,
+      scheduler,
     };
   },
   config.schedules.enabled && config.telegram.notificationChatId
@@ -344,6 +340,14 @@ const rules = new NotificationRules(
     const profile = await access.forSession('telegram:' + config.telegram.notificationChatId);
     return localClock(new Date(), profile?.timezone || config.timezone).day;
   },
+);
+const localDeadlineWorker = new LocalDeadlineWorker(
+  ruleRepository,
+  (event) => rules.receive(event, true),
+  (rule) => rules.canNotify(rule),
+  () => credentialCrypto.id(),
+  () => new Date(),
+  () => console.error(JSON.stringify({ event: 'local_deadline_worker_failed' })),
 );
 registerNotificationTools(tools, rules, config.homeAssistant.token ? ha : undefined);
 registerPlacesTools(tools, places);
@@ -863,20 +867,12 @@ const codex = new AIAgent(
           };
           places.configure(config.places.photonUrl, config.places.osrmUrl);
           config.schedules = structuredClone(value.schedules);
-          config.schedulerSE = structuredClone(value.schedulerSE);
           rules.wakeSession =
             value.schedules.enabled && config.telegram.notificationChatId
               ? 'telegram:' + config.telegram.notificationChatId
               : undefined;
         },
         (kind, language, query, signal) => edgeSpeechCatalog.page(kind, language, query, signal),
-        new SchedulerSEPairing(
-          serviceSettings,
-          new SchedulerSEPairingClient(),
-          credentialCrypto,
-          'Bearer ' + schedulerSeCallbackToken(config.apiKey),
-          adminAuth.origin,
-        ),
       ),
     ),
   );
@@ -911,6 +907,7 @@ server.listen(config.port, config.host, () => {
     discovery.start(config.host, config.port, process.env.ASSISTANT_ADMIN_URL);
   assistant.start();
   scheduler.start();
+  localDeadlineWorker.start();
   void rules
     .migrateLegacy()
     .then(async () => {
@@ -942,6 +939,7 @@ async function close() {
   if (closing) return;
   closing = true;
   scheduler.close();
+  await localDeadlineWorker.close();
   await discovery.close();
   await bots.close();
   server.close();

@@ -63,7 +63,7 @@ export function registerNotificationTools(
   const message = z.string().trim().min(1).max(1000);
   tools.add(
     'reminder_create',
-    'Schedule a dedicated Telegram reminder at a clock time, using an ISO datetime with timezone offset. For wake-up briefing requests use wake_reminder_create instead. Optional repeat_seconds repeats at a fixed elapsed interval (not local calendar days). Home Assistant owns the persistent deadline and calls back only when due. Missed deadlines are not replayed after restart.',
+    'Schedule a persistent Telegram reminder at a clock time, using an ISO datetime with timezone offset. For wake-up briefing requests use wake_reminder_create instead. Optional repeat_seconds repeats at a fixed elapsed interval (not local calendar days). Missed deadlines are not replayed after restart.',
     z.object({
       message,
       at: z.iso.datetime({ offset: true }),
@@ -85,7 +85,7 @@ export function registerNotificationTools(
   );
   tools.add(
     'timer_start',
-    'Start a persistent countdown in seconds, scheduled persistently in Home Assistant, which calls back only when due.',
+    'Start a persistent countdown in seconds. The notification is queued only when due; no external connection is required.',
     z.object({ message, duration_seconds: seconds }),
     (a, c) => create('timer', a, c),
   );
@@ -133,6 +133,7 @@ export function registerNotificationTools(
         last_fired,
         scheduler_state,
         home_assistant,
+        scheduler,
       } = value;
       return jsonPage(
         {
@@ -150,6 +151,7 @@ export function registerNotificationTools(
           last_fired,
           scheduler_state,
           home_assistant,
+          scheduler,
         },
         a.result_offset,
       );

@@ -72,10 +72,7 @@ test('service catalog exposes shared infrastructure only and redacts secrets', a
   assert.equal(secret.value, '');
   assert.equal(secret.configured, true);
   assert.equal(secret.secretHint, 'priv••••••••cret');
-  assert.equal(
-    result.fields.find((field: any) => field.path === 'schedulerSE.token').secretHint,
-    undefined,
-  );
+  assert(!result.fields.some((field: any) => field.path.startsWith('schedulerSE.')));
   assert(!JSON.stringify(result).includes('private-google-secret'));
   assert(!JSON.stringify(result).includes('private-reader-secret'));
   for (const path of [
@@ -83,7 +80,6 @@ test('service catalog exposes shared infrastructure only and redacts secrets', a
     'media.audioExtractionUrl',
     'reader.apiKey',
     'places.photonUrl',
-    'schedulerSE.token',
   ]) {
     assert(
       result.fields.some((field: any) => field.path === path),
@@ -195,18 +191,45 @@ test('setup can save defaults with every integration left unconfigured', async (
   const { admin, value } = fixture();
   const result = await request(admin, 'PUT', {
     revision: 1,
-    changes: {
-      'schedulerSE.url': '',
-      'schedulerSE.token': '',
-      'schedulerSE.callbackUrl': '',
-      'schedulerSE.enabled': false,
-    },
+    changes: {},
   });
   assert.equal(result.status, 200);
   assert.equal(value().google.clientSecret, 'private-google-secret');
   assert.equal(value().homeAssistant.token, '');
   assert.equal(value().telegram.token, '');
-  assert.equal(value().schedulerSE, undefined);
+  assert.equal('schedulerSE' in value(), false);
+});
+
+test('retired service settings stay private and inert when unrelated settings are saved', async () => {
+  const { admin, value } = fixture();
+  const legacy = {
+    url: 'http://old-private-service:8789',
+    token: 'legacy-private-token',
+    enabled: true,
+  };
+  Object.assign(value(), { schedulerSE: legacy });
+  const catalog = await request(admin, 'GET');
+  assert(!JSON.stringify(catalog.result).includes('legacy-private-token'));
+  assert(!catalog.result.fields.some((field: any) => field.path.startsWith('schedulerSE.')));
+  assert.equal(
+    (await request(admin, 'PUT', { revision: 1, changes: { 'schedulerSE.enabled': true } })).status,
+    400,
+  );
+  assert.equal(
+    (await request(admin, 'PUT', { revision: 1, changes: { timezone: 'UTC' } })).status,
+    200,
+  );
+  assert.deepEqual((value() as unknown as Record<string, unknown>).schedulerSE, legacy);
+  assert.equal('schedulerSE' in ConfigSchema.parse(value()), false);
+  for (const method of ['GET', 'POST']) {
+    const handled = await admin.handle(
+      { method } as IncomingMessage,
+      '/v1/admin/setup/services/schedulerse/pairing',
+      async () => assert.fail('retired pairing must not read mutation payloads'),
+      () => assert.fail('retired pairing must not respond as an active service'),
+    );
+    assert.equal(handled, false);
+  }
 });
 
 test('runtime creates empty service settings and reopens saved setup without a file', async () => {
@@ -225,7 +248,7 @@ test('runtime creates empty service settings and reopens saved setup without a f
     assert.equal(first.telegram.token, '');
     assert.equal(first.google.refreshToken, '');
     assert.equal(first.homeAssistant.token, '');
-    assert.equal(first.schedulerSE, undefined);
+    assert.equal('schedulerSE' in first, false);
     const settings = new PostgresServiceSettings(db.store.db, first.apiKey);
     const saved = await settings.read();
     assert(

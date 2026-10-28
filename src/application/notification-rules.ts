@@ -6,6 +6,7 @@ import {
 import type { Job } from '../domain/models.js';
 import type { JobResult } from './use-cases/contracts.js';
 import type { WeatherChange } from '../domain/weather-change.js';
+import { localSchedulerIdentity } from '../domain/local-deadline.js';
 
 export interface RuleEvent {
   id: string;
@@ -144,6 +145,11 @@ export class NotificationRules {
     value: Omit<NotificationRule, 'id' | 'version' | 'generation'>,
     signal?: AbortSignal,
   ) {
+    if (value.kind !== 'alert' && value.next_at) {
+      const deadline = Date.parse(value.next_at);
+      if (!Number.isFinite(deadline)) throw new Error('Supply a valid reminder deadline.');
+      value = { ...value, next_at: new Date(deadline).toISOString() };
+    }
     const scope = await this.scope(value.session, value.kind);
     if (!scope.enabled || !scope.scheduler)
       throw new Error('Rule scheduler is not available for this chat');
@@ -191,6 +197,8 @@ export class NotificationRules {
     const rule = await this.repository.read(session, id);
     if (!rule) throw new Error('Notification rule not found in this chat');
     const scope = await this.scope(session, rule.kind, rule.scheduler_key);
+    if (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key)
+      scope.scheduler = undefined;
     if (rule.wake_date && operation === 'snooze')
       throw new Error('Wake-up reminders use a local date, not an elapsed-time snooze');
     if ((operation === 'resume' || operation === 'snooze') && (!scope.enabled || !scope.scheduler))
@@ -214,7 +222,9 @@ export class NotificationRules {
     // Invalidate callbacks/queued delivery before contacting HA, even if that request fails.
     rule.generation++;
     rule.scheduler_state = rule.wake_date ? 'installed' : 'installing';
-    rule.scheduler_key = rule.wake_date ? undefined : scope.scheduler?.identity;
+    rule.scheduler_key = rule.wake_date
+      ? undefined
+      : scope.scheduler?.identity || rule.scheduler_key;
     if (!(await this.repository.apply(rule)))
       throw new Error('Rule changed concurrently; read it before trying again');
     if (rule.wake_date) return { id, status: rule.status, wake_date: rule.wake_date };
@@ -226,18 +236,19 @@ export class NotificationRules {
         next_at: rule.next_at,
         scheduler_state: 'uncertain',
         detail:
-          'Locally suppressed; Home Assistant access is unavailable, so its old rule could not be disabled.',
+          'Locally suppressed; the original scheduler is unavailable, so its old rule could not be disabled.',
       };
     }
     await this.install(rule, scope.scheduler, signal);
     return { id, status: rule.status, next_at: rule.next_at, scheduler_state: 'installed' };
   }
-  async receive(event: RuleEvent) {
+  async receive(event: RuleEvent, local = false) {
     const age = Date.now() - Date.parse(event.fired_at);
     if (!Number.isFinite(age) || age < -30_000 || age > 60_000) return false;
     const rule = await this.repository.byId(event.id);
     if (!rule || rule.wake_date || rule.generation !== event.generation || rule.status !== 'active')
       return false;
+    if ((rule.scheduler_key === localSchedulerIdentity) !== local) return false;
     if (!(await this.canNotify(rule))) return false;
     return this.repository.accept(event);
   }
@@ -253,7 +264,9 @@ export class NotificationRules {
         home_assistant = { available: false };
       }
     }
-    return { ...rule, home_assistant };
+    return rule.scheduler_key === localSchedulerIdentity
+      ? { ...rule, scheduler: home_assistant, home_assistant: undefined }
+      : { ...rule, home_assistant, scheduler: home_assistant };
   }
   /** One-time upgrade only. Claim before the remote write; interrupted installs are never replayed. */
   async migrateLegacy() {

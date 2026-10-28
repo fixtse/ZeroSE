@@ -5,8 +5,9 @@ import { randomUUID } from 'node:crypto';
 import type { RuleRepository, RuleEvent } from '../../application/notification-rules.js';
 import type { NotificationRule } from '../../domain/notification-rule.js';
 import { sessionAddress } from '../../domain/access.js';
+import type { LocalDeadlineRepository } from '../../application/local-rule-scheduler.js';
 
-export class PostgresRules implements RuleRepository {
+export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
   constructor(private db: Database) {}
   async initialize(recoverInterrupted = true) {
     if (recoverInterrupted)
@@ -96,6 +97,25 @@ export class PostgresRules implements RuleRepository {
   async byId(id: string) {
     const [row] = await this.db.select().from(rules).where(eq(rules.id, id));
     return row ? this.decode(row) : undefined;
+  }
+  async dueLocal(now: Date, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(rules)
+      .where(
+        sql`
+      ${rules.value}->>'scheduler_key' = 'zero-local-v1'
+      AND ${rules.value}->>'status' = 'active'
+      AND ${rules.value}->>'scheduler_state' = 'installed'
+      AND ${rules.value}->>'kind' IN ('reminder', 'timer')
+      AND ${rules.value}->>'wake_date' IS NULL
+      AND ${rules.value}->'condition' = 'null'::jsonb
+      AND ${rules.value}->>'next_at' <= ${now.toISOString()}
+    `,
+      )
+      .orderBy(sql`${rules.value}->>'next_at'`, rules.id)
+      .limit(Math.min(100, Math.max(1, limit)));
+    return rows.map((row) => this.decode(row));
   }
   async wakeReminders(session: string, date: string) {
     const rows = await this.db
