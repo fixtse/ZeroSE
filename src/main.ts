@@ -1,3 +1,4 @@
+import { startDatabaseRuntime } from './adapters/outbound/pglite-runtime.js';
 import { HomeAssistantConnections } from './application/home-assistant-connections.js';
 import { homeAssistantBinding } from './application/zero-settings.js';
 import { GoogleDestinations } from './application/google-destinations.js';
@@ -119,6 +120,7 @@ function taskServices(value: Config) {
 }
 
 process.umask(0o077);
+const databaseRuntime = await startDatabaseRuntime();
 const config = await loadRuntimeConfig();
 mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
 const store = await Store.open(
@@ -948,6 +950,7 @@ async function close() {
   await assistant.close();
   codexCli.close();
   await store.close();
+  await databaseRuntime?.close();
   clearTimeout(deadline);
 }
 process.on('SIGTERM', () => void close());

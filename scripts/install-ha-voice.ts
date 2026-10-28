@@ -1,3 +1,4 @@
+import { closeDatabaseRuntime } from '../src/adapters/outbound/pglite-runtime.js';
 import { createDatabase } from '../src/adapters/outbound/database.js';
 import { createHmac } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -48,6 +49,7 @@ if (process.argv.includes('--prepare')) {
   } finally {
     await pool.end();
   }
+  await closeDatabaseRuntime();
   process.exit(0);
 }
 if (config.homeAssistant.voiceSatellite !== satellite)

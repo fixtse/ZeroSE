@@ -21,7 +21,7 @@ FROM node:26-bookworm-slim AS runtime
 LABEL org.opencontainers.image.source="https://github.com/fixtse/node-assistant"
 LABEL org.opencontainers.image.description="Fixt personal assistant with Codex and Home Assistant integrations"
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg poppler-utils catdoc ca-certificates python3-venv \
+    && apt-get install -y --no-install-recommends ffmpeg poppler-utils catdoc ca-certificates python3-venv util-linux \
     && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /opt/tts \
     && /opt/tts/bin/pip install --no-cache-dir edge-tts==7.3.0

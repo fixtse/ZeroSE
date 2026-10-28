@@ -83,6 +83,41 @@ docker compose logs --tail 30
 pnpm run doctor
 ```
 
+### Optional embedded PGlite
+
+PostgreSQL remains the default. For a new single-instance installation, PGlite can
+persist the same PostgreSQL schema and pgvector/Mem0 data in `data/pglite`, without
+a separate database container:
+
+```sh
+# This file is standalone; do not combine it with compose.yaml.
+docker compose -f compose.pglite.yaml pull
+docker compose -f compose.pglite.yaml up -d --wait
+# To build with the existing development definition:
+# docker compose -f compose.pglite.yaml -f compose.build.yaml build
+```
+
+Outside Docker, install `util-linux` (for `flock`), leave `ASSISTANT_DATABASE_URL`
+unset, and run `ASSISTANT_DATABASE_BACKEND=pglite pnpm start` (or `pnpm dev`).
+The Home Assistant add-on exposes the same choice as `database_backend: pglite`;
+leave its `database_url` empty. Existing add-on options retain PostgreSQL by default.
+
+PGlite uses a private Unix socket and serializes transactions on one embedded
+engine. It is intended for one Linux Zero instance, not multiple replicas or an
+external database service. An OS lock prevents concurrent processes from opening
+its files and releases automatically on process exit. Stop Zero before running
+administrative commands with `ASSISTANT_DATABASE_BACKEND=pglite` or taking a file
+backup. Back up the complete data directory and bootstrap/encryption key together;
+restore with the same pinned PGlite version before attempting an engine upgrade.
+Capacity and throughput depend on the device's memory and disk; this option has no
+separate server's concurrency or resource isolation.
+
+Choosing a backend never imports existing PostgreSQL records. Switching an existing
+installation to an empty PGlite directory would create a new installation. Retain
+the original backend and backups until an explicit migration has been verified.
+The example's Python `provider: "custom"` HTTP URL is not a complete Mem0 adapter;
+Zero keeps its tested JavaScript Mem0 pgvector adapter through the local bridge.
+
 The service binds to `127.0.0.1:8788`. `/health` is a process health check, not proof
 that every external integration is available. `doctor` checks the real integrations
 without sending Telegram messages or mutating calendar, task, or shopping data.

@@ -1,0 +1,50 @@
+# Standalone alternative: docker compose -f compose.pglite.yaml ...
+name: fixt-assistant-pglite
+services:
+  assistant:
+    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/node-assistant:latest}
+    pull_policy: always
+    container_name: fixt-assistant-pglite
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    network_mode: host
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    environment:
+      ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-}
+      ASSISTANT_HOST: ${ASSISTANT_HOST:-127.0.0.1}
+      ASSISTANT_CODEX_HOME: /codex
+      ASSISTANT_DISCOVERY: ${ASSISTANT_DISCOVERY:-true}
+      ASSISTANT_ADMIN_URL: ${ASSISTANT_ADMIN_URL:-http://localhost:8788}
+      ASSISTANT_DEPLOY_WEBHOOK_URL: ${ASSISTANT_DEPLOY_WEBHOOK_URL:-}
+      ASSISTANT_SECRETS_KEY: ${ASSISTANT_SECRETS_KEY:-}
+      ASSISTANT_PHOTON_URL: ${ASSISTANT_PHOTON_URL:-https://photon.komoot.io}
+      ASSISTANT_OSRM_URL: ${ASSISTANT_OSRM_URL:-https://router.project-osrm.org}
+      ASSISTANT_DATABASE_BACKEND: pglite
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    volumes:
+      - type: bind
+        source: ${ASSISTANT_DATA_DIR:-./data}
+        target: /app/data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ASSISTANT_CODEX_HOME:-${HOME}/.codex}
+        target: /codex
+        bind:
+          create_host_path: false
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
