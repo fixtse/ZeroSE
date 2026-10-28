@@ -91,8 +91,12 @@ export function ProfileEditor({
   );
   const [tasksEnabled, setTasksEnabled] = useState(!!profile?.capabilities.includes('tasks'));
   const [kind, setKind] = useState(profile?.kind || 'user');
-  const [haConnections, setHAConnections] = useState<HAConnectionChoice[]>(profile?.homeAssistant?.connections || []);
-  const [activeHAConnection, setActiveHAConnection] = useState(profile?.homeAssistant?.activeConnectionId || '');
+  const [haConnections, setHAConnections] = useState<HAConnectionChoice[]>(
+    profile?.homeAssistant?.connections || [],
+  );
+  const [activeHAConnection, setActiveHAConnection] = useState(
+    profile?.homeAssistant?.activeConnectionId || '',
+  );
   const [provider, setProvider] = useUrlState('profileTab', 'profile');
   const membersAvailable = current?.kind === 'group' && current.hasHomeAssistant;
   useEffect(() => {
@@ -154,7 +158,8 @@ export function ProfileEditor({
           (id) =>
             data.has('cap-' + id) ||
             (id === 'homeAssistant' &&
-              (data.get('saveHAConnection') === 'true' || (!current?.hasHomeAssistant && haConnections.length > 0))),
+              (data.get('saveHAConnection') === 'true' ||
+                (!current?.hasHomeAssistant && haConnections.length > 0))),
         ),
 
         homeAssistantConnectionIds: haConnections.map((item) => item.id),
@@ -183,7 +188,12 @@ export function ProfileEditor({
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
-      if (current?.hasHomeAssistant || homeAssistant.url || homeAssistant.token || haConnections.length > 0)
+      if (
+        current?.hasHomeAssistant ||
+        homeAssistant.url ||
+        homeAssistant.token ||
+        haConnections.length > 0
+      )
         value.homeAssistant = homeAssistant;
       const result = await api<{ saved: boolean; warning?: string }>(
         path({ bot, chatId }),
@@ -294,7 +304,6 @@ export function ProfileEditor({
                       defaultValue="user"
                       onChange={(event) => {
                         setKind(event.target.value as Profile['kind']);
-
                       }}
                       disabled={busy}
                     >
@@ -466,10 +475,17 @@ export function ProfileEditor({
                 forceMount
                 data-settings-provider="home-assistant"
               >
-                {(
+                {
                   <section className="settings-section">
                     <h3>Conexión de Home Assistant</h3>
-                    <HAConnectionPicker selected={haConnections} active={activeHAConnection} onChange={(selected, active) => { setHAConnections(selected); setActiveHAConnection(active); }} />
+                    <HAConnectionPicker
+                      selected={haConnections}
+                      active={activeHAConnection}
+                      onChange={(selected, active) => {
+                        setHAConnections(selected);
+                        setActiveHAConnection(active);
+                      }}
+                    />
                     {haConnections.length === 0 && (
                       <div className="settings-grid">
                         <Field
@@ -503,7 +519,7 @@ export function ProfileEditor({
                       <small>Guarda la conexión para seleccionar sus entidades.</small>
                     </div>
                   </section>
-                )}
+                }
                 {current?.hasHomeAssistant ? (
                   <>
                     <div className="settings-grid">
@@ -562,7 +578,12 @@ export function ProfileEditor({
                 )}
               </TabsContent>
               <TabsContent value="speech" forceMount data-settings-provider="speech">
-                <ProfileSpeech profile={current} active={provider === 'speech'} value={speech} onChange={setSpeech} />
+                <ProfileSpeech
+                  profile={current}
+                  active={provider === 'speech'}
+                  value={speech}
+                  onChange={setSpeech}
+                />
               </TabsContent>
             </Tabs>
           </fieldset>

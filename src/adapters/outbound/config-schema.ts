@@ -100,7 +100,10 @@ export const ServiceConfigSchema = z.object({
     .optional(),
   homeAssistant: z
     .object({
-      connections: z.array(z.object({ id: z.string().max(250), name: z.string().max(100), url: z.url() })).max(20).optional(),
+      connections: z
+        .array(z.object({ id: z.string().max(250), name: z.string().max(100), url: z.url() }))
+        .max(20)
+        .optional(),
       activeConnectionId: z.string().max(250).optional(),
       voiceSatellite: z
         .string()

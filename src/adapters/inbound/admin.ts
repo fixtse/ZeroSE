@@ -63,6 +63,10 @@ const profileSchema = z.object({
     .unwrap()
     .omit({ connections: true, activeConnectionId: true })
     .extend({
+      voiceSatellite: ConfigSchema.shape.homeAssistant
+        .unwrap()
+        .shape.voiceSatellite.unwrap()
+        .optional(),
       locationEntity: ConfigSchema.shape.homeAssistant
         .unwrap()
         .shape.locationEntity.unwrap()
@@ -196,19 +200,25 @@ export class Admin {
 
     if (req.method === 'GET' && path === '/v1/admin/home-assistant/connections') {
       const params = new URL(req.url || '/', 'http://localhost').searchParams;
-      const query = z.object({
-        search: z.string().max(200).default(''),
-        offset: z.coerce.number().int().min(0).max(1000000).default(0),
-        limit: z.coerce.number().int().min(1).max(50).default(20),
-      }).parse(Object.fromEntries(params));
-      const connections = (await this.homeAssistantConnections?.list() || [])
-        .filter((item) => (item.name + ' ' + item.connection.url).toLowerCase().includes(query.search.toLowerCase()));
+      const query = z
+        .object({
+          search: z.string().max(200).default(''),
+          offset: z.coerce.number().int().min(0).max(1000000).default(0),
+          limit: z.coerce.number().int().min(1).max(50).default(20),
+        })
+        .parse(Object.fromEntries(params));
+      const connections = ((await this.homeAssistantConnections?.list()) || []).filter((item) =>
+        (item.name + ' ' + item.connection.url).toLowerCase().includes(query.search.toLowerCase()),
+      );
       send(200, {
         items: connections.slice(query.offset, query.offset + query.limit).map((item) => ({
-          id: item.id, name: item.name, url: item.connection.url,
+          id: item.id,
+          name: item.name,
+          url: item.connection.url,
         })),
         total: connections.length,
-        next_offset: query.offset + query.limit < connections.length ? query.offset + query.limit : null,
+        next_offset:
+          query.offset + query.limit < connections.length ? query.offset + query.limit : null,
       });
       return true;
     }
@@ -595,10 +605,7 @@ export class Admin {
           send(400, { error: 'El tipo de un chat existente no puede cambiar.' });
           return true;
         }
-        if (
-          chatId.startsWith('ha:') &&
-!previous
-        ) {
+        if (chatId.startsWith('ha:') && !previous) {
           send(400, {
             error: 'Home Assistant users must already exist before editing their connection.',
           });
@@ -636,15 +643,21 @@ export class Admin {
               send(400, { error: 'No se puede borrar y seleccionar una conexión a la vez.' });
               return true;
             }
-            const connections = await this.homeAssistantConnections?.list() || [];
+            const connections = (await this.homeAssistantConnections?.list()) || [];
             const selected = ids.map((id) => connections.find((item) => item.id === id));
-            const active = selected.find((item) => item?.id === input.activeHomeAssistantConnectionId);
+            const active = selected.find(
+              (item) => item?.id === input.activeHomeAssistantConnectionId,
+            );
             if (selected.some((item) => !item) || !active) {
               send(400, { error: 'Selecciona conexiones disponibles y un servidor activo.' });
               return true;
             }
             configuredHA = active.connection;
-            selectedConnections = selected.map((item) => ({ id: item!.id, name: item!.name, url: item!.connection.url }));
+            selectedConnections = selected.map((item) => ({
+              id: item!.id,
+              name: item!.name,
+              url: item!.connection.url,
+            }));
           }
         }
         let google = previous?.google;
@@ -698,12 +711,15 @@ export class Admin {
             ...ConfigSchema.parse({}).homeAssistant,
             ...previousHA,
             ...input.homeAssistant,
+            voiceSatellite: input.homeAssistant?.voiceSatellite ?? previousHA?.voiceSatellite ?? '',
             url: configuredHA?.url || input.homeAssistant?.url || previousHA?.url || '',
             token: configuredHA?.token || input.homeAssistant?.token || previousHA?.token || '',
           };
         if (homeAssistant && selectedConnections !== undefined) {
           homeAssistant.connections = selectedConnections;
-          homeAssistant.activeConnectionId = selectedConnections.length ? input.activeHomeAssistantConnectionId : undefined;
+          homeAssistant.activeConnectionId = selectedConnections.length
+            ? input.activeHomeAssistantConnectionId
+            : undefined;
         }
         const profile: AccessProfile = {
           bot,
@@ -727,8 +743,11 @@ export class Admin {
           timezone: input.timezone ?? previous?.timezone ?? this.config.timezone,
           google,
           homeAssistant,
-          pairedHomeAssistant: previous?.pairedHomeAssistant ||
-            (await this.homeAssistantConnections?.list())?.find((item) => item.id === telegramSession(bot, chatId))?.connection,
+          pairedHomeAssistant:
+            previous?.pairedHomeAssistant ||
+            (await this.homeAssistantConnections?.list())?.find(
+              (item) => item.id === telegramSession(bot, chatId),
+            )?.connection,
         };
         if (
           profile.speech &&

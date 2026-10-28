@@ -140,9 +140,13 @@ test('HA-only profiles expose settings and context; linking merges atomically wi
     assert.equal(details.result.context, 'HA context');
     assert(!JSON.stringify(details.result).includes('ha-private-token'));
     assert.equal(
-      (await request('PUT', '', { ...haProfile, homeAssistant: { url: 'https://other.example' } }))
-        .status,
-      400,
+      (
+        await request('PUT', '', {
+          ...(await profiles.profile('zero', 'ha:' + userId))!,
+          homeAssistant: { url: 'https://other.example' },
+        })
+      ).status,
+      200,
     );
     assert.equal(
       (await request('PUT', '/context', { memory: 'Edited in UI', revision: 1 })).status,
