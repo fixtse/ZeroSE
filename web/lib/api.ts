@@ -101,6 +101,12 @@ export interface Settings {
   frigate: boolean;
   services: string[];
   homeAssistantUsers?: Record<string, string>;
+  homeAssistantUserProfiles?: {
+    userId: string;
+    userName: string;
+    profileName: string;
+    profileRoute?: string;
+  }[];
 }
 export interface Pairing {
   id: string;

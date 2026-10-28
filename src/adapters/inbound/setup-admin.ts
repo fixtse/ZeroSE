@@ -5,7 +5,7 @@ import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import type { IntegrationAccess } from '../../application/integration-access.js';
 import type { HomeAssistantPairing } from '../../application/home-assistant-pairing.js';
-import type { ZeroSettingsPort } from '../../application/zero-settings.js';
+import { homeAssistantBinding, type ZeroSettingsPort } from '../../application/zero-settings.js';
 import type { AccessRepository } from '../../application/access.js';
 export class SetupAdmin {
   constructor(
@@ -17,6 +17,11 @@ export class SetupAdmin {
     private assistants?: AssistantAdmin,
     private homeAssistantConnected: () => Promise<boolean> = async () => false,
     private services?: ServiceSettingsAdmin,
+    private homeAssistantUserName: (
+      userId: string,
+      bot: string,
+      chatId: string,
+    ) => Promise<string | undefined> = async () => undefined,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -109,7 +114,35 @@ export class SetupAdmin {
         await this.pairing.approve(z.uuid().parse(path.split('/').at(-2)), input.chatId, input.bot),
       );
     } else if (path === '/v1/admin/setup/settings' && req.method === 'GET') {
-      send(200, await this.settings.read());
+      const settings = await this.settings.read();
+      const homeAssistantUserProfiles = await Promise.all(
+        Object.entries(settings.homeAssistantUsers || {}).map(async ([userId, value]) => {
+          const binding = homeAssistantBinding(value);
+          const user = await this.profiles.profile('zero', 'ha:' + userId);
+          const profile = binding
+            ? await this.profiles.profile(binding.bot, binding.chatId)
+            : undefined;
+          const liveName = binding
+            ? await this.homeAssistantUserName(userId, binding.bot, binding.chatId).catch(
+                () => undefined,
+              )
+            : undefined;
+          return {
+            userId,
+            userName:
+              liveName ||
+              (user?.label && !user.label.includes(userId)
+                ? user.label
+                : 'Usuario de Home Assistant sin nombre'),
+            profileName: profile?.label || 'Perfil no disponible',
+            profileRoute:
+              profile && binding
+                ? binding.bot + '/' + encodeURIComponent(binding.chatId)
+                : undefined,
+          };
+        }),
+      );
+      send(200, { ...settings, homeAssistantUserProfiles });
     } else if (path === '/v1/admin/setup/users' && req.method === 'PUT') {
       const input = z
         .object({

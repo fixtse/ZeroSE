@@ -15,7 +15,6 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Sparkles,
-  Unlink,
   Users,
   X,
 } from 'lucide-react';
@@ -37,6 +36,7 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { AssistantCatalog } from '../components/assistant-catalog';
 import { AssistantAssignment } from '../components/assistant-assignment';
+import { HomeAssistantUsers } from '../components/home-assistant-users';
 import { ProfileEditor } from '../components/profile-editor';
 import { ServiceSettings } from '../components/service-settings';
 import { AccountSettings } from '../components/account-settings';
@@ -699,38 +699,21 @@ export default function Home() {
                     </div>
                   </Card>
                   {settings && connection?.homeAssistantConnected && (
-                    <Card className="panel">
-                      <h2>Usuarios de Home Assistant</h2>
-                      {Object.entries(settings.homeAssistantUsers || {}).map(([user, chat]) => (
-                        <div className="profile-row" key={user}>
-                          <code>{user}</code>
-                          <span>→ {chat}</span>
-                          <Button
-                            className="quiet"
-                            disabled={busy}
-                            onClick={() =>
-                              void run(async () =>
-                                setSettings(
-                                  await api(base + '/users', 'PUT', {
-                                    revision: settings.revision,
-                                    userId: user,
-                                    chatId: null,
-                                  }),
-                                ),
-                              )
-                            }
-                            size="icon"
-                            tooltip="Desvincular"
-                          >
-                            <Unlink />
-                          </Button>
-                        </div>
-                      ))}
-                      <p>
-                        La vinculación se crea al aprobar la configuración desde Home Assistant.
-                        También puedes gestionarla en las opciones de la integración.
-                      </p>
-                    </Card>
+                    <HomeAssistantUsers
+                      settings={settings}
+                      busy={busy}
+                      onEdit={setProfileRoute}
+                      onUnlink={(userId) =>
+                        void run(async () => {
+                          await api(base + '/users', 'PUT', {
+                            revision: settings.revision,
+                            userId,
+                            chatId: null,
+                          });
+                          setSettings(await api(base + '/settings'));
+                        })
+                      }
+                    />
                   )}
                 </>
               )}

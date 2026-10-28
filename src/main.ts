@@ -876,6 +876,20 @@ const codex = new AIAgent(
         },
         (kind, language, query, signal) => edgeSpeechCatalog.page(kind, language, query, signal),
       ),
+      async (userId, bot, chatId) => {
+        const profile = await accessRepository.profile(bot, chatId);
+        const connection =
+          profile?.pairedHomeAssistant || profile?.homeAssistant || config.homeAssistant;
+        if (!connection.url || !connection.token) return undefined;
+        const users = await homeAssistantCommand(
+          connection,
+          { type: 'config/auth/list' },
+          AbortSignal.timeout(5000),
+        );
+        if (!Array.isArray(users)) return undefined;
+        const user = users.find((user) => user.id === userId);
+        return typeof user?.name === 'string' ? user.name : undefined;
+      },
     ),
   );
 

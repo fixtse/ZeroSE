@@ -334,3 +334,57 @@ test('pairing targets are filtered before pagination, searchable across assistan
     await f.close();
   }
 });
+
+test('admin HA links resolve names independently of profile search and preserve bot routes', async () => {
+  const f = await setup();
+  try {
+    const original = (await f.profiles.profile('zero', '1'))!;
+    await f.profiles.saveProfile({ ...original, label: 'Ana', bot: 'salem', chatId: '42' });
+    await f.profiles.saveProfile({
+      ...original,
+      label: 'Ana en casa',
+      chatId: 'ha:' + f.input.userId,
+    });
+    await f.settings.update({
+      ...(await f.settings.read()),
+      homeAssistantUsers: {
+        [f.input.userId]: 'salem:42',
+        ['d'.repeat(32)]: '99',
+      },
+    });
+    const admin = new SetupAdmin(
+      f.tokens,
+      f.pairing,
+      f.settings,
+      f.profiles,
+      'https://zero.example',
+    );
+    let result: any;
+    await admin.handle(
+      { method: 'GET' } as any,
+      '/v1/admin/setup/settings',
+      async () => ({}),
+      (status, value) => {
+        assert.equal(status, 200);
+        result = value;
+      },
+    );
+    assert.deepEqual(result.homeAssistantUserProfiles, [
+      {
+        userId: f.input.userId,
+        userName: 'Ana en casa',
+        profileName: 'Ana',
+        profileRoute: 'salem/42',
+      },
+      {
+        userId: 'd'.repeat(32),
+        userName: 'Usuario de Home Assistant sin nombre',
+        profileName: 'Perfil no disponible',
+        profileRoute: undefined,
+      },
+    ]);
+    assert.equal(JSON.stringify(result.homeAssistantUserProfiles).includes('token'), false);
+  } finally {
+    await f.close();
+  }
+});
