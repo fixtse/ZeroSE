@@ -9,6 +9,7 @@ import { ModelMemoryReranker } from './application/memory-reranker.js';
 import { ReprocessMemory } from './application/reprocess-memory.js';
 import { HomeAssistantMobileRecovery } from './adapters/outbound/home-assistant-mobile-recovery.js';
 import { PostgresServiceSettings } from './adapters/outbound/postgres-service-settings.js';
+import { EdgeSpeechCatalog } from './adapters/outbound/edge-speech-catalog.js';
 import { ServiceSettingsAdmin } from './adapters/inbound/service-settings-admin.js';
 import { ConfiguredEmbeddings } from './application/configured-embeddings.js';
 import { memoryEmbeddings, embeddingCatalog } from './adapters/outbound/memory-embeddings.js';
@@ -124,6 +125,7 @@ const serviceSettings = new PostgresServiceSettings(
   store.db,
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
 );
+const edgeSpeechCatalog = new EdgeSpeechCatalog();
 const aiSettings = new PostgresAI(store.db, process.env.ASSISTANT_SECRETS_KEY || config.apiKey);
 await aiSettings.initialize(config.codex.model);
 const configuredEmbeddings = new ConfiguredEmbeddings(aiSettings, (settings, providers) =>
@@ -830,7 +832,39 @@ const codex = new AIAgent(
           if (offset + page.items.length >= page.total || !page.items.length) return false;
         }
       },
-      new ServiceSettingsAdmin(serviceSettings),
+      new ServiceSettingsAdmin(
+        serviceSettings,
+        async (value, scope) => {
+          if (scope === 'codex') return;
+          // Replace only infrastructure settings. In-flight scoped jobs keep their snapshot.
+          config.timezone = value.timezone;
+          config.concurrency = value.concurrency;
+          // Polling clients share this object; scoped jobs copy it when they start.
+          Object.assign(config.media, structuredClone(value.media));
+          if (!value.media.speech) delete config.media.speech;
+          if (config.reader && value.reader) Object.assign(config.reader, value.reader);
+          else config.reader = structuredClone(value.reader);
+          config.braveApiKey = value.braveApiKey;
+          config.places = {
+            photonUrl:
+              process.env.ASSISTANT_PHOTON_URL ||
+              value.places?.photonUrl ||
+              'https://photon.komoot.io',
+            osrmUrl:
+              process.env.ASSISTANT_OSRM_URL ||
+              value.places?.osrmUrl ||
+              'https://router.project-osrm.org',
+          };
+          places.configure(config.places.photonUrl, config.places.osrmUrl);
+          config.schedules = structuredClone(value.schedules);
+          config.schedulerSE = structuredClone(value.schedulerSE);
+          rules.wakeSession =
+            value.schedules.enabled && config.telegram.notificationChatId
+              ? 'telegram:' + config.telegram.notificationChatId
+              : undefined;
+        },
+        (kind, language, query, signal) => edgeSpeechCatalog.page(kind, language, query, signal),
+      ),
     ),
   );
 

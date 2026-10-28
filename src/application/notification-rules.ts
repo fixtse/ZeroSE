@@ -66,7 +66,7 @@ export class NotificationRules {
       kind: NotificationRule['kind'],
       schedulerKey?: string,
     ) => Promise<RuleScope>,
-    readonly wakeSession?: string,
+    public wakeSession?: string,
     readonly localDate: () => string | Promise<string> = () =>
       new Date().toISOString().slice(0, 10),
   ) {}

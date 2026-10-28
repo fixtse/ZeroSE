@@ -1,6 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
-import type { ServiceSettingsPort } from '../../application/service-settings.js';
+import type { ServiceConfig, ServiceSettingsPort } from '../../application/service-settings.js';
+import type { SpeechQuery, SpeechPage, SpeechVoice } from '../../domain/speech.js';
 import { secretHint } from '../../application/secret-hint.js';
 import { ServiceConfigSchema } from '../outbound/config-schema.js';
 
@@ -38,13 +39,57 @@ const fields = Object.entries(flatten(template)).map(([path, value]) => ({
       : typeof value,
 }));
 export class ServiceSettingsAdmin {
-  constructor(private settings: ServiceSettingsPort) {}
+  constructor(
+    private settings: ServiceSettingsPort,
+    private apply?: (value: ServiceConfig, scope: 'services' | 'codex') => Promise<void>,
+    private speechCatalog?: (
+      kind: 'languages' | 'voices',
+      language: string,
+      query: SpeechQuery,
+      signal: AbortSignal,
+    ) => Promise<SpeechPage<SpeechVoice>>,
+  ) {}
   async handle(
     req: IncomingMessage,
     path: string,
     read: () => Promise<unknown>,
     send: (status: number, value: unknown) => void,
   ) {
+    if (path === '/v1/admin/setup/services/speech' && req.method === 'GET') {
+      const params = new URL(req.url || '/', 'http://localhost').searchParams;
+      const query = z
+        .object({
+          kind: z.enum(['languages', 'voices']).default('voices'),
+          language: z.string().max(100).default(''),
+          search: z.string().max(200).default(''),
+          offset: z.coerce.number().int().min(0).max(1000000).default(0),
+          limit: z.coerce.number().int().min(1).max(50).default(20),
+        })
+        .parse(Object.fromEntries(params));
+      if (!this.speechCatalog) send(503, { error: 'Catálogo de voces no disponible.' });
+      else
+        try {
+          const page = await this.speechCatalog(
+            query.kind,
+            query.language,
+            query,
+            AbortSignal.timeout(15000),
+          );
+          send(200, {
+            ...page,
+            next_offset:
+              query.offset + page.items.length < page.total
+                ? query.offset + page.items.length
+                : null,
+          });
+        } catch {
+          send(502, {
+            error:
+              'No se pudo consultar Edge TTS. Conserva la voz guardada o vuelve a consultar el catálogo.',
+          });
+        }
+      return true;
+    }
     const codex = path === '/v1/admin/setup/codex';
     if (!codex && path !== '/v1/admin/setup/services') return false;
     const editableFields = fields.filter((field) =>
@@ -55,7 +100,7 @@ export class ServiceSettingsAdmin {
       const values = flatten(current.value);
       send(200, {
         revision: current.revision,
-        restartRequired: true,
+        restartRequired: codex,
         fields: editableFields.map((field) => ({
           ...field,
           value:
@@ -81,6 +126,9 @@ export class ServiceSettingsAdmin {
         return true;
       }
       const value = structuredClone(current.value) as Record<string, any>;
+      if (Object.keys(input.changes).some((path) => path.startsWith('media.speech.'))) {
+        value.media.speech = { ...template.media.speech, ...value.media.speech };
+      }
       for (const [path, next] of Object.entries(input.changes)) {
         const field = editableFields.find((field) => field.path === path);
         if (field?.readOnly) {
@@ -124,9 +172,11 @@ export class ServiceSettingsAdmin {
         return true;
       }
       const saved = await this.settings.update(input.revision, parsed.data);
+      if (saved && this.apply)
+        await this.apply((await this.settings.read()).value, codex ? 'codex' : 'services');
       send(
         saved ? 200 : 409,
-        saved ? { saved: true, restartRequired: true } : { error: 'Recarga antes de guardar.' },
+        saved ? { saved: true, restartRequired: codex } : { error: 'Recarga antes de guardar.' },
       );
     } else send(405, { error: 'Method not allowed' });
     return true;

@@ -10,6 +10,10 @@ export class OpenStreetMapPlaces implements PlacesPort {
     private photonUrl = 'https://photon.komoot.io',
     private osrmUrl = 'https://router.project-osrm.org',
   ) {}
+  configure(photonUrl: string, osrmUrl: string) {
+    this.photonUrl = photonUrl;
+    this.osrmUrl = osrmUrl;
+  }
   private request(url: string, signal: AbortSignal) {
     // Serialize and rate-limit across all chats, not just one tool instance.
     const work = this.queue

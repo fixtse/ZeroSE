@@ -6,7 +6,7 @@ import { PostgresServiceSettings } from '../src/adapters/outbound/postgres-servi
 import { ConfigSchema } from '../src/adapters/outbound/config-schema.js';
 import { loadConfig } from '../src/adapters/outbound/config.js';
 import { loadRuntimeConfig } from '../src/adapters/outbound/runtime-config.js';
-import { serviceConfig } from '../src/application/service-settings.js';
+import { serviceConfig, type ServiceConfig } from '../src/application/service-settings.js';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,17 +20,23 @@ function fixture() {
     }),
   );
   let revision = 1;
-  const admin = new ServiceSettingsAdmin({
-    initialize: async () => {},
-    read: async () => ({ revision, value }),
-    update: async (expected, next) => {
-      if (expected !== revision) return false;
-      value = next;
-      revision++;
-      return true;
+  const applied: ServiceConfig[] = [];
+  const admin = new ServiceSettingsAdmin(
+    {
+      initialize: async () => {},
+      read: async () => ({ revision, value }),
+      update: async (expected, next) => {
+        if (expected !== revision) return false;
+        value = next;
+        revision++;
+        return true;
+      },
     },
-  });
-  return { admin, value: () => value };
+    async (next) => {
+      applied.push(structuredClone(next));
+    },
+  );
+  return { admin, value: () => value, applied };
 }
 async function request(
   admin: ServiceSettingsAdmin,
@@ -370,4 +376,71 @@ test('Codex provider editor changes CLI parameters without duplicating model sel
     timeoutMs: 120000,
   });
   assert.equal((await request(admin, 'PUT', { revision: 1, changes: {} }, endpoint)).status, 409);
+});
+
+test('service saves apply validated settings without a restart and preserve hidden speech fields', async () => {
+  const { admin, applied, value } = fixture();
+  const result = await request(admin, 'PUT', {
+    revision: 1,
+    changes: { concurrency: 2, 'media.speech.tts': 'default', 'media.voice': 'es-MX-JorgeNeural' },
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.result.restartRequired, false);
+  assert.equal(applied.length, 1);
+  assert.equal(applied[0].concurrency, 2);
+  assert.equal(applied[0].media.voice, 'es-MX-JorgeNeural');
+  assert.deepEqual(applied[0].media.speech, {
+    stt: 'default',
+    sttLanguage: '',
+    tts: 'default',
+    ttsLanguage: '',
+    voice: '',
+  });
+  assert.equal(value().reader?.apiKey, 'private-reader-secret');
+  await request(admin, 'PUT', { revision: 1, changes: { concurrency: 3 } });
+  assert.equal(applied.length, 1, 'A stale save must not change active settings');
+});
+
+test('speech discovery forwards bounded filters and returns pagination without service secrets', async () => {
+  let observed: unknown;
+  const admin = new ServiceSettingsAdmin(
+    {
+      initialize: async () => {},
+      read: async () => {
+        throw new Error('Discovery must not expose saved settings');
+      },
+      update: async () => false,
+    },
+    undefined,
+    async (kind, language, query) => {
+      observed = { kind, language, search: query.search, offset: query.offset, limit: query.limit };
+      return { items: [{ id: 'es-ES-AlvaroNeural', name: 'es-ES-AlvaroNeural' }], total: 3 };
+    },
+  );
+  let status = 0;
+  let result: any;
+  await admin.handle(
+    {
+      method: 'GET',
+      url: '/v1/admin/setup/services/speech?kind=voices&language=es-ES&search=Alvaro&offset=1&limit=1',
+    } as IncomingMessage,
+    '/v1/admin/setup/services/speech',
+    async () => {
+      throw new Error('GET must not read a mutation payload');
+    },
+    (code, value) => {
+      status = code;
+      result = value;
+    },
+  );
+  assert.equal(status, 200);
+  assert.deepEqual(observed, {
+    kind: 'voices',
+    language: 'es-ES',
+    search: 'Alvaro',
+    offset: 1,
+    limit: 1,
+  });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.next_offset, 2);
 });
