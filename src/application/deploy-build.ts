@@ -1,4 +1,5 @@
 import type { BuildRelease } from '../domain/deployment.js';
+import { deploymentNotificationError } from './deployment-notification-error.js';
 
 export interface DeploymentJob extends BuildRelease {
   id: string;
@@ -67,8 +68,18 @@ export class DeployBuild {
           sha: job.sha,
         }),
       );
-    } catch {
-      console.error(JSON.stringify({ event: 'deployment_notification_failed', job: job.id }));
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'deployment_notification_failed',
+          job: job.id,
+          runId: job.runId,
+          attempt: job.attempt,
+          sha: job.sha,
+          status,
+          error: deploymentNotificationError(error),
+        }),
+      );
     }
   }
   async close() {
