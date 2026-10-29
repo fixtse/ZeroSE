@@ -50,6 +50,7 @@ export interface NotificationRule {
   matched_since: string | null;
   last_checked: string | null;
   last_fired: string | null;
+  retired_at?: string | null;
   last_hourly_fired?: string | null;
   latched: boolean;
   version: number;

@@ -21,6 +21,7 @@ import { voiceToken, type VoiceBridge } from '../../application/voice-bridge.js'
 import type { ZeroSettingsPort } from '../../application/zero-settings.js';
 import { createHmac } from 'node:crypto';
 import { weatherChangeSchema } from './weather-change-schema.js';
+import { PairingRateLimit } from './pairing-rate-limit.js';
 
 export function equalSecret(value: unknown, expected: string) {
   if (typeof value !== 'string' || !expected) return false;
@@ -33,12 +34,12 @@ const chatSchema = z.object({
   text: z.string().min(1).max(150_000),
   name: z.string().max(100).default('usuario'),
 });
-async function body(request: IncomingMessage) {
+async function body(request: IncomingMessage, limit = 1_000_000) {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 1_000_000) throw new Error('Request exceeds size limit');
+    if (size > limit) throw new Error('Request exceeds size limit');
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -59,6 +60,7 @@ export function createHttpServer(
   setup?: SetupAdmin,
   publicConnection?: PublicConnection,
 ) {
+  const pairingRateLimit = new PairingRateLimit();
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -91,6 +93,21 @@ export function createHttpServer(
         return;
       }
       if (management && (await adminAssets(req, res, undefined, ingressPath))) return;
+      if (
+        pairing &&
+        req.method === 'POST' &&
+        ['/v1/pairing/home-assistant', '/v1/pairing/home-assistant/exchange'].includes(path)
+      ) {
+        const retryAfter = pairingRateLimit.retryAfter(
+          req.socket.remoteAddress,
+          path.endsWith('/exchange') ? 'exchange' : 'begin',
+        );
+        if (retryAfter) {
+          res.setHeader('Retry-After', retryAfter);
+          res.setHeader('Connection', 'close');
+          return send(429, { error: 'Too many pairing requests. Try again later.' });
+        }
+      }
       if (pairing && req.method === 'POST' && path === '/v1/pairing/home-assistant') {
         const input = z
           .object({
@@ -101,7 +118,7 @@ export function createHttpServer(
             userId: z.string().regex(/^[a-f0-9]{32}$/),
           })
           .strict()
-          .parse(await body(req));
+          .parse(await body(req, 8192));
         return send(201, pairing.begin(input));
       }
       if (pairing && req.method === 'POST' && path === '/v1/pairing/home-assistant/exchange') {
@@ -112,7 +129,7 @@ export function createHttpServer(
             homeAssistantToken: z.string().min(24).max(8192),
           })
           .strict()
-          .parse(await body(req));
+          .parse(await body(req, 12_288));
         return send(200, await pairing.exchange(input.id, input.secret, input.homeAssistantToken));
       }
       if (path === '/v1/integrations/home-assistant/relay') {

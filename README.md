@@ -1271,6 +1271,23 @@ another assistant preserves its bot, assigned assistant, permissions and history
 its HA voice binding routes to the existing private assistant session. Legacy Zero
 chat-ID bindings remain supported. Pairing does not enable additional capabilities.
 
+Public pairing endpoints enforce separate socket-peer quotas: five initiation
+attempts per ten minutes and thirty exchange attempts per minute, including invalid
+requests. Rejections return HTTP 429 with `Retry-After`; they never retry a pairing
+mutation. Initiation bodies are capped at 8 KiB and exchanges at 12 KiB. Quotas are
+held in bounded process memory and reset on restart. Forwarded IP headers are not
+trusted: clients behind a reverse proxy share that proxy's quota. Apply additional
+per-client and distributed-abuse limits at the trusted proxy when exposing Zero to
+the internet. The existing 100-pending-handshake cap and ten-minute expiry remain.
+
+Zero automatically removes completed, expired, and cancelled alerts, reminders, and
+timers after 48 hours. Cleanup runs at startup and hourly in bounded batches; active
+and paused rules, including recurring alerts, remain. Queued or running notification
+jobs prevent deletion. Legacy finished records without a retirement timestamp get
+a 48-hour grace period on their first cleanup. Event receipts are removed with the
+rule; conversation history and job records are retained. This cleanup affects Zero's
+catalog, without modifying Home Assistant's stored rules or replaying notifications.
+
 For a named group member's whereabouts or nearby food/places, `location_get`
 accepts `member_name` and resolves a unique active member within that group;
 `user_id` remains available for explicit selection. It never substitutes the

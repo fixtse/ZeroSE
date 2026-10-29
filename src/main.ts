@@ -1,5 +1,6 @@
 import { defaultZeroPrompt } from './application/prompts.js';
 import { PersonalLocation } from './application/personal-location.js';
+import { RuleRetention } from './application/rule-retention.js';
 import { PostgresHomeAssistantConnections } from './adapters/outbound/postgres-home-assistant-connections.js';
 import { PublicConnection } from './application/public-connection.js';
 import { migrateProfileSchedules } from './application/migrate-profile-schedules.js';
@@ -385,6 +386,11 @@ const localDeadlineWorker = new LocalDeadlineWorker(
   () => credentialCrypto.id(),
   () => new Date(),
   () => console.error(JSON.stringify({ event: 'local_deadline_worker_failed' })),
+);
+const ruleRetention = new RuleRetention(
+  ruleRepository,
+  () => new Date(),
+  () => console.error(JSON.stringify({ event: 'rule_retention_failed' })),
 );
 registerNotificationTools(tools, rules, config.homeAssistant.token ? ha : undefined);
 registerPlacesTools(tools, places);
@@ -1020,6 +1026,7 @@ server.listen(config.port, config.host, () => {
   assistant.start();
   scheduler.start();
   localDeadlineWorker.start();
+  ruleRetention.start();
   void rules
     .migrateLegacy()
     .then(async () => {
@@ -1052,6 +1059,7 @@ async function close() {
   scheduler.close();
   morningTriggers.close();
   await localDeadlineWorker.close();
+  await ruleRetention.close();
   await discovery.close();
   await bots.close();
   server.close();

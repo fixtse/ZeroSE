@@ -1,0 +1,29 @@
+title = "Zero secret scanning"
+
+[extend]
+useDefault = true
+
+# Only literal, non-production fixtures are exempt. Never exclude whole test paths.
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Disposable CI API key"
+condition = "AND"
+paths = ['''(?:^|/)\.github/workflows/images\.yaml$''']
+regexTarget = "secret"
+regexes = ['''^compose-validation-api-key-at-least-24-characters$''']
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Independent deployment receiver test secret"
+condition = "AND"
+paths = ['''(?:^|/)test/deployment\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^independent-tradeese-secret-at-least-32-characters$''']
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Bootstrap environment override test key"
+condition = "AND"
+paths = ['''(?:^|/)test/service-settings\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^existing-key-with-at-least-24-characters$''']

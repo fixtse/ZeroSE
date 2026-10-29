@@ -6,9 +6,15 @@ import type { RuleRepository, RuleEvent } from '../../application/notification-r
 import type { NotificationRule } from '../../domain/notification-rule.js';
 import { sessionAddress } from '../../domain/access.js';
 import type { LocalDeadlineRepository } from '../../application/local-rule-scheduler.js';
+import type { RuleRetentionPort } from '../../application/rule-retention.js';
 
-export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
-  constructor(private db: Database) {}
+const terminalStatuses = ['completed', 'expired', 'cancelled'];
+
+export class PostgresRules implements RuleRepository, LocalDeadlineRepository, RuleRetentionPort {
+  constructor(
+    private db: Database,
+    private now = () => new Date(),
+  ) {}
   async initialize(recoverInterrupted = true) {
     if (recoverInterrupted)
       await this.db
@@ -20,7 +26,13 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
     return { ...row.value, id: row.id, session: row.session, version: row.version };
   }
   async create(value: Omit<NotificationRule, 'id' | 'version' | 'generation'>) {
-    const rule = { ...value, id: randomUUID(), version: 0, generation: 0 };
+    const rule = {
+      ...value,
+      retired_at: terminalStatuses.includes(value.status) ? this.now().toISOString() : null,
+      id: randomUUID(),
+      version: 0,
+      generation: 0,
+    };
     await this.db.insert(rules).values({ id: rule.id, session: value.session, value: rule });
     return rule;
   }
@@ -136,7 +148,10 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
       await this.db
         .update(rules)
         .set({
-          value: sql`jsonb_set(${rules.value}, '{status}', '"completed"'::jsonb)`,
+          value: sql`jsonb_set(
+            jsonb_set(${rules.value}, '{status}', '"completed"'::jsonb),
+            '{retired_at}', ${JSON.stringify(this.now().toISOString())}::jsonb
+          )`,
           version: sql`${rules.version} + 1`,
         })
         .where(
@@ -162,9 +177,15 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
     return rows.map((row) => this.decode(row));
   }
   async apply(rule: NotificationRule) {
+    const retiredAt = terminalStatuses.includes(rule.status)
+      ? sql`COALESCE(NULLIF(${rules.value}->'retired_at', 'null'::jsonb), ${JSON.stringify(this.now().toISOString())}::jsonb)`
+      : sql`'null'::jsonb`;
     const rows = await this.db
       .update(rules)
-      .set({ value: rule, version: sql`${rules.version} + 1` })
+      .set({
+        value: sql`jsonb_set(${JSON.stringify(rule)}::jsonb, '{retired_at}', ${retiredAt})`,
+        version: sql`${rules.version} + 1`,
+      })
       .where(
         and(
           eq(rules.session, rule.session),
@@ -237,6 +258,7 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
       if (!receipt.length) return false;
       if (hourly) rule.last_hourly_fired = event.fired_at;
       else rule.last_fired = event.fired_at;
+      rule.retired_at = terminalStatuses.includes(rule.status) ? this.now().toISOString() : null;
       rule.scheduler_state = 'installed';
       await client
         .update(rules)
@@ -259,6 +281,44 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository {
         })
         .onConflictDoNothing({ target: jobs.dedupe });
       return true;
+    });
+  }
+  async pruneFinished(now: Date, limit: number) {
+    const cutoff = new Date(now.getTime() - 48 * 3_600_000).toISOString();
+    return this.db.transaction(async (client) => {
+      const rows = await client
+        .select()
+        .from(rules)
+        .where(
+          and(
+            inArray(sql`${rules.value}->>'status'`, terminalStatuses),
+            sql`(${rules.value}->>'retired_at' IS NULL OR ${rules.value}->>'retired_at' <= ${cutoff})`,
+            sql`NOT EXISTS (
+            SELECT 1 FROM ${jobs}
+            WHERE ${jobs.payload}->>'kind' = 'rule_notification'
+              AND ${jobs.payload}->>'ruleId' = ${rules.id}
+              AND ${jobs.status} IN ('pending', 'running')
+          )`,
+          ),
+        )
+        .orderBy(rules.created, rules.id)
+        .limit(Math.min(100, Math.max(1, limit)))
+        .for('update', { skipLocked: true });
+      const expired = rows.filter((row) => row.value.retired_at).map((row) => row.id);
+      const legacy = rows.filter((row) => !row.value.retired_at).map((row) => row.id);
+      if (legacy.length)
+        await client
+          .update(rules)
+          .set({
+            value: sql`jsonb_set(${rules.value}, '{retired_at}', ${JSON.stringify(now.toISOString())}::jsonb)`,
+            version: sql`${rules.version} + 1`,
+          })
+          .where(inArray(rules.id, legacy));
+      if (expired.length) {
+        await client.delete(ruleEvents).where(inArray(ruleEvents.rule_id, expired));
+        await client.delete(rules).where(inArray(rules.id, expired));
+      }
+      return rows.length;
     });
   }
 }

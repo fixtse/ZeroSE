@@ -112,7 +112,7 @@ export function registerNotificationTools(
   );
   tools.add(
     'reminders_list',
-    'List this chat’s reminders and timers, including completed/expired ones. Use reminder_get for full details. offset/limit; result_offset pages JSON fragments.',
+    'List this chat’s reminders and timers, including finished ones retained for 48 hours. Use reminder_get for full details. offset/limit; result_offset pages JSON fragments.',
     z.object({ kind: z.enum(['reminder', 'timer']).optional(), ...page }),
     async (a, c) => {
       const result = await rules.repository.list(c.session, a.kind, a.offset, a.limit);
