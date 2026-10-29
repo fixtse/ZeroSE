@@ -17,9 +17,10 @@ export class PrepareNotification {
     private prompts: Record<string, string>,
     private rules?: Pick<RuleRepository, 'wakeReminders' | 'completeWakeReminders'>,
     private userContext = '',
+    private capabilities = { calendar: true, tasks: true },
   ) {}
-  private eventKey(event: any) {
-    return `event:${event.id}:${event.start?.dateTime || event.start?.date}`;
+  private eventKey(event: any, session: string) {
+    return `event:${session}:${event.id}:${event.start?.dateTime || event.start?.date}`;
   }
   private async forecast(signal: AbortSignal): Promise<unknown> {
     if (!this.config.homeAssistant.token) return 'El tiempo no está configurado';
@@ -63,16 +64,20 @@ export class PrepareNotification {
           )
         : [];
     const range = dayRange(new Date(), this.config.timezone);
-    const events = await this.google.events(
-      morning ? range.start : new Date().toISOString(),
-      morning ? range.end : new Date(Date.now() + 15 * 60_000).toISOString(),
-      context.signal,
-    );
+    const events = this.capabilities.calendar
+      ? await this.google.events(
+          morning ? range.start : new Date().toISOString(),
+          morning ? range.end : new Date(Date.now() + 15 * 60_000).toISOString(),
+          context.signal,
+        )
+      : [];
     const selected: any[] = [];
     for (const event of events)
-      if (morning || !(await this.store.scheduled(this.eventKey(event)))) selected.push(event);
+      if (morning || !(await this.store.scheduled(this.eventKey(event, job.session))))
+        selected.push(event);
     if (!morning && !selected.length) return { output: 'No upcoming events', deliver: false };
-    const tasks = morning ? await this.google.tasks(false, context.signal) : [];
+    const tasks =
+      morning && this.capabilities.tasks ? await this.google.tasks(false, context.signal) : [];
     const weather = morning ? await this.forecast(context.signal) : undefined;
     const instructions = renderPrompt(
       this.prompts[morning ? 'morning' : 'reminder'] ||
@@ -114,7 +119,8 @@ export class PrepareNotification {
         if (wakeReminders.length)
           await this.rules!.completeWakeReminders(job.session, wakeReminders);
         if (!morning)
-          for (const event of selected) await this.store.markScheduled(this.eventKey(event));
+          for (const event of selected)
+            await this.store.markScheduled(this.eventKey(event, job.session));
       },
     };
   }

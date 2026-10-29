@@ -1,5 +1,6 @@
+import { profileNotifications, morningKey } from '../../application/profile-notifications.js';
 import { googleCallbackPath, type GoogleOAuthAdmin } from './google-oauth-admin.js';
-import { assistantIdPattern } from '../../domain/access.js';
+import { assistantIdPattern, telegramSession, type AccessProfile } from '../../domain/access.js';
 import { createServer, IncomingMessage } from 'node:http';
 import { adminAssets } from './admin-assets.js';
 import type { IntegrationAccess } from '../../application/integration-access.js';
@@ -338,19 +339,51 @@ export function createHttpServer(
         return;
       if (setup && (await setup.handle(req, path, () => body(req), send))) return;
       if (management && (await management.admin.handle(req, path, () => body(req), send))) return;
-      if (req.method === 'POST' && path === '/v1/triggers/morning') {
-        const chat = config.telegram.notificationChatId;
-        if (!config.schedules.enabled || !chat)
-          return send(503, { error: 'Morning notifications are disabled or have no recipient' });
-        const profile = await management?.access.forSession('telegram:' + chat);
-        const { day } = localClock(new Date(), profile?.timezone || config.timezone);
-        const key = 'wake-up:' + day;
+      const morningMatch = /^\/v1\/triggers\/morning(?:\/([a-z0-9_-]+)\/(-?\d+))?$/.exec(path);
+      if (req.method === 'POST' && morningMatch) {
+        let profile: AccessProfile | undefined;
+        if (management && morningMatch[1]) {
+          profile = await management.access.forSession(
+            telegramSession(morningMatch[1], morningMatch[2]),
+          );
+        } else if (management) {
+          for (let offset = 0; ; offset += 100) {
+            const page = await management.access.repository.profiles('', offset, 100);
+            for (const candidate of page.items)
+              if (candidate.morningCallbackDefault) {
+                if (profile)
+                  return send(409, { error: 'Selecciona el perfil en la ruta del disparador.' });
+                profile = candidate;
+              }
+            if (!page.items.length || offset + page.items.length >= page.total) break;
+          }
+        }
+        const morning = profileNotifications(profile).morning;
+        if (
+          !profile?.enabled ||
+          morning.mode !== 'entity' ||
+          (!morningMatch[1] &&
+            !profile.morningImportAutomation &&
+            (morning.entity !== profile.morningCallbackTrigger?.entity ||
+              morning.state !== profile.morningCallbackTrigger?.state))
+        )
+          return send(503, {
+            error: 'El resumen por entidad no está configurado para este perfil.',
+          });
+        const { day } = localClock(new Date(), profile.timezone || config.timezone);
+        const session = telegramSession(profile.bot, profile.chatId);
+        const key = morningKey(session, day);
         const job = await store.enqueue(
-          'telegram:' + chat,
-          { kind: 'morning', chatId: chat, wakeUp: true },
+          session,
+          {
+            kind: 'morning',
+            chatId: profile.chatId,
+            wakeUp: true,
+            morningTrigger: { entity: morning.entity, state: morning.state },
+          },
           key,
         );
-        await store.markScheduled('morning:' + day);
+        await store.markScheduled(key);
         return send(202, { jobId: job.id, status: job.status });
       }
       if (req.method === 'POST' && path === '/v1/chat') {

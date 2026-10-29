@@ -1,3 +1,4 @@
+import { profileNotifications } from '../../application/profile-notifications.js';
 import type { HomeAssistantConnections } from '../../application/home-assistant-connections.js';
 import type { GoogleDestinations } from '../../application/google-destinations.js';
 import { AIAdmin, modelPermissionsSchema } from './ai-admin.js';
@@ -53,6 +54,28 @@ const profileSchema = z.object({
   enabled: z.boolean(),
   voiceReplies: z.boolean().optional(),
   respondToReplies: z.boolean().optional(),
+  notifications: z
+    .object({
+      eventReminders: z.boolean(),
+      reset: z.object({
+        enabled: z.boolean(),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      }),
+      morning: z
+        .object({
+          mode: z.enum(['off', 'time', 'entity']),
+          time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+          entity: z.string().trim().max(250),
+          state: z.string().trim().max(250),
+        })
+        .refine(
+          (m) =>
+            m.mode !== 'entity' ||
+            (/^(sensor|binary_sensor|input_boolean)\.[a-z0-9_]+$/.test(m.entity) && !!m.state),
+          { message: 'Selecciona una entidad y su estado.' },
+        ),
+    })
+    .optional(),
   speech: speechSchema.optional(),
   memoryPolicy: z.enum(['automatic', 'explicit']).optional(),
   capabilities: z.array(z.enum(capabilities)).max(capabilities.length),
@@ -93,6 +116,8 @@ function publicProfile(
   const homeAssistant = p.homeAssistant || (p.owner ? ownerHA : undefined);
   const google = p.google || (p.owner ? ownerGoogle : undefined);
   return {
+    notifications: profileNotifications(p),
+    notificationsMigrationPending: !!p.morningImportAutomation,
     bot: p.bot,
     chatId: p.chatId,
     kind: p.kind,
@@ -267,10 +292,6 @@ export class Admin {
       send(200, {
         timezone: this.config.timezone,
         discoveryWarning,
-        schedules: {
-          enabled: this.config.schedules.enabled,
-          reset: this.config.schedules.reset,
-        },
         items: result.items.map((profile) =>
           publicProfile(
             profile,
@@ -787,6 +808,12 @@ export class Admin {
           enabled: input.enabled,
           voiceReplies: input.voiceReplies ?? previous?.voiceReplies ?? true,
           respondToReplies: input.respondToReplies ?? previous?.respondToReplies ?? true,
+          notifications: input.notifications ?? previous?.notifications,
+          morningImportAutomation: input.notifications
+            ? undefined
+            : previous?.morningImportAutomation,
+          morningCallbackDefault: previous?.morningCallbackDefault,
+          morningCallbackTrigger: previous?.morningCallbackTrigger,
           speech: input.speech ?? previous?.speech,
           memoryPolicy: input.memoryPolicy ?? previous?.memoryPolicy,
           assistantId: previous?.assistantId,
@@ -815,6 +842,22 @@ export class Admin {
           send(400, {
             error:
               'Activa Home Assistant y configura su conexión antes de seleccionar sus motores de voz.',
+          });
+          return true;
+        }
+        if (
+          input.notifications?.morning.mode === 'entity' &&
+          (!profile.capabilities.includes('homeAssistant') ||
+            !scopedConfig(this.config, profile).homeAssistant.token ||
+            (/^(sensor|binary_sensor)\./.test(input.notifications.morning.entity) &&
+              scopedConfig(this.config, profile).homeAssistant.sensorEntities.length > 0 &&
+              !scopedConfig(this.config, profile).homeAssistant.sensorEntities.includes(
+                input.notifications.morning.entity,
+              )))
+        ) {
+          send(400, {
+            error:
+              'Configura Home Assistant y permite la entidad seleccionada antes de usarla para el resumen.',
           });
           return true;
         }

@@ -16,6 +16,11 @@ export const capabilities = [
   'homeAssistant',
 ] as const;
 export type Capability = (typeof capabilities)[number];
+export interface ProfileNotifications {
+  eventReminders: boolean;
+  reset: { enabled: boolean; time: string };
+  morning: { mode: 'off' | 'time' | 'entity'; time: string; entity: string; state: string };
+}
 export interface AccessProfile {
   bot: BotId;
   chatId: string;
@@ -32,6 +37,10 @@ export interface AccessProfile {
   timezone?: string;
   voiceReplies?: boolean;
   respondToReplies?: boolean;
+  notifications?: ProfileNotifications;
+  morningImportAutomation?: string;
+  morningCallbackDefault?: boolean;
+  morningCallbackTrigger?: { entity: string; state: string };
   speech?: SpeechSettings;
   memoryPolicy?: MemoryPolicy;
   assistantId?: string;

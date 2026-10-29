@@ -67,9 +67,7 @@ export class NotificationRules {
       kind: NotificationRule['kind'],
       schedulerKey?: string,
     ) => Promise<RuleScope>,
-    public wakeSession?: string,
-    readonly localDate: () => string | Promise<string> = () =>
-      new Date().toISOString().slice(0, 10),
+    readonly wakeProfile?: (session: string) => Promise<{ enabled: boolean; date: string }>,
   ) {}
   async ensureOwnerWeather(session: string) {
     const scope = await this.scope(session, 'alert');

@@ -69,10 +69,4 @@ export interface Config {
   reader?: { url: string; apiKey: string };
   places?: { photonUrl: string; osrmUrl: string };
   braveApiKey: string;
-  schedules: {
-    enabled: boolean;
-    morning: string;
-    reset: string;
-    eventReminders: boolean;
-  };
 }

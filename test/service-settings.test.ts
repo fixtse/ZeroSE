@@ -299,7 +299,7 @@ test('legacy memory categories and consolidation times are ignored when loading 
     schedules: { consolidate: '23:59' },
   });
   assert(!('categories' in config.memory));
-  assert(!('consolidate' in config.schedules));
+  assert(!('schedules' in config));
 });
 
 test('service settings cannot change memory and preserve legacy identities on unrelated saves', async () => {

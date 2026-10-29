@@ -261,6 +261,10 @@ export class PostgresAccess implements AccessRepository {
         homeAssistant: profile.homeAssistant,
         pairedHomeAssistant: profile.pairedHomeAssistant,
         speech: profile.speech,
+        notifications: profile.notifications,
+        morningImportAutomation: profile.morningImportAutomation,
+        morningCallbackDefault: profile.morningCallbackDefault,
+        morningCallbackTrigger: profile.morningCallbackTrigger,
         defaultModel: profile.defaultModel,
         alternateModels: profile.alternateModels,
       },
@@ -395,7 +399,15 @@ export class PostgresAccess implements AccessRepository {
     const source = await this.profile(bot, from);
     if (!source || source.kind !== 'group') return;
     const credentials = this.encrypt(
-      { google: source.google, homeAssistant: source.homeAssistant, speech: source.speech },
+      {
+        google: source.google,
+        homeAssistant: source.homeAssistant,
+        speech: source.speech,
+        notifications: source.notifications,
+        morningImportAutomation: source.morningImportAutomation,
+        morningCallbackDefault: source.morningCallbackDefault,
+        morningCallbackTrigger: source.morningCallbackTrigger,
+      },
       `${bot}:${to}`,
     );
     // Preserve existing destination decisions and keep the old chat's history intact.

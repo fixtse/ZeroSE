@@ -199,10 +199,6 @@ test('no long-term memory retains conversation while excluding off-period messag
 
 test('per-chat schedules follow local calendar days and DST and keep daily resets without consolidation', async () => {
   const f = await fixture();
-  f.config.schedules.enabled = true;
-  f.config.schedules.reset = '00:00';
-  f.config.schedules.morning = '';
-  f.config.schedules.eventReminders = false;
   const policies = new Map([
     ['helper:1', { enabled: true, timezone: 'Asia/Tokyo', memoryMode: 'simple' as const }],
     ['helper:-2', { enabled: true, timezone: 'America/New_York', memoryMode: 'advanced' as const }],
@@ -219,7 +215,16 @@ test('per-chat schedules follow local calendar days and DST and keep daily reset
       return [];
     },
   });
-  const scheduler = new Scheduler(f.config, f.store, async (session) => policies.get(session)!);
+  let resetTime = '00:00';
+  const scheduler = new Scheduler(f.store, async (session) => ({
+    ...policies.get(session)!,
+    calendar: false,
+    notifications: {
+      eventReminders: false,
+      reset: { enabled: true, time: resetTime },
+      morning: { mode: 'off', time: '08:30', entity: '', state: 'off' },
+    },
+  }));
   const jobs = async (kind: string) =>
     (
       await f.store.pool.query(
@@ -246,7 +251,7 @@ test('per-chat schedules follow local calendar days and DST and keep daily reset
       (await jobs('consolidate')).map((row) => row.session),
       [],
     );
-    f.config.schedules.reset = '01:30';
+    resetTime = '01:30';
     await scheduler.tick(new Date('2026-11-01T05:30:00Z'));
     await scheduler.tick(new Date('2026-11-01T06:30:00Z'));
     assert.equal(

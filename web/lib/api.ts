@@ -69,6 +69,12 @@ export interface Profile {
   alternateModels?: string[];
   memoryMode?: 'advanced' | 'simple' | 'none';
   speech?: SpeechSettings;
+  notificationsMigrationPending?: boolean;
+  notifications?: {
+    eventReminders: boolean;
+    reset: { enabled: boolean; time: string };
+    morning: { mode: 'off' | 'time' | 'entity'; time: string; entity: string; state: string };
+  };
   hasGoogle?: boolean;
   google?: GoogleSettings;
 

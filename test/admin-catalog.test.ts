@@ -482,3 +482,29 @@ test('profiles select several Zero connections and use only the chosen active se
   });
   assert(!JSON.stringify(result).includes('private-token'));
 });
+
+test('profile notification preferences round trip without exposing the compatibility binding', async () => {
+  const f = setup();
+  f.profile.morningCallbackTrigger = { entity: 'input_boolean.sleep', state: 'off' };
+  const admin = new Admin(f.config, f.repository, async () => {});
+  const notifications = {
+    eventReminders: true,
+    reset: { enabled: false, time: '04:00' },
+    morning: { mode: 'entity', time: '08:30', entity: 'input_boolean.sleep', state: 'off' },
+  };
+  const saved = await request(admin, 'helper/123', 'PUT', {
+    kind: 'user',
+    label: 'Test',
+    enabled: true,
+    capabilities: ['calendar', 'homeAssistant'],
+    notifications,
+  });
+  assert.equal(saved.status, 200);
+  const result = await request(admin, 'helper/123');
+  assert.deepEqual(result.value.notifications, notifications);
+  assert.equal(result.value.morningCallbackTrigger, undefined);
+  assert.deepEqual(f.profile.morningCallbackTrigger, {
+    entity: 'input_boolean.sleep',
+    state: 'off',
+  });
+});

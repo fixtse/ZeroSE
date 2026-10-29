@@ -176,25 +176,6 @@ export const ServiceConfigSchema = z.object({
     .object({ photonUrl: z.url(), osrmUrl: z.url() })
     .default({ photonUrl: 'https://photon.komoot.io', osrmUrl: 'https://router.project-osrm.org' }),
   braveApiKey: secret,
-  schedules: z
-    .object({
-      enabled: z.boolean().default(false),
-      morning: z
-        .string()
-        .regex(/^(?:\d{2}:\d{2})?$/)
-        .default('08:30'),
-      reset: z
-        .string()
-        .regex(/^\d{2}:\d{2}$/)
-        .default('04:00'),
-      eventReminders: z.boolean().default(false),
-    })
-    .default({
-      enabled: false,
-      morning: '08:30',
-      reset: '04:00',
-      eventReminders: false,
-    }),
 });
 
 export const ConfigSchema = BootstrapConfigSchema.extend(ServiceConfigSchema.shape);

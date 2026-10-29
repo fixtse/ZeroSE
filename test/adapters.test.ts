@@ -113,46 +113,71 @@ test('Telegram chunking preserves every code point within message limits', () =>
   assert(result.every((chunk) => Array.from(chunk).length <= 3900));
 });
 
-test('morning webhook authenticates and deduplicates wake-ups and suppresses the later scheduled briefing', async () => {
+test('profile morning callbacks authenticate, share daily deduplication and support every configured profile', async () => {
   const f = await fixture();
-  f.config.schedules.enabled = true;
-  f.config.schedules.morning = '';
-  f.config.telegram.notificationChatId = '123';
-  const server = createHttpServer(f.config, f.store);
+  const profile = {
+    bot: 'zero',
+    chatId: '123',
+    enabled: true,
+    timezone: f.config.timezone,
+    morningCallbackDefault: true,
+    morningCallbackTrigger: { entity: 'input_boolean.sleep', state: 'off' },
+    notifications: {
+      eventReminders: false,
+      reset: { enabled: false, time: '04:00' },
+      morning: { mode: 'entity', time: '08:30', entity: 'input_boolean.sleep', state: 'off' },
+    },
+  };
+  const other = {
+    ...profile,
+    bot: 'helper',
+    chatId: '456',
+    morningCallbackDefault: false,
+    notifications: structuredClone(profile.notifications),
+  };
+  const server = createHttpServer(f.config, f.store, undefined, {
+    access: {
+      forSession: async (session: string) => (session === 'helper:456' ? other : profile),
+      repository: { profiles: async () => ({ items: [profile, other], total: 2 }) },
+    },
+    admin: { handle: async () => false },
+  } as any);
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const url = `http://127.0.0.1:${(server.address() as any).port}/v1/triggers/morning`;
   const request = { method: 'POST', headers: { Authorization: `Bearer ${f.config.apiKey}` } };
   try {
     assert.equal((await fetch(url, { method: 'POST' })).status, 401);
-    const scheduled = await f.store.enqueue(
-      'telegram:123',
-      { kind: 'morning', chatId: '123' },
-      'morning:' + localClock(new Date(), f.config.timezone).day,
-    );
     const responses = await Promise.all([fetch(url, request), fetch(url, request)]);
     assert(responses.every((response) => response.status === 202));
     const [first, duplicate] = (await Promise.all(
       responses.map((response) => response.json()),
     )) as any[];
     assert.equal(first.jobId, duplicate.jobId);
-    assert.notEqual(first.jobId, scheduled.id);
-    assert.equal(
-      await f.store.scheduled('morning:' + localClock(new Date(), f.config.timezone).day),
-      true,
+    const key = 'morning:' + localClock(new Date(), f.config.timezone).day + ':telegram:123';
+    assert.equal(await f.store.scheduled(key), true);
+    const scheduled = await f.store.enqueue(
+      'telegram:123',
+      { kind: 'morning', chatId: '123' },
+      key,
     );
+    assert.equal(scheduled.id, first.jobId);
     const job = await f.store.job(first.jobId);
     assert.equal(job?.session, 'telegram:123');
-    assert.deepEqual(job?.payload, { kind: 'morning', chatId: '123', wakeUp: true });
+    assert.equal(job?.payload.wakeUp, true);
     await f.store.fail(first.jobId, 'uncertain delivery');
     const failed = (await (await fetch(url, request)).json()) as any;
     assert.equal(failed.jobId, first.jobId);
     assert.equal(failed.status, 'failed');
-    f.config.schedules.enabled = false;
+    profile.notifications.morning.mode = 'off';
     assert.equal((await fetch(url, request)).status, 503);
-    f.config.schedules.enabled = true;
-    f.config.telegram.notificationChatId = '';
+    profile.notifications.morning.mode = 'entity';
+    profile.notifications.morning.entity = 'input_boolean.changed';
     assert.equal((await fetch(url, request)).status, 503);
+    const otherResponse = await fetch(url + '/helper/456', request);
+    assert.equal(otherResponse.status, 202);
+    const otherJob = (await otherResponse.json()) as any;
+    assert.equal((await f.store.job(otherJob.jobId))?.session, 'helper:456');
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

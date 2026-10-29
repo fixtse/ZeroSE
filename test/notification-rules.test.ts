@@ -730,8 +730,10 @@ test('wake reminders use local dates, stay scoped, and never install a timed HA 
     const rules = new NotificationRules(
       f.repository,
       async () => ({ enabled: true, scheduler: f.scheduler }),
-      'telegram:1',
-      () => '2026-10-19',
+      async (session) => ({
+        enabled: ['telegram:1', 'helper:2'].includes(session),
+        date: '2026-10-19',
+      }),
     );
     const tools = new Tools(f.store);
     registerNotificationTools(tools, rules);
@@ -747,6 +749,13 @@ test('wake reminders use local dates, stay scoped, and never install a timed HA 
     )) as any;
     assert.equal(receipt.wake_date, '2026-10-21');
     assert.equal(receipt.next_at, null);
+    const other = await tools.call(
+      'wake_reminder_create',
+      { message: 'Other user', date: '2026-10-21' },
+      { ...context, session: 'helper:2' },
+    );
+    assert(other);
+    assert.equal((await f.repository.wakeReminders('helper:2', '2026-10-21')).length, 1);
     assert.equal(f.configurations.length, 0);
     assert.equal((await f.repository.wakeReminders('telegram:1', '2026-10-20')).length, 0);
     assert.equal((await f.repository.wakeReminders('telegram:2', '2026-10-21')).length, 0);

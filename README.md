@@ -303,22 +303,37 @@ independent user/group access policy. Neither transport registers or removes a w
 
 ## Wake-up briefing
 
-Wake-up reminders such as “remind me in two days when I wake up” use
-`wake_reminder_create` with a local calendar date. They are appended to that
-owner chat’s briefing when the wake-up webhook runs (the `input_boolean.dormir`
-on → off automation), without guessing a clock time or sending a separate alert.
-They are completed only after successful delivery and are not replayed on later
-dates. Fixed-time briefings do not consume them. Wake-ups are deduplicated per
-local date independently of an earlier fixed-time briefing.
+Each profile configures **Alertas y recordatorios → Agenda y resumen de la mañana**.
+New profiles start with event reminders and the morning briefing disabled. These proactive notifications are available to Telegram profiles; Home Assistant-only profiles can configure their daily session reset. Event reminders
+require that profile's connected Google Calendar and calendar permission; Zero checks every
+15 minutes for events in the next 15 minutes and deduplicates delivery per profile.
 
-Set `schedules.morning` to `""` to disable the fixed morning time while keeping
-daily reset scheduling enabled. Home Assistant can call
-`POST /v1/triggers/morning` with `Authorization: Bearer <config.apiKey>` when
-`input_boolean.dormir` changes from `on` to `off`. No body is required. This
-queues the usual morning briefing for `telegram.notificationChatId`, using the
-same session ordering, with its own daily deduplication key. A wake-up also
-suppresses a later timed briefing that day. Repeated calls return the existing job, including failed jobs, without replaying delivery.
-The endpoint requires `schedules.enabled` and a configured notification recipient.
+For the morning briefing, choose a local clock time or a Home Assistant entity and target
+state (`sensor`, `binary_sensor`, or `input_boolean`). Home Assistant evaluates a native
+WebSocket state trigger; non-admin HA connections use an entity-scoped state subscription
+instead. Zero queues the briefing in the same conversation. It does not poll
+entity state or replay state changes missed while disconnected. Initial, unknown and unavailable
+states do not count as waking up. Both trigger modes share one briefing per profile and local
+date. Agenda and tasks use only that profile's enabled services; neither permission is required
+for a weather-only briefing. Daily session resets are also enabled and timed per profile; they clear conversation context without deleting long-term memory. There is no global schedule switch.
+
+The retired global settings are imported once into profile preferences and removed from stored service settings. Existing daily reset preferences are retained for each profile. For existing
+wake-up installations, Zero reads the existing `assistant_morning_on_wakeup` automation's
+entity and target state and keeps them active in the common entity selector. The original
+HA automation is preserved. Its authenticated `POST /v1/triggers/morning` callback remains
+compatible while the imported entity/state are selected and shares the native trigger's daily
+key, so it cannot cause a second briefing. After changing the profile's trigger, that legacy
+callback cannot override the new preferences. If discovery is unavailable, the original callback
+continues working and the editor shows that import is pending; no settings are silently disabled.
+Discovery is read-only and resumes when the configured HA connection is available.
+
+Wake-up reminders such as “remind me in two days when I wake up” use
+`wake_reminder_create` with a local calendar date. They are appended to the matching chat's
+wake-up briefing, without guessing a clock time or sending a separate alert. They are completed
+only after successful delivery and are not replayed on later dates. Fixed-time briefings do not
+consume them. Repeated callbacks return the existing job, including failed jobs, without
+replaying delivery.
+
 The briefing reads Home Assistant's daily weather forecast. If `homeAssistant.weatherEntity`
 is empty, it discovers the source when exactly one weather entity supports daily forecasts;
 otherwise, set that field explicitly to select the location.
@@ -940,7 +955,7 @@ advanced; existing facts are not automatically re-embedded. Existing profiles de
 memory and inherit the installation timezone until an administrator saves their own timezone.
 The scheduler interprets the configured reset time in each profile's local
 calendar and timezone, including daylight-saving changes, and deduplicates daily runs per chat
-and local date. The editor shows the configured reset time. A daily reset clears the
+and local date. The profile editor controls whether the reset runs and at what time. A daily reset clears the
 conversation context only; it never deletes long-term memories. Disabled memory still permits
 the scheduled conversation reset. Profile timezone also applies to prompts and calendar handling.
 

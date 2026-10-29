@@ -85,24 +85,32 @@ test('daily date ranges respect Madrid DST and schedules enqueue once', async ()
   assert.equal(Date.parse(autumn.end) - Date.parse(autumn.start), 25 * 3600000);
   const f = await fixture();
   try {
-    f.config.telegram.notificationChatId = '123';
     const memory = new Memory(f.config.memory, f.store, {
       enabled: false,
       async embed() {
         return [];
       },
     });
-    const scheduler = new Scheduler(f.config, f.store);
+    const notifications = {
+      eventReminders: false,
+      reset: { enabled: false, time: '04:00' },
+      morning: { mode: 'off' as 'off' | 'time', time: '08:30', entity: '', state: 'off' },
+    };
+    const scheduler = new Scheduler(
+      f.store,
+      async () => ({ enabled: true, calendar: false, timezone: f.config.timezone, notifications }),
+      async () => ['telegram:123'],
+    );
     await scheduler.tick(new Date('2026-10-15T06:30:00Z'));
     assert.equal(await f.store.claim([]), undefined);
-    f.config.schedules.enabled = true;
+    notifications.morning.mode = 'time';
     await scheduler.tick(new Date('2026-10-15T06:30:00Z'));
     await scheduler.tick(new Date('2026-10-15T06:30:15Z'));
     const job = await f.store.claim([]);
     assert.equal(job?.payload.kind, 'morning');
     assert.equal(await f.store.claim([]), undefined);
     await f.store.finish(job!.id, 'sent');
-    f.config.schedules.morning = '';
+    notifications.morning.mode = 'off';
     await scheduler.tick(new Date('2026-10-16T06:30:00Z'));
     assert.equal(await f.store.claim([]), undefined);
   } finally {

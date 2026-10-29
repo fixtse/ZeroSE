@@ -69,13 +69,9 @@ const fieldNames: Record<string, string> = {
   photonUrl: 'URL de geocodificación Photon',
   osrmUrl: 'URL de rutas OSRM',
   braveApiKey: 'Clave API de Brave',
-  morning: 'Resumen de la mañana',
-  reset: 'Nueva sesión diaria',
-  eventReminders: 'Recordatorios de eventos',
 };
 function fieldLabel(path: string) {
   const parts = path.split('.');
-  if (path === 'schedules.enabled') return 'Horarios automáticos';
   const label = fieldNames[parts.at(-1)!] || parts.at(-1)!;
   return label;
 }
@@ -181,7 +177,7 @@ function SettingsForm({
     return match?.[1] || '';
   });
   const groupFor = (field: ServiceField) =>
-    ['timezone', 'concurrency', 'schedules'].includes(field.group) ? 'general' : field.group;
+    ['timezone', 'concurrency'].includes(field.group) ? 'general' : field.group;
   const groups = [...new Set(settings.fields.map(groupFor))].sort((a, b) =>
     a === 'general' ? -1 : b === 'general' ? 1 : 0,
   );
@@ -227,15 +223,7 @@ function SettingsForm({
       <Field
         key={field.path}
         {...common}
-        type={
-          field.type === 'number'
-            ? 'number'
-            : ['schedules.morning', 'schedules.reset'].includes(field.path)
-              ? 'time'
-              : /Url$|\.url$/.test(field.path)
-                ? 'url'
-                : 'text'
-        }
+        type={field.type === 'number' ? 'number' : /Url$|\.url$/.test(field.path) ? 'url' : 'text'}
         list={field.path === 'timezone' ? 'service-timezone-options' : undefined}
         required={field.path === 'timezone'}
         autoComplete="off"

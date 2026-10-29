@@ -73,13 +73,13 @@ export function registerNotificationTools(
   );
   tools.add(
     'wake_reminder_create',
-    'Include a reminder in the wake-up briefing triggered by input_boolean.dormir turning off on a local YYYY-MM-DD date. Use for “at wake up / when I wake up / al despertar”, including relative dates. Never guess a clock time. One-shot; not sent on other dates or as a separate notification.',
+    'Include a reminder in this profile’s entity-triggered wake-up briefing on a local YYYY-MM-DD date. Use for “at wake up / when I wake up / al despertar”, including relative dates. Never guess a clock time. One-shot; not sent on other dates or as a separate notification.',
     z.object({ message, date: z.iso.date() }),
     async (a, c) => {
-      if (c.session !== rules.wakeSession)
-        throw new Error('Wake-up briefings are only configured for the owner notification chat');
-      if (a.date < (await rules.localDate()))
-        throw new Error('Choose today or a future local date');
+      const profile = await rules.wakeProfile?.(c.session);
+      if (!profile?.enabled)
+        throw new Error('Configure an entity-triggered morning briefing in this profile first');
+      if (a.date < profile.date) throw new Error('Choose today or a future local date');
       return create('reminder', { message: a.message, wake_date: a.date }, c);
     },
   );

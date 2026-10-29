@@ -1,3 +1,7 @@
+import { migrateProfileSchedules } from './application/migrate-profile-schedules.js';
+import { HomeAssistantMorningTriggers } from './adapters/outbound/ha-morning-triggers.js';
+import { MorningTriggers, importMorningTrigger } from './application/morning-triggers.js';
+import { profileNotifications, notificationServices } from './application/profile-notifications.js';
 import { startDatabaseRuntime } from './adapters/outbound/pglite-runtime.js';
 import { HomeAssistantConnections } from './application/home-assistant-connections.js';
 import { homeAssistantBinding } from './application/zero-settings.js';
@@ -103,7 +107,12 @@ import { ProfileMemoryAdmin } from './adapters/inbound/profile-memory-admin.js';
 import { ProfileMemories, memoryProfile } from './application/profile-memories.js';
 import { localClock } from './domain/time.js';
 import { isMemoryTool } from './domain/memory.js';
-import { sessionAddress, telegramSession, toolCapability } from './domain/access.js';
+import {
+  sessionAddress,
+  telegramSession,
+  toolCapability,
+  type AccessProfile,
+} from './domain/access.js';
 import type { Job, ToolContext } from './domain/models.js';
 import type { JobResult } from './application/use-cases/contracts.js';
 import {
@@ -165,6 +174,26 @@ const accessRepository = new PostgresAccess(
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
 );
 await accessRepository.initialize(config);
+const morningTriggerPort = new HomeAssistantMorningTriggers();
+const morningTriggers = new MorningTriggers(morningTriggerPort, store);
+const retiredServices = await serviceSettings.read();
+await migrateProfileSchedules(
+  retiredServices.value,
+  config,
+  accessRepository,
+  store,
+  morningTriggerPort,
+);
+if (
+  'schedules' in retiredServices.value &&
+  !(await serviceSettings.update(
+    retiredServices.revision,
+    ServiceConfigSchema.parse(retiredServices.value),
+  ))
+)
+  throw new Error(
+    'Service settings changed while importing profile schedules. Restart after inspecting the saved profile preferences.',
+  );
 const userContext = new UserContext(accessRepository);
 async function homeAssistantConnection() {
   if (config.homeAssistant.token) return config.homeAssistant;
@@ -336,12 +365,12 @@ const rules = new NotificationRules(
       scheduler,
     };
   },
-  config.schedules.enabled && config.telegram.notificationChatId
-    ? 'telegram:' + config.telegram.notificationChatId
-    : undefined,
-  async () => {
-    const profile = await access.forSession('telegram:' + config.telegram.notificationChatId);
-    return localClock(new Date(), profile?.timezone || config.timezone).day;
+  async (session) => {
+    const profile = await access.forSession(session);
+    return {
+      enabled: !!profile?.enabled && profileNotifications(profile).morning.mode === 'entity',
+      date: localClock(new Date(), profile?.timezone || config.timezone).day,
+    };
   },
 );
 const localDeadlineWorker = new LocalDeadlineWorker(
@@ -617,7 +646,9 @@ const codex = new AIAgent(
       reset: async (job) => {
         await store.reset(job.session);
         const profile = await access.forSession(job.session);
-        return profile?.owner && (await canRespond(job))
+        return profile?.enabled &&
+          profileNotifications(profile).reset.enabled &&
+          (await canRespond(job))
           ? { output: 'Zero: Nueva Sesión Iniciada', voice: false }
           : { output: '', deliver: false };
       },
@@ -628,14 +659,45 @@ const codex = new AIAgent(
     canRespond,
     async (job) => (await access.forSession(job.session))?.voiceReplies !== false,
   ),
-  scheduler = new Scheduler(config, store, async (session) => {
-    const address = sessionAddress(session);
-    const profile = await access.forSession(session);
-    return {
-      enabled: !address || !!profile?.enabled,
-      timezone: profile?.timezone || config.timezone,
-    };
-  }),
+  scheduler = new Scheduler(
+    store,
+    async (session) => {
+      const address = sessionAddress(session);
+      const profile = await access.forSession(session);
+      const scoped = profile ? scopedConfig(config, profile) : config;
+      return {
+        enabled: !address || !!profile?.enabled,
+        timezone: profile?.timezone || config.timezone,
+        notifications: profileNotifications(profile),
+        calendar: notificationServices(scoped, profile).calendar,
+      };
+    },
+    async () => {
+      const sessions: string[] = [];
+      const wakeProfiles: { profile: AccessProfile; config: Config }[] = [];
+      for (let offset = 0; ; offset += 100) {
+        const page = await accessRepository.profiles('', offset, 100);
+        for (const profile of page.items)
+          await importMorningTrigger(
+            profile,
+            scopedConfig(config, profile),
+            accessRepository,
+            morningTriggerPort,
+          );
+        wakeProfiles.push(
+          ...page.items.map((profile) => ({ profile, config: scopedConfig(config, profile) })),
+        );
+        sessions.push(
+          ...page.items
+            .filter((p) => p.enabled && !p.chatId.startsWith('ha:'))
+            .map((p) => telegramSession(p.bot, p.chatId)),
+        );
+        if (offset + page.items.length >= page.total || !page.items.length) break;
+      }
+      morningTriggers.refresh(wakeProfiles);
+      return sessions;
+    },
+  ),
   admin = new Admin(
     config,
     accessRepository,
@@ -869,11 +931,6 @@ const codex = new AIAgent(
               'https://router.project-osrm.org',
           };
           places.configure(config.places.photonUrl, config.places.osrmUrl);
-          config.schedules = structuredClone(value.schedules);
-          rules.wakeSession =
-            value.schedules.enabled && config.telegram.notificationChatId
-              ? 'telegram:' + config.telegram.notificationChatId
-              : undefined;
         },
         (kind, language, query, signal) => edgeSpeechCatalog.page(kind, language, query, signal),
       ),
@@ -891,9 +948,19 @@ async function notify(job: Job, context: ToolContext): Promise<JobResult> {
   const scope = await services(context);
   if (
     scope.profile &&
-    (!scope.profile.owner ||
-      !scope.profile.capabilities.includes('calendar') ||
-      !scope.profile.capabilities.includes('tasks'))
+    ((job.payload.kind === 'event_reminders' &&
+      (!scope.profile.capabilities.includes('calendar') ||
+        !profileNotifications(scope.profile).eventReminders)) ||
+      (job.payload.kind === 'morning' && scope.profile.notifications?.morning.mode === 'off'))
+  )
+    return { output: '', deliver: false };
+  const source = job.payload.morningTrigger;
+  if (
+    source &&
+    scope.profile &&
+    (scope.profile.notifications?.morning.mode !== 'entity' ||
+      source.entity !== scope.profile.notifications.morning.entity ||
+      source.state !== scope.profile.notifications.morning.state)
   )
     return { output: '', deliver: false };
   return new PrepareNotification(
@@ -905,6 +972,7 @@ async function notify(job: Job, context: ToolContext): Promise<JobResult> {
     prompts,
     ruleRepository,
     scope.config.memory.mode === 'none' ? '' : scope.profile?.context || '',
+    notificationServices(scope.config, scope.profile),
   ).execute(job, context);
 }
 
@@ -939,7 +1007,6 @@ server.listen(config.port, config.host, () => {
       host: config.host,
       port: config.port,
       tools: tools.definitions().map((t) => t.name),
-      schedules: config.schedules.enabled,
     }),
   );
 });
@@ -948,6 +1015,7 @@ async function close() {
   if (closing) return;
   closing = true;
   scheduler.close();
+  morningTriggers.close();
   await localDeadlineWorker.close();
   await discovery.close();
   await bots.close();

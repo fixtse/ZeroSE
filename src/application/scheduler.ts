@@ -1,20 +1,23 @@
-import type { Config } from '../domain/config.js';
 import type { ConversationStore } from './ports.js';
+import type { ProfileNotifications } from '../domain/access.js';
+import { sessionAddress } from '../domain/access.js';
+import { morningKey } from './profile-notifications.js';
 import { localClock } from '../domain/time.js';
 
 export interface ScheduleProfile {
   timezone: string;
   enabled: boolean;
+  notifications: ProfileNotifications;
+  calendar: boolean;
 }
 export class Scheduler {
   private timer?: NodeJS.Timeout;
   constructor(
-    private config: Config,
     private store: ConversationStore,
-    private profile?: (session: string) => Promise<ScheduleProfile>,
+    private profile: (session: string) => Promise<ScheduleProfile>,
+    private recipients?: () => Promise<string[]>,
   ) {}
   async tick(now = new Date()) {
-    if (!this.config.schedules.enabled) return;
     const enqueue = async (key: string, session: string, payload: any) => {
       if (await this.store.scheduled(key)) return;
       await this.store.enqueue(session, payload, key);
@@ -23,28 +26,34 @@ export class Scheduler {
     const existing = new Set(
       (await this.store.sessions()).filter((id) => !id.startsWith('system:')),
     );
-    const chat = this.config.telegram.notificationChatId;
-    const notificationSession = 'telegram:' + chat;
-    const sessions = new Set([...existing, ...(chat ? [notificationSession] : [])]);
+    const sessions = new Set([...existing, ...((await this.recipients?.()) || [])]);
     for (const session of sessions) {
-      const profile = this.profile
-        ? await this.profile(session)
-        : {
-            enabled: true,
-            timezone: this.config.timezone,
-          };
+      const profile = await this.profile(session);
       if (!profile.enabled) continue;
       const { day, time } = localClock(now, profile.timezone);
-      if (existing.has(session) && time === this.config.schedules.reset)
+      if (
+        profile.notifications.reset.enabled &&
+        existing.has(session) &&
+        time === profile.notifications.reset.time
+      )
         await enqueue(`reset:${day}:${session}`, session, {
           kind: 'reset',
           ...(session.startsWith('telegram:') ? { chatId: session.slice(9) } : {}),
         });
-      if (session !== notificationSession || !chat) continue;
-      if (time === this.config.schedules.morning)
-        await enqueue('morning:' + day, session, { kind: 'morning', chatId: chat });
-      if (this.config.schedules.eventReminders && Number(time.slice(3)) % 15 === 0)
-        await enqueue(`events:${day}:${time}`, session, { kind: 'event_reminders', chatId: chat });
+      const personal = profile.notifications;
+      const target = sessionAddress(session);
+      if (target?.chatId.startsWith('ha:')) continue;
+      if (!target) continue;
+      if (personal.morning.mode === 'time' && time === personal.morning.time)
+        await enqueue(morningKey(session, day), session, {
+          kind: 'morning',
+          chatId: target.chatId,
+        });
+      if (personal.eventReminders && profile.calendar && Number(time.slice(3)) % 15 === 0)
+        await enqueue(`events:${day}:${time}:${session}`, session, {
+          kind: 'event_reminders',
+          chatId: target.chatId,
+        });
     }
   }
   start() {
