@@ -476,7 +476,15 @@ test('profiles select several Zero connections and use only the chosen active se
     },
   );
   assert.deepEqual(result, {
-    items: [{ id: 'telegram:2', name: 'Cabin', url: 'https://cabin.example' }],
+    items: [
+      {
+        id: 'telegram:2',
+        name: 'Cabin',
+        url: 'https://cabin.example',
+        tokenHint: 'cabi••••••••oken',
+        version: undefined,
+      },
+    ],
     total: 1,
     next_offset: null,
   });
@@ -507,4 +515,34 @@ test('profile notification preferences round trip without exposing the compatibi
     entity: 'input_boolean.sleep',
     state: 'off',
   });
+});
+
+test('removing every saved HA selection clears credentials and keeps them cleared after reload and save', async () => {
+  const f = setup();
+  f.profile.homeAssistant = {
+    ...f.profile.homeAssistant!,
+    connections: [{ id: 'telegram:1', name: 'House', url: 'https://ha.example' }],
+    activeConnectionId: 'telegram:1',
+  };
+  const admin = new Admin(f.config, f.repository, async () => {});
+  const input = {
+    kind: 'user',
+    label: 'Test',
+    enabled: true,
+    capabilities: ['homeAssistant'],
+    homeAssistantConnectionIds: [],
+    homeAssistant: { url: 'https://ha.example', token: '' },
+  };
+  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 200);
+  assert.equal(f.profile.homeAssistant?.token, '');
+  assert.equal(f.profile.homeAssistant?.url, '');
+  const reloaded = (await request(admin, 'helper/123')).value;
+  assert.equal(reloaded.hasHomeAssistant, false);
+  assert.equal(reloaded.homeAssistant.tokenHint, undefined);
+  assert.equal(
+    (await request(admin, 'helper/123', 'PUT', { ...input, homeAssistant: { url: '', token: '' } }))
+      .status,
+    200,
+  );
+  assert.equal((await request(admin, 'helper/123')).value.hasHomeAssistant, false);
 });

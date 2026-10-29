@@ -39,6 +39,7 @@ export interface Config {
     credentials: Partial<Record<'calendar' | 'tasks' | 'docs' | 'drive', GoogleCredential>>;
   };
   homeAssistant: {
+    name?: string;
     connections?: { id: string; name: string; url: string }[];
     activeConnectionId?: string;
     voiceSatellite?: string;

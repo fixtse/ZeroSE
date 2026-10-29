@@ -1,3 +1,4 @@
+import { PostgresHomeAssistantConnections } from './adapters/outbound/postgres-home-assistant-connections.js';
 import { PublicConnection } from './application/public-connection.js';
 import { migrateProfileSchedules } from './application/migrate-profile-schedules.js';
 import { HomeAssistantMorningTriggers } from './adapters/outbound/ha-morning-triggers.js';
@@ -832,7 +833,13 @@ const codex = new AIAgent(
     rules,
   )
     .withHomeAssistantConnection(homeAssistantConnection)
-    .withHomeAssistantConnections(new HomeAssistantConnections(zeroSettings, accessRepository))
+    .withHomeAssistantConnections(
+      new HomeAssistantConnections(
+        zeroSettings,
+        accessRepository,
+        new PostgresHomeAssistantConnections(store.db, accessRepository),
+      ),
+    )
     .withGoogleDestinations(
       new GoogleDestinations(
         accessRepository,

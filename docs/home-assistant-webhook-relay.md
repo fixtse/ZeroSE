@@ -13,11 +13,14 @@ URL y registra el webhook de cada asistente cuando cambies de dominio. Para
 Google, registra el URI de retorno que muestra el perfil en la consola de Google.
 Los intentos OAuth en curso conservan su URI de retorno original.
 
-En Ajustes → Home Assistant se muestran los accesos de la integración, con
-paginación. Se pueden editar nombre y caducidad o revocar con confirmación.
-Revocar no borra reglas, perfiles ni memorias; para recuperar la conexión hay que
-vincular de nuevo. Los vínculos de voz se editan desde su perfil y se pueden
-desvincular por separado.
+En Ajustes → Home Assistant se gestionan los servidores disponibles en el selector
+de los perfiles: nombre, URL y vista parcial del token de larga duración. Se puede
+renombrar una conexión, reemplazar su token o eliminarla con confirmación. Los
+cambios se guardan juntos en la conexión de origen y en los perfiles que la usan.
+Al eliminar un servidor activo, se usa otro ya seleccionado si existe; de lo
+contrario se borran la URL y el token del perfil. Se conservan las reglas, las
+memorias y los vínculos de voz. Eliminar la copia de Zero no revoca el token en
+Home Assistant. Los tokens internos de la integración no son estas conexiones.
 
 ## Relay de assistant_zero 1.7.0
 

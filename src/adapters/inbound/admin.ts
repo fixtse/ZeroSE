@@ -183,8 +183,12 @@ export class Admin {
     return this;
   }
 
-  private homeAssistantConnections?: Pick<HomeAssistantConnections, 'list'>;
-  withHomeAssistantConnections(connections: Pick<HomeAssistantConnections, 'list'>) {
+  private homeAssistantConnections?: Pick<HomeAssistantConnections, 'list'> &
+    Partial<Pick<HomeAssistantConnections, 'change'>>;
+  withHomeAssistantConnections(
+    connections: Pick<HomeAssistantConnections, 'list'> &
+      Partial<Pick<HomeAssistantConnections, 'change'>>,
+  ) {
     this.homeAssistantConnections = connections;
     return this;
   }
@@ -224,6 +228,42 @@ export class Admin {
     if (!path.startsWith('/v1/admin/')) return false;
     if (await this.groupMembers?.handle(req, path, read, send)) return true;
 
+    if (
+      ['PUT', 'DELETE'].includes(req.method || '') &&
+      path === '/v1/admin/home-assistant/connections'
+    ) {
+      if (!this.homeAssistantConnections?.change) {
+        send(503, { error: 'Gestión de conexiones no disponible.' });
+        return true;
+      }
+      const identity = z
+        .object({
+          id: z.string().min(1).max(250),
+          version: z.string().regex(/^[a-f0-9]{64}$/),
+        })
+        .strict();
+      const body = await read();
+      const input =
+        req.method === 'PUT'
+          ? identity
+              .extend({
+                name: z.string().trim().min(1).max(100),
+                token: z.string().trim().max(8192).default(''),
+              })
+              .parse(body)
+          : identity.parse(body);
+      const changed = await this.homeAssistantConnections.change({
+        ...input,
+        remove: req.method === 'DELETE',
+      });
+      send(
+        changed ? 200 : 409,
+        changed
+          ? { saved: true }
+          : { error: 'La conexión ha cambiado o se ha eliminado. Recarga antes de continuar.' },
+      );
+      return true;
+    }
     if (req.method === 'GET' && path === '/v1/admin/home-assistant/connections') {
       const params = new URL(req.url || '/', 'http://localhost').searchParams;
       const query = z
@@ -241,6 +281,8 @@ export class Admin {
           id: item.id,
           name: item.name,
           url: item.connection.url,
+          tokenHint: secretHint(item.connection.token),
+          version: item.version,
         })),
         total: connections.length,
         next_offset:
@@ -778,7 +820,10 @@ export class Admin {
           return true;
         }
         let homeAssistant = previous?.homeAssistant;
-        if (input.clearHomeAssistant)
+        if (
+          input.clearHomeAssistant ||
+          (selectedConnections?.length === 0 && !!previousHA?.connections?.length)
+        )
           homeAssistant = {
             ...ConfigSchema.parse({}).homeAssistant,
             token: '',

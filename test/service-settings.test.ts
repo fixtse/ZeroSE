@@ -511,3 +511,30 @@ test('connection settings show the inherited server URL without persisting it on
   assert.equal((await field()).value, 'https://existing.example');
   assert.equal((await field()).inherited, true);
 });
+
+test('deleting a service secret survives reload and later saves with an empty password input', async () => {
+  const f = fixture();
+  assert.equal(
+    (await request(f.admin, 'PUT', { revision: 1, changes: { 'reader.apiKey': null } })).status,
+    200,
+  );
+  assert.equal(f.value().reader?.apiKey, '');
+  let field = (await request(f.admin, 'GET')).result.fields.find(
+    (item: any) => item.path === 'reader.apiKey',
+  );
+  assert.equal(field.configured, false);
+  assert.equal(field.secretHint, undefined);
+  assert.equal(
+    (
+      await request(f.admin, 'PUT', {
+        revision: 2,
+        changes: { 'reader.apiKey': '', timezone: 'UTC' },
+      })
+    ).status,
+    200,
+  );
+  field = (await request(f.admin, 'GET')).result.fields.find(
+    (item: any) => item.path === 'reader.apiKey',
+  );
+  assert.equal(field.configured, false);
+});

@@ -99,6 +99,7 @@ export function ProfileEditor({
   const [haConnections, setHAConnections] = useState<HAConnectionChoice[]>(
     profile?.homeAssistant?.connections || [],
   );
+  const [clearHAConnection, setClearHAConnection] = useState(false);
   const [activeHAConnection, setActiveHAConnection] = useState(
     profile?.homeAssistant?.activeConnectionId || '',
   );
@@ -119,6 +120,7 @@ export function ProfileEditor({
     if (!current) return;
     const result = await api<Profile>(path(current));
     setCurrent(result);
+    setClearHAConnection(false);
     setTasksEnabled(result.capabilities.includes('tasks'));
     setSpeech(result.speech || defaultSpeech);
     setTaskProvider(result.homeAssistant?.taskProvider || 'google');
@@ -217,8 +219,11 @@ export function ProfileEditor({
                 (!current?.hasHomeAssistant && haConnections.length > 0))),
         ),
 
-        homeAssistantConnectionIds: haConnections.map((item) => item.id),
-        ...(activeHAConnection ? { activeHomeAssistantConnectionId: activeHAConnection } : {}),
+        clearHomeAssistant: clearHAConnection,
+        homeAssistantConnectionIds: clearHAConnection ? [] : haConnections.map((item) => item.id),
+        ...(!clearHAConnection && activeHAConnection
+          ? { activeHomeAssistantConnectionId: activeHAConnection }
+          : {}),
       };
       if (data.has('modelsLoaded')) {
         value.defaultModel = String(data.get('defaultModel') || '');
@@ -257,6 +262,7 @@ export function ProfileEditor({
       );
       const saved = await api<Profile>(path({ bot, chatId }));
       setCurrent(saved);
+      setClearHAConnection(false);
 
       setTasksEnabled(saved.capabilities.includes('tasks'));
       setSpeech(saved.speech || defaultSpeech);
@@ -570,10 +576,14 @@ export function ProfileEditor({
                         selected={haConnections}
                         active={activeHAConnection}
                         onChange={(selected, active) => {
+                          setClearHAConnection(false);
                           setHAConnections(selected);
                           setActiveHAConnection(active);
                         }}
                       />
+                      <a className="underline" href="?page=services&settingsTab=homeAssistant">
+                        Gestionar conexiones de Home Assistant
+                      </a>
                       {haConnections.length === 0 && (
                         <div className="ha-manual-connection">
                           <Field
@@ -587,8 +597,52 @@ export function ProfileEditor({
                             id="profile-ha-token"
                             name="ha-token"
                             label="Token de acceso"
-                            configured={!!current?.homeAssistant?.tokenHint}
+                            configured={!clearHAConnection && !!current?.homeAssistant?.tokenHint}
                             hint={current?.homeAssistant?.tokenHint}
+                            preview={
+                              clearHAConnection ? 'La conexión se eliminará al guardar' : undefined
+                            }
+                            onChange={(value) => {
+                              if (value) setClearHAConnection(false);
+                            }}
+                            deleteAction={
+                              !!current?.homeAssistant?.tokenHint && !clearHAConnection ? (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="icon-sm"
+                                      tooltip="Eliminar conexión del perfil"
+                                      disabled={busy}
+                                    >
+                                      <Trash2 />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        ¿Eliminar la conexión del perfil?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        La URL y el token guardados en este perfil se eliminarán al
+                                        guardar. Para eliminar el servidor de todos los perfiles,
+                                        usa Gestionar conexiones.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        variant="destructive"
+                                        onClick={() => setClearHAConnection(true)}
+                                      >
+                                        Eliminar al guardar
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              ) : undefined
+                            }
                             disabled={busy}
                             actions={
                               <Button

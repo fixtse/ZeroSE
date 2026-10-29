@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Pencil, RotateCw, Save, Trash2, X } from 'lucide-react';
-import { api, type Settings } from '../lib/api';
+import { api } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
-import { adminPath } from '../lib/admin-path';
 import { Button } from './ui/button';
 import { Field } from './settings-fields';
-import { HomeAssistantUsers } from './home-assistant-users';
+import { SecretEditor } from './secret-editor';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -20,199 +19,204 @@ import {
   AlertDialogAction,
 } from './ui/alert-dialog';
 
-interface Access {
+interface Connection {
   id: string;
   name: string;
-  scopes: ('voice' | 'settings' | 'rules')[];
-  createdAt: string;
-  expiresAt: string;
-  revokedAt: string | null;
+  url: string;
+  tokenHint?: string;
+  version: string;
 }
 interface Page {
-  items: Access[];
+  items: Connection[];
   total: number;
+  next_offset: number | null;
 }
-const endpoint = '/v1/admin/setup/tokens';
+const endpoint = '/v1/admin/home-assistant/connections';
 
 export function HomeAssistantAccess() {
   const [page, setPage] = useState<Page>();
   const [offset, setOffset] = useState(0);
-  const [settings, setSettings] = useState<Settings>();
-  const [editing, setEditing] = useState<Access>();
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<string>();
   const [name, setName] = useState('');
-  const [expiry, setExpiry] = useState('');
+  const [token, setToken] = useState('');
   const { busy, run, setNotice } = useAdminTask();
-  async function load(start = offset) {
-    const [next, bindings] = await Promise.all([
-      api<Page>(endpoint + '?offset=' + start + '&limit=20'),
-      api<Settings>('/v1/admin/setup/settings'),
-    ]);
+  async function load(start = offset, query = search) {
+    const next = await api<Page>(
+      endpoint + '?' + new URLSearchParams({ offset: String(start), limit: '20', search: query }),
+    );
     setPage(next);
-    setSettings(bindings);
     setOffset(start);
     setEditing(undefined);
+    setToken('');
   }
   useEffect(() => {
     void run(() => load(0));
   }, []);
-  const date = (value: string) => new Date(value).toLocaleString();
   return (
     <div className="space-y-4">
+      <p>
+        Servidores que puedes seleccionar en los perfiles. Cambiar el nombre o el token actualiza
+        los perfiles que usan esa conexión.
+      </p>
       <div className="service-settings-heading">
-        <p>
-          Accesos creados por la integración. Revocar un acceso impide que siga conectándose a Zero.
-        </p>
+        <Field
+          id="ha-connections-search"
+          label="Buscar servidor"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
         <Button
           type="button"
           variant="outline"
           size="icon"
-          tooltip="Recargar accesos"
+          tooltip="Buscar y recargar conexiones"
           disabled={busy}
-          onClick={() => void run(() => load())}
+          onClick={() => void run(() => load(0))}
         >
           <RotateCw />
         </Button>
       </div>
-      {!page && <p>Cargando accesos…</p>}
+      {!page && <p>Cargando conexiones…</p>}
       {page?.items.length === 0 && (
-        <p>No hay accesos. Añade la integración Zero desde Home Assistant y aprueba su conexión.</p>
+        <p>
+          No hay conexiones. Vincula la integración Zero desde Home Assistant o guarda una conexión
+          manual desde un perfil.
+        </p>
       )}
       <div className="people-list">
-        {page?.items.map((access) => {
-          const revoked = !!access.revokedAt;
-          const expired = Date.parse(access.expiresAt) <= Date.now();
-          return (
-            <div className="ha-user-row" key={access.id}>
-              <div className="person-details min-w-0 break-words">
-                {editing?.id === access.id ? (
-                  <>
-                    <Field
-                      id={'ha-name-' + access.id}
-                      label="Nombre del acceso"
-                      value={name}
-                      maxLength={100}
-                      onChange={(event) => setName(event.target.value)}
-                    />
-                    <Field
-                      id={'ha-expiry-' + access.id}
-                      label="Caducidad"
-                      type="datetime-local"
-                      value={expiry}
-                      onChange={(event) => setExpiry(event.target.value)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <strong>{access.name}</strong>
-                    <p>
-                      {revoked
-                        ? 'Revocado · ' + date(access.revokedAt!)
-                        : expired
-                          ? 'Caducado'
-                          : 'Activo'}{' '}
-                      · Caducidad: {date(access.expiresAt)}
-                    </p>
-                    <p>Creado: {date(access.createdAt)} · Voz, ajustes y reglas</p>
-                  </>
-                )}
-              </div>
-              <div className="action-group shrink-0">
-                {editing?.id === access.id ? (
-                  <>
-                    <Button
-                      type="button"
-                      size="icon"
-                      tooltip="Guardar acceso"
-                      disabled={busy || !name.trim() || !expiry}
+        {page?.items.map((connection) => (
+          <div className="ha-user-row" key={connection.id}>
+            <div className="person-details min-w-0 break-words">
+              {editing === connection.id ? (
+                <>
+                  <Field
+                    id={'ha-name-' + connection.id}
+                    label="Nombre de Home Assistant"
+                    value={name}
+                    maxLength={100}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                  <p>{connection.url}</p>
+                  <SecretEditor
+                    id={'ha-token-' + connection.id}
+                    label="Token de larga duración"
+                    value={token}
+                    configured={!!connection.tokenHint}
+                    hint={connection.tokenHint}
+                    onChange={setToken}
+                    disabled={busy}
+                  />
+                  <p>Deja el token vacío para conservar el guardado.</p>
+                </>
+              ) : (
+                <>
+                  <strong>{connection.name}</strong>
+                  <p>{connection.url}</p>
+                  <p>Token de larga duración: {connection.tokenHint || 'Sin configurar'}</p>
+                </>
+              )}
+            </div>
+            <div className="action-group shrink-0">
+              {editing === connection.id ? (
+                <>
+                  <Button
+                    type="button"
+                    size="icon"
+                    tooltip="Guardar conexión"
+                    disabled={busy || !name.trim()}
+                    onClick={() =>
+                      void run(async () => {
+                        await api(endpoint, 'PUT', {
+                          id: connection.id,
+                          version: connection.version,
+                          name,
+                          token,
+                        });
+                        await load();
+                        setNotice('Conexión actualizada.');
+                      })
+                    }
+                  >
+                    <Save />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    tooltip="Cancelar edición"
+                    disabled={busy}
+                    onClick={() => {
+                      setEditing(undefined);
+                      setToken('');
+                    }}
+                  >
+                    <X />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  tooltip={'Editar ' + connection.name}
+                  disabled={busy}
+                  onClick={() => {
+                    setEditing(connection.id);
+                    setName(connection.name);
+                    setToken('');
+                  }}
+                >
+                  <Pencil />
+                </Button>
+              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    tooltip={'Eliminar ' + connection.name}
+                    disabled={busy}
+                  >
+                    <Trash2 />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar {connection.name}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Se eliminarán esta conexión y su token guardado de Zero y de los perfiles que
+                      la usan. Si un perfil tiene otro servidor seleccionado, pasará a usarlo. Los
+                      perfiles, su memoria y las reglas se conservan. Esto no revoca el token en
+                      Home Assistant.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
                       onClick={() =>
                         void run(async () => {
-                          await api(endpoint + '/' + access.id, 'PUT', {
-                            expected: access,
-                            name,
-                            expiresAt: new Date(expiry).toISOString(),
+                          await api(endpoint, 'DELETE', {
+                            id: connection.id,
+                            version: connection.version,
                           });
-                          await load();
-                          setNotice('Acceso actualizado.');
+                          await load(
+                            Math.max(0, offset - (page.items.length === 1 && offset > 0 ? 20 : 0)),
+                          );
+                          setNotice('Conexión eliminada.');
                         })
                       }
                     >
-                      <Save />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      tooltip="Cancelar edición"
-                      disabled={busy}
-                      onClick={() => setEditing(undefined)}
-                    >
-                      <X />
-                    </Button>
-                  </>
-                ) : (
-                  !revoked && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      tooltip={'Editar ' + access.name}
-                      disabled={busy}
-                      onClick={() => {
-                        setEditing(access);
-                        setName(access.name);
-                        const local = new Date(access.expiresAt);
-                        local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-                        setExpiry(local.toISOString().slice(0, 16));
-                      }}
-                    >
-                      <Pencil />
-                    </Button>
-                  )
-                )}
-                {!revoked && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        tooltip={'Revocar ' + access.name}
-                        disabled={busy}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Revocar {access.name}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          La integración perderá el acceso a voz, ajustes y reglas de Zero. Tendrás
-                          que vincularla de nuevo para recuperar el acceso. Las reglas y los
-                          perfiles guardados se conservan.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          variant="destructive"
-                          onClick={() =>
-                            void run(async () => {
-                              await api(endpoint + '/' + access.id, 'DELETE');
-                              await load();
-                              setNotice('Acceso revocado.');
-                            })
-                          }
-                        >
-                          Revocar acceso
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
+                      Eliminar conexión
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
       {page && page.total > 20 && (
         <div className="action-group">
@@ -220,7 +224,7 @@ export function HomeAssistantAccess() {
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Accesos anteriores"
+            tooltip="Conexiones anteriores"
             disabled={busy || offset === 0}
             onClick={() => void run(() => load(Math.max(0, offset - 20)))}
           >
@@ -233,35 +237,13 @@ export function HomeAssistantAccess() {
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Siguientes accesos"
-            disabled={busy || offset + 20 >= page.total}
+            tooltip="Siguientes conexiones"
+            disabled={busy || page.next_offset === null}
             onClick={() => void run(() => load(offset + 20))}
           >
             <ArrowRight />
           </Button>
         </div>
-      )}
-      {settings && (
-        <HomeAssistantUsers
-          settings={settings}
-          busy={busy}
-          onEdit={(route) => {
-            window.location.assign(
-              adminPath('/admin/?' + new URLSearchParams({ page: 'people', profile: route })),
-            );
-          }}
-          onUnlink={(userId) =>
-            void run(async () => {
-              await api('/v1/admin/setup/users', 'PUT', {
-                revision: settings.revision,
-                userId,
-                chatId: null,
-              });
-              await load();
-              setNotice('Usuario desvinculado.');
-            })
-          }
-        />
       )}
     </div>
   );
