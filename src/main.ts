@@ -1,3 +1,4 @@
+import { defaultZeroPrompt } from './application/prompts.js';
 import { PersonalLocation } from './application/personal-location.js';
 import { PostgresHomeAssistantConnections } from './adapters/outbound/postgres-home-assistant-connections.js';
 import { PublicConnection } from './application/public-connection.js';
@@ -590,9 +591,7 @@ const pairing = new HomeAssistantPairing(
   undefined,
   connectionUrl,
 );
-await zeroSettings.initialize(
-  prompts.main || 'Eres Zero, un asistente personal. Responde en español.',
-);
+await zeroSettings.initialize(prompts.main || defaultZeroPrompt);
 const codexCli = new Codex(
   config,
   store,
