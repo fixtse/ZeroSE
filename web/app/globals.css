@@ -2623,6 +2623,9 @@ h1 {
 .ha-entity-picker {
   min-width: 0;
 }
+.ha-entity-picker > label {
+  margin: 0 0 7px;
+}
 @media (max-width: 420px) {
   .member-search-toolbar {
     gap: 8px;
@@ -2641,17 +2644,23 @@ h1 {
 }
 
 .ha-entity-command {
-  margin-top: 8px;
+  margin-top: 0;
   border: 1px solid var(--border);
 }
 .ha-entity-command:focus-within {
   border-color: var(--primary);
 }
 .ha-entity-command [data-slot='command-input-wrapper'] {
-  padding-block: 8px;
+  padding-block: 0;
+  border-bottom: 0;
 }
 .ha-entity-command input {
+  height: 38px;
   margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 8px 0;
+  background: transparent;
 }
 
 /* Compact profile chrome and one grounded surface for each editor body. */
