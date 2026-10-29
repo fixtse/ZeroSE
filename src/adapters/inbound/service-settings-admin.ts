@@ -46,6 +46,7 @@ export class ServiceSettingsAdmin {
       query: SpeechQuery,
       signal: AbortSignal,
     ) => Promise<SpeechPage<SpeechVoice>>,
+    private serverConnectionUrl: () => string = () => '',
   ) {}
   async handle(
     req: IncomingMessage,
@@ -101,7 +102,13 @@ export class ServiceSettingsAdmin {
         fields: editableFields.map((field) => ({
           ...field,
           value:
-            field.type === 'secret' ? '' : (values[field.path] ?? flatten(template)[field.path]),
+            field.type === 'secret'
+              ? ''
+              : field.path === 'connectionUrl'
+                ? values[field.path] || this.serverConnectionUrl()
+                : (values[field.path] ?? flatten(template)[field.path]),
+          inherited:
+            field.path === 'connectionUrl' && !values[field.path] && !!this.serverConnectionUrl(),
           secretHint:
             field.type === 'secret'
               ? secretHint(values[field.path] as string | undefined)

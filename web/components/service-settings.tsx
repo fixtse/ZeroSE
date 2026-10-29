@@ -30,6 +30,7 @@ interface ServiceField {
   type: string;
   value: unknown;
   configured: boolean;
+  inherited?: boolean;
   secretHint?: string;
   readOnly: boolean;
 }
@@ -300,12 +301,19 @@ function SettingsForm({
               {group === 'braveApiKey' && <p>Búsqueda web e imágenes con la misma clave.</p>}
               {group === 'general' && (
                 <p>
-                  La URL pública de Zero se usa para Telegram, Google y otros servicios. Si está
-                  vacía, Home Assistant puede configurarla al integrar su relay HTTPS; mientras
-                  tanto se usa la dirección del administrador. Cambiarla no registra de nuevo los
-                  webhooks existentes.
+                  La URL pública de Zero se usa para Telegram, Google y otros servicios. Si está sin
+                  configurar, se usa la dirección del servidor. Home Assistant puede añadir su relay
+                  HTTPS si no hay una dirección pública configurada. Cambiarla no registra de nuevo
+                  los webhooks existentes.
                 </p>
               )}
+              {group === 'general' &&
+                settings.fields.find((field) => field.path === 'connectionUrl')?.inherited && (
+                  <p>
+                    La URL mostrada procede de la configuración del servidor. Puedes guardar otra
+                    dirección para sustituirla; dejar el campo vacío vuelve a usar la del servidor.
+                  </p>
+                )}
               {group === 'homeAssistant' ? (
                 <HomeAssistantAccess />
               ) : group === 'media' ? (

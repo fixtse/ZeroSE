@@ -939,6 +939,7 @@ const codex = new AIAgent(
           places.configure(config.places.photonUrl, config.places.osrmUrl);
         },
         (kind, language, query, signal) => edgeSpeechCatalog.page(kind, language, query, signal),
+        () => adminAuth.origin,
       ),
       async (userId, bot, chatId) => {
         const profile = await accessRepository.profile(bot, chatId);
@@ -954,6 +955,7 @@ const codex = new AIAgent(
         config.connectionUrl = url;
       },
       adminAuth.origin,
+      process.env.ASSISTANT_ADMIN_URL || '',
     ),
   );
 

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fixture as databaseFixture } from './helpers.js';
 
-function fixture() {
+function fixture(serverUrl = '') {
   let value = serviceConfig(
     ConfigSchema.parse({
       google: { clientSecret: 'private-google-secret' },
@@ -35,6 +35,8 @@ function fixture() {
     async (next) => {
       applied.push(structuredClone(next));
     },
+    undefined,
+    () => serverUrl,
   );
   return { admin, value: () => value, applied };
 }
@@ -475,4 +477,37 @@ test('public connection URL is editable, normalized and rejects credentials and 
   const cleared = await request(f.admin, 'PUT', { revision: 2, changes: { connectionUrl: '' } });
   assert.equal(cleared.status, 200);
   assert.equal(f.value().connectionUrl, '');
+});
+
+test('connection settings show the inherited server URL without persisting it on unrelated saves', async () => {
+  const f = fixture('https://existing.example');
+  const field = async () =>
+    (await request(f.admin, 'GET')).result.fields.find(
+      (value: any) => value.path === 'connectionUrl',
+    );
+  assert.equal((await field()).value, 'https://existing.example');
+  assert.equal((await field()).inherited, true);
+  assert.equal(
+    (await request(f.admin, 'PUT', { revision: 1, changes: { timezone: 'UTC' } })).status,
+    200,
+  );
+  assert.equal(f.value().connectionUrl, '');
+  assert.equal((await field()).value, 'https://existing.example');
+  assert.equal(
+    (
+      await request(f.admin, 'PUT', {
+        revision: 2,
+        changes: { connectionUrl: 'https://override.example' },
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await field()).value, 'https://override.example');
+  assert.equal((await field()).inherited, false);
+  assert.equal(
+    (await request(f.admin, 'PUT', { revision: 3, changes: { connectionUrl: '' } })).status,
+    200,
+  );
+  assert.equal((await field()).value, 'https://existing.example');
+  assert.equal((await field()).inherited, true);
 });
