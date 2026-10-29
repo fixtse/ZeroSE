@@ -1,3 +1,4 @@
+import { resolvePersonReference } from '../../domain/location-access.js';
 import { groupDistance } from '../../application/location-distance.js';
 import { UserContext, contextLimit } from '../../application/user-context.js';
 import { z } from 'zod';
@@ -232,7 +233,7 @@ export function registerHomeAssistantTools(
   if (setPerson && !group)
     tools.add(
       'location_set_person',
-      'Save the own person entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). No confirmation or matching against a previous tracker is needed. Call before location queries or alerts that use the declared identity. Never use this to assign another person or infer an identity from an alert target.',
+      'Save the own person entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). Use only when the user explicitly wants to set or change their own entity. If their profile already has a location, use it automatically for "me"; do not ask them to declare or confirm it. Never use this to assign another person or infer an identity from an alert target.',
       z.object({ entity_id: z.string().regex(/^person\.[a-z0-9_]+$/) }),
       async (a) => {
         const result = await setPerson(a.entity_id);
@@ -251,7 +252,7 @@ export function registerHomeAssistantTools(
   if (group || setPerson || config.locationEntity || config.geocodedLocationEntity)
     tools.add(
       'location_get',
-      'Read the user’s home/away presence, known zone, GPS coordinates/accuracy and geocoded address from Home Assistant, with source timestamps. In a group, pass member_name for a named person (for example Ken), or user_id from group_members_list. Omit both only for the message sender. A missing known zone does not imply missing location: use returned coordinates/address. Use those same coordinates for nearby places_search and preserve Google Maps links. Qualify old coordinates with their age.' +
+      'Read the user’s profile-configured location automatically; never ask for their entity when configured. Read home/away presence, known zone, GPS coordinates/accuracy and geocoded address from Home Assistant, with source timestamps. In a group, pass member_name for a named person (for example Ken), or user_id from group_members_list. Omit both only for the message sender. A missing known zone does not imply missing location: use returned coordinates/address. Use those same coordinates for nearby places_search and preserve Google Maps links. Qualify old coordinates with their age.' +
         pagingHelp,
       z.object({
         ...resultOffset,
@@ -304,7 +305,9 @@ export function registerHomeAssistantTools(
         return jsonPage(
           group && observation && typeof observation === 'object'
             ? { ...observation, subject_user_id: userId }
-            : observation,
+            : observation && typeof observation === 'object'
+              ? { ...observation, subject_entity_id: config.locationEntity || null }
+              : observation,
           a.result_offset,
         );
       },
@@ -328,10 +331,14 @@ export function registerHomeAssistantTools(
     );
   }
   if (ha.distance) {
+    const personReference =
+      setPerson && !group
+        ? z.union([z.string().regex(/^person\.[a-z0-9_]+$/), z.literal('self')])
+        : z.string().regex(/^person\.[a-z0-9_]+$/);
     const personPair = z
       .object({
-        person_a: z.string().regex(/^person\.[a-z0-9_]+$/),
-        person_b: z.string().regex(/^person\.[a-z0-9_]+$/),
+        person_a: personReference,
+        person_b: personReference,
         ...resultOffset,
       })
       .strict()
@@ -346,13 +353,17 @@ export function registerHomeAssistantTools(
       .refine((a) => a.user_a !== a.user_b, 'Choose two different members');
     tools.add(
       'ha_distance',
-      'Read approximate straight-line distance in metres from latest reported coordinates. In groups, discover members with group_members_list and pass user_a/user_b to use their assigned locations. Otherwise discover permitted person IDs with ha_location_entities and pass person_a/person_b. Clarify ambiguous names. Old coordinates still yield distance with current=false; identify stale/uncertain people and warn using source age/accuracy. No usable coordinates means no distance. No alerts or monitoring are created.',
+      'Read approximate straight-line distance in metres from latest reported coordinates. In groups, discover members with group_members_list and pass user_a/user_b to use their assigned locations. In private chats use "self" for the user, automatically resolving their saved profile location without asking for their entity. Otherwise discover permitted person IDs with ha_location_entities and pass person_a/person_b. Clarify ambiguous names. Old coordinates still yield distance with current=false; identify stale/uncertain people and warn using source age/accuracy. No usable coordinates means no distance. No alerts or monitoring are created.',
       group ? z.union([memberPair, personPair]) : personPair,
       async (a, c) =>
         jsonPage(
           'user_a' in a && group
             ? await groupDistance(group, a.user_a, a.user_b, c.signal)
-            : await ha.distance!(a.person_a, a.person_b, c.signal),
+            : await ha.distance!(
+                resolvePersonReference(a.person_a, config.locationEntity),
+                resolvePersonReference(a.person_b, config.locationEntity),
+                c.signal,
+              ),
           a.result_offset,
         ),
     );

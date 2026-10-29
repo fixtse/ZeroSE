@@ -876,3 +876,90 @@ test('location tools require both scoped entities and an HA capability before sa
     await f.close();
   }
 });
+
+test('private location alerts resolve self from the saved profile without a user declaration', async () => {
+  const f = await setup();
+  try {
+    f.scheduler.supportsLocationAlerts = async () => true;
+    f.scheduler.permitsLocationCondition = (condition) =>
+      condition.entity_id === 'person.edson' && condition.target_entity_id === 'person.sergio';
+    const reads: string[] = [];
+    const tools = new Tools(f.store);
+    registerNotificationTools(
+      tools,
+      f.rules,
+      {
+        locationEntity: async (entity: string) => {
+          reads.push(entity);
+          return {};
+        },
+      } as any,
+      () => 'person.sergio',
+    );
+    const context = {
+      session: 'telegram:1',
+      jobId: 'profile-self',
+      signal: AbortSignal.timeout(10000),
+    };
+    await tools.call(
+      'alert_create',
+      {
+        message: 'Edson está a menos de 300 metros',
+        condition: {
+          source: 'distance',
+          entity_id: 'person.edson',
+          target_entity_id: 'self',
+          operator: 'below',
+          distance_m: 300,
+        },
+      },
+      context,
+    );
+    assert.deepEqual(reads, ['person.edson', 'person.sergio']);
+    const installed = f.configurations.at(-1)?.condition;
+    assert(installed?.source === 'distance');
+    assert.equal(installed.target_entity_id, 'person.sergio');
+    const persisted = (await f.repository.list(context.session, 'alert', 0, 20)).items[0].condition;
+    assert(persisted?.source === 'distance');
+    assert.equal(persisted.target_entity_id, 'person.sergio');
+    const noOwnLocation = new Tools(f.store);
+    registerNotificationTools(noOwnLocation, f.rules, {} as any);
+    await assert.rejects(
+      noOwnLocation.call(
+        'alert_create',
+        {
+          message: 'No identity guessing',
+          condition: {
+            source: 'distance',
+            entity_id: 'person.edson',
+            target_entity_id: 'self',
+            operator: 'below',
+            distance_m: 300,
+          },
+        },
+        context,
+      ),
+    );
+    const unconfigured = new Tools(f.store);
+    registerNotificationTools(unconfigured, f.rules, {} as any, () => '');
+    await assert.rejects(
+      unconfigured.call(
+        'alert_create',
+        {
+          message: 'Missing profile location',
+          condition: {
+            source: 'distance',
+            entity_id: 'person.edson',
+            target_entity_id: 'self',
+            operator: 'below',
+            distance_m: 300,
+          },
+        },
+        context,
+      ),
+      /Configura una entidad person/,
+    );
+  } finally {
+    await f.close();
+  }
+});

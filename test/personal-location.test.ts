@@ -142,3 +142,43 @@ test('own-location declaration rejects groups, disabled profiles and missing HA 
     await f.close();
   }
 });
+
+test('private distance tools use the already configured profile person without calling the declaration tool', async () => {
+  const { ConfigSchema } = await import('../src/adapters/outbound/config-schema.js');
+  const config = ConfigSchema.parse({
+    homeAssistant: {
+      token: 'test-only',
+      locationEntity: 'person.sergio',
+      sensorEntities: ['person.edson'],
+    },
+  }).homeAssistant;
+  const calls: string[][] = [];
+  let declarations = 0;
+  const tools = new Tools({ audit: async () => {} });
+  registerHomeAssistantTools(
+    tools,
+    {
+      location: async () => ({ coordinates: { latitude: 40.4, longitude: -3.7 } }),
+      distance: async (a: string, b: string) => {
+        calls.push([a, b]);
+        return { distance_m: 200 };
+      },
+    } as any,
+    config,
+    undefined,
+    async () => {
+      declarations++;
+    },
+  );
+  const context = {
+    session: 'telegram:1',
+    jobId: 'existing-profile-location',
+    signal: AbortSignal.timeout(10000),
+  };
+  await tools.call('ha_distance', { person_a: 'person.edson', person_b: 'self' }, context);
+  assert.deepEqual(calls, [['person.edson', 'person.sergio']]);
+  const location = await tools.call('location_get', {}, context);
+  assert(JSON.stringify(location).includes('person.sergio'));
+  assert.equal(declarations, 0);
+  assert.equal(config.locationEntity, 'person.sergio');
+});

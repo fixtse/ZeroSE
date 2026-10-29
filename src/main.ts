@@ -559,7 +559,12 @@ async function services(context: ToolContext) {
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
   registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey, scoped.reader);
-  registerNotificationTools(tools, rules, scoped.homeAssistant.token ? ha : undefined);
+  registerNotificationTools(
+    tools,
+    rules,
+    scoped.homeAssistant.token ? ha : undefined,
+    profile?.kind === 'user' ? () => scoped.homeAssistant.locationEntity : undefined,
+  );
   registerPlacesTools(tools, places);
   registerPersonalDataTools(
     tools,

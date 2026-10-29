@@ -1,3 +1,4 @@
+import { resolvePersonReference } from '../../domain/location-access.js';
 import { z } from 'zod';
 import { Tools } from '../../application/tool-registry.js';
 import { jsonPage } from '../../application/context-budget.js';
@@ -17,7 +18,11 @@ export function registerNotificationTools(
   tools: Tools,
   rules: NotificationRules,
   ha?: HomeAssistantToolsPort,
+  ownLocation?: () => string,
 ) {
+  const personReference = ownLocation
+    ? z.union([z.string().regex(/^person\.[a-z0-9_]+$/), z.literal('self')])
+    : z.string().regex(/^person\.[a-z0-9_]+$/);
   const create = async (kind: NotificationRule['kind'], a: any, c: any) => {
     if (!sessionAddress(c.session))
       throw new Error('Notifications require a Telegram chat recipient');
@@ -32,6 +37,22 @@ export function registerNotificationTools(
     if (next && Date.parse(next) <= Date.now())
       throw new Error('Choose a future deadline with an explicit timezone offset');
     if (kind === 'alert' && isLocationCondition(a.condition)) {
+      a = {
+        ...a,
+        condition: {
+          ...a.condition,
+          entity_id: resolvePersonReference(a.condition.entity_id, ownLocation?.()),
+          target_entity_id:
+            a.condition.source === 'distance'
+              ? resolvePersonReference(a.condition.target_entity_id, ownLocation?.())
+              : a.condition.target_entity_id,
+        },
+      };
+      if (
+        a.condition.source === 'distance' &&
+        a.condition.entity_id === a.condition.target_entity_id
+      )
+        throw new Error('Choose two different people');
       if (!ha?.locationEntity) throw new Error('Location alert discovery is unavailable');
       await ha.locationEntity(a.condition.entity_id, c.signal);
       await ha.locationEntity(a.condition.target_entity_id, c.signal);
@@ -228,7 +249,7 @@ export function registerNotificationTools(
   );
   tools.add(
     'alert_create',
-    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person and zone; distance above/below watches two people in metres (straight-line). Location alerts start from a baseline and fire only on a later crossing; stale/missing/inaccurate GPS breaks holds. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
+    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person and zone; distance above/below watches two people in metres (straight-line). In private chats use "self" for the user: it automatically uses the person location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing; stale/missing/inaccurate GPS breaks holds. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
     z.object({
       message,
       condition: z.union([
@@ -245,7 +266,7 @@ export function registerNotificationTools(
           ),
         z.object({
           source: z.literal('zone'),
-          entity_id: z.string().regex(/^person\.[a-z0-9_]+$/),
+          entity_id: personReference,
           target_entity_id: z.string().regex(/^zone\.[a-z0-9_]+$/),
           operator: z.enum(['enter', 'leave']),
           reset_margin_m: z.number().finite().min(0).max(10000).default(0),
@@ -256,8 +277,8 @@ export function registerNotificationTools(
         z
           .object({
             source: z.literal('distance'),
-            entity_id: z.string().regex(/^person\.[a-z0-9_]+$/),
-            target_entity_id: z.string().regex(/^person\.[a-z0-9_]+$/),
+            entity_id: personReference,
+            target_entity_id: personReference,
             operator: z.enum(['above', 'below']),
             distance_m: z.number().finite().positive().max(40075000),
             reset_margin_m: z.number().finite().min(0).max(10000).default(100),
