@@ -881,8 +881,9 @@ test('private location alerts resolve self from the saved profile without a user
   const f = await setup();
   try {
     f.scheduler.supportsLocationAlerts = async () => true;
+    let ownEntity = 'person.sergio';
     f.scheduler.permitsLocationCondition = (condition) =>
-      condition.entity_id === 'person.edson' && condition.target_entity_id === 'person.sergio';
+      condition.entity_id === 'person.edson' && condition.target_entity_id === ownEntity;
     const reads: string[] = [];
     const tools = new Tools(f.store);
     registerNotificationTools(
@@ -894,7 +895,7 @@ test('private location alerts resolve self from the saved profile without a user
           return {};
         },
       } as any,
-      () => 'person.sergio',
+      () => ownEntity,
     );
     const context = {
       session: 'telegram:1',
@@ -922,6 +923,25 @@ test('private location alerts resolve self from the saved profile without a user
     const persisted = (await f.repository.list(context.session, 'alert', 0, 20)).items[0].condition;
     assert(persisted?.source === 'distance');
     assert.equal(persisted.target_entity_id, 'person.sergio');
+    ownEntity = 'device_tracker.sergio';
+    await tools.call(
+      'alert_create',
+      {
+        message: 'GPS tracker distance',
+        condition: {
+          source: 'distance',
+          entity_id: 'person.edson',
+          target_entity_id: 'self',
+          operator: 'below',
+          distance_m: 300,
+        },
+      },
+      context,
+    );
+    const trackerCondition = f.configurations.at(-1)?.condition;
+    assert(trackerCondition?.source === 'distance');
+    assert.equal(trackerCondition.target_entity_id, 'device_tracker.sergio');
+
     const noOwnLocation = new Tools(f.store);
     registerNotificationTools(noOwnLocation, f.rules, {} as any);
     await assert.rejects(
@@ -960,6 +980,67 @@ test('private location alerts resolve self from the saved profile without a user
       /Configura una entidad person/,
     );
   } finally {
+    await f.close();
+  }
+});
+
+test('tracker alerts require the integration capability and older integrations still allow cancellation', async () => {
+  const f = await fixture();
+  let supported = false;
+  let puts = 0;
+  const server = createServer(async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'GET') {
+      res.end(JSON.stringify({ device_tracker_location_alerts: supported }));
+      return;
+    }
+    let text = '';
+    for await (const chunk of req) text += chunk;
+    const body = JSON.parse(text);
+    puts++;
+    res.end(JSON.stringify({ id: body.id, generation: body.generation }));
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const scheduler = new HomeAssistantRuleScheduler({
+      ...f.config.homeAssistant,
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      token: 'test',
+      locationEntity: 'device_tracker.sergio',
+      sensorEntities: ['person.edson'],
+    });
+    const rule = {
+      ...value({
+        kind: 'alert',
+        next_at: null,
+        condition: {
+          source: 'distance',
+          entity_id: 'person.edson',
+          target_entity_id: 'device_tracker.sergio',
+          operator: 'below',
+          distance_m: 300,
+          reset_margin_m: 100,
+          hold_seconds: 0,
+          max_age_seconds: 3600,
+          max_accuracy_m: 200,
+        },
+      }),
+      id: randomUUID(),
+      version: 0,
+      generation: 0,
+    };
+    await assert.rejects(scheduler.configure(rule), /1.8.0/);
+    assert.equal(puts, 0);
+    supported = true;
+    await scheduler.configure(rule);
+    assert.equal(puts, 1);
+    supported = false;
+    await scheduler.configure({ ...rule, status: 'cancelled' });
+    assert.equal(puts, 2);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     await f.close();
   }
 });

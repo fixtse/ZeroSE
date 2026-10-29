@@ -366,3 +366,61 @@ test('group distance uses assigned member locations without requiring person all
     tools.call('ha_distance', { user_a: '12', user_b: '13', person_a: 'person.private' }, ctx),
   );
 });
+
+test('GPS queries accept person/tracker pairs and resolve self from a configured tracker', async () => {
+  const now = new Date().toISOString();
+  const states = ['person.edson', 'device_tracker.edson', 'device_tracker.sergio'].map(
+    (entity_id, index) => ({
+      entity_id,
+      state: 'not_home',
+      last_reported: now,
+      attributes: { latitude: 40.4 + index * 0.0001, longitude: -3.7, gps_accuracy: 5 },
+    }),
+  );
+  const server = createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify(
+        req.url === '/api/states'
+          ? states
+          : states.find((s) => '/api/states/' + s.entity_id === req.url),
+      ),
+    );
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const config = ConfigSchema.parse({
+    homeAssistant: {
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      token: 'test',
+      locationEntity: 'device_tracker.sergio',
+      sensorEntities: ['person.edson', 'device_tracker.edson'],
+    },
+  }).homeAssistant;
+  const ha = new HomeAssistant(config);
+  try {
+    assert.equal((await ha.locationEntities('', 0, 20)).total, 3);
+    for (const pair of [
+      ['person.edson', 'device_tracker.sergio'],
+      ['device_tracker.edson', 'device_tracker.sergio'],
+      ['device_tracker.sergio', 'person.edson'],
+    ])
+      assert.equal((await ha.distance(pair[0], pair[1])).current, true);
+    const tools = new Tools({ audit: async () => {} });
+    registerHomeAssistantTools(tools, ha, config, undefined, async () => {
+      throw new Error('Existing profile must be used');
+    });
+    const result: any = await tools.call(
+      'ha_distance',
+      { person_a: 'person.edson', person_b: 'self' },
+      { session: 'telegram:1', jobId: 'tracker', signal: AbortSignal.timeout(10000) },
+    );
+    assert.equal(result.current, true);
+    assert.equal(result.locations[1].entity_id, 'device_tracker.sergio');
+    await assert.rejects(ha.locationEntity('device_tracker.private'), /not permitted/);
+    await assert.rejects(ha.distance('person.edson', 'sensor.address'), /not permitted/);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});

@@ -53,6 +53,17 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
     return (await this.request('', 'GET'))?.hourly_updates === true;
   }
   async configure(rule: NotificationRule, signal?: AbortSignal) {
+    if (
+      rule.status === 'active' &&
+      isLocationCondition(rule.condition) &&
+      [rule.condition.entity_id, rule.condition.target_entity_id].some((id) =>
+        id.startsWith('device_tracker.'),
+      ) &&
+      (await this.request('', 'GET', undefined, signal))?.device_tracker_location_alerts !== true
+    )
+      throw new Error(
+        'Actualiza la integración Zero de Home Assistant a 1.8.0 o posterior para usar alertas con device_tracker.',
+      );
     let weatherEntity = this.config.weatherEntity;
     if (rule.condition?.source === 'weather' && !weatherEntity) {
       const states = await jsonRequest(

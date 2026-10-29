@@ -233,8 +233,8 @@ export function registerHomeAssistantTools(
   if (setPerson && !group)
     tools.add(
       'location_set_person',
-      'Save the own person entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). Use only when the user explicitly wants to set or change their own entity. If their profile already has a location, use it automatically for "me"; do not ask them to declare or confirm it. Never use this to assign another person or infer an identity from an alert target.',
-      z.object({ entity_id: z.string().regex(/^person\.[a-z0-9_]+$/) }),
+      'Save the own person or device_tracker GPS entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). Use only when the user explicitly wants to set or change their own entity. If their profile already has a location, use it automatically for "me"; do not ask them to declare or confirm it. Never use this to assign another person or infer an identity from an alert target.',
+      z.object({ entity_id: z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/) }),
       async (a) => {
         const result = await setPerson(a.entity_id);
         config.locationEntity = a.entity_id;
@@ -315,7 +315,7 @@ export function registerHomeAssistantTools(
   if (ha.locationEntities && ha.locationEntity) {
     tools.add(
       'ha_location_entities',
-      'Discover permitted person and zone IDs for distance queries and location alerts. Search and paginate; group membership does not grant monitoring permission.',
+      'Discover permitted person, device_tracker and zone IDs for distance queries and location alerts. Search and paginate; group membership does not grant monitoring permission.',
       z.object({ search: z.string().max(200).default(''), ...pagination }),
       async (a, c) =>
         jsonPage(
@@ -325,16 +325,19 @@ export function registerHomeAssistantTools(
     );
     tools.add(
       'ha_location_entity',
-      'Read one permitted person or zone: coordinates, GPS accuracy, radius and timestamps.',
-      z.object({ entity_id: z.string().regex(/^(person|zone)\.[a-z0-9_]+$/), ...resultOffset }),
+      'Read one permitted person, device_tracker or zone: coordinates, GPS accuracy, radius and timestamps.',
+      z.object({
+        entity_id: z.string().regex(/^(person|device_tracker|zone)\.[a-z0-9_]+$/),
+        ...resultOffset,
+      }),
       async (a, c) => jsonPage(await ha.locationEntity!(a.entity_id, c.signal), a.result_offset),
     );
   }
   if (ha.distance) {
     const personReference =
       setPerson && !group
-        ? z.union([z.string().regex(/^person\.[a-z0-9_]+$/), z.literal('self')])
-        : z.string().regex(/^person\.[a-z0-9_]+$/);
+        ? z.union([z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/), z.literal('self')])
+        : z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/);
     const personPair = z
       .object({
         person_a: personReference,
@@ -353,7 +356,7 @@ export function registerHomeAssistantTools(
       .refine((a) => a.user_a !== a.user_b, 'Choose two different members');
     tools.add(
       'ha_distance',
-      'Read approximate straight-line distance in metres from latest reported coordinates. In groups, discover members with group_members_list and pass user_a/user_b to use their assigned locations. In private chats use "self" for the user, automatically resolving their saved profile location without asking for their entity. Otherwise discover permitted person IDs with ha_location_entities and pass person_a/person_b. Clarify ambiguous names. Old coordinates still yield distance with current=false; identify stale/uncertain people and warn using source age/accuracy. No usable coordinates means no distance. No alerts or monitoring are created.',
+      'Read approximate straight-line distance in metres from latest reported coordinates. In groups, discover members with group_members_list and pass user_a/user_b to use their assigned locations. In private chats use "self" for the user, automatically resolving their saved profile location without asking for their entity. Otherwise discover permitted person or device_tracker IDs with ha_location_entities and pass person_a/person_b. Clarify ambiguous names. Old coordinates still yield distance with current=false; identify stale/uncertain people and warn using source age/accuracy. No usable coordinates means no distance. No alerts or monitoring are created.',
       group ? z.union([memberPair, personPair]) : personPair,
       async (a, c) =>
         jsonPage(

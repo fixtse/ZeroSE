@@ -203,7 +203,10 @@ export class HomeAssistant {
     if (first === second) throw new Error('Choose two different people');
     // Check both scopes before fetching either location.
     for (const entity of [first, second])
-      if (!/^person\.[a-z0-9_]+$/.test(entity) || !permitsLocationEntity(this.config, entity))
+      if (
+        !/^(person|device_tracker)\.[a-z0-9_]+$/.test(entity) ||
+        !permitsLocationEntity(this.config, entity)
+      )
         throw new Error('Person entity is not permitted');
     const [a, b] = await Promise.all([
       this.locationEntity(first, signal),

@@ -21,8 +21,8 @@ export function registerNotificationTools(
   ownLocation?: () => string,
 ) {
   const personReference = ownLocation
-    ? z.union([z.string().regex(/^person\.[a-z0-9_]+$/), z.literal('self')])
-    : z.string().regex(/^person\.[a-z0-9_]+$/);
+    ? z.union([z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/), z.literal('self')])
+    : z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/);
   const create = async (kind: NotificationRule['kind'], a: any, c: any) => {
     if (!sessionAddress(c.session))
       throw new Error('Notifications require a Telegram chat recipient');
@@ -249,7 +249,7 @@ export function registerNotificationTools(
   );
   tools.add(
     'alert_create',
-    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person and zone; distance above/below watches two people in metres (straight-line). In private chats use "self" for the user: it automatically uses the person location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing; stale/missing/inaccurate GPS breaks holds. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
+    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person/device_tracker and zone; distance above/below watches two GPS entities (person or device_tracker) in metres (straight-line). In private chats use "self" for the user: it automatically uses the person or device_tracker GPS location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing; stale/missing/inaccurate GPS breaks holds. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
     z.object({
       message,
       condition: z.union([

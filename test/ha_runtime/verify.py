@@ -294,6 +294,8 @@ async def main():
             assert result["type"] == "create_entry", result
             assert manager.config["callback_url"].startswith("http://new-zero.invalid")
             assert manager.engine.rules == before
+            from tracker_location_checks import verify_tracker_locations
+            await verify_tracker_locations(hass, manager)
             assert len(hass.config_entries.async_entries("assistant_zero")) == 1
             assert not hass.config_entries.async_entries("assistant_rules")
             for domain in ("assistant_zero",):

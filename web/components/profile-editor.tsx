@@ -705,7 +705,7 @@ export function ProfileEditor({
                         id="profile-ha-sensors"
                         name="ha-sensorEntities"
                         label="Sensores y ubicaciones permitidos"
-                        domains="sensor,binary_sensor,person,zone"
+                        domains="sensor,binary_sensor,person,device_tracker,zone"
                         defaultValues={current.homeAssistant?.sensorEntities || []}
                       />
                     </>

@@ -9,7 +9,8 @@ export class PersonalLocation {
     private defaults: Config['homeAssistant'],
   ) {}
   async assign(session: string, entity: string) {
-    if (!/^person\.[a-z0-9_]+$/.test(entity)) throw new Error('Indica una entidad person válida.');
+    if (!/^(person|device_tracker)\.[a-z0-9_]+$/.test(entity))
+      throw new Error('Indica una entidad person válida o device_tracker con GPS.');
     const address = sessionAddress(session);
     const profile = address && (await this.profiles.profile(address.bot, address.chatId));
     if (
