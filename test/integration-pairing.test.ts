@@ -390,3 +390,46 @@ test('admin HA links resolve names independently of profile search and preserve 
     await f.close();
   }
 });
+
+test('admin edits integration access with concurrency protection and cannot revive a revoked token', async () => {
+  const f = await setup();
+  try {
+    const issued = await f.tokens.issue('Home Assistant original', 30);
+    const { token, ...expected } = issued;
+    const admin = new SetupAdmin(
+      f.tokens,
+      f.pairing,
+      f.settings,
+      f.profiles,
+      'https://zero.example',
+    );
+    async function edit(snapshot: typeof expected, name = 'Home Assistant salón') {
+      let status = 0;
+      await admin.handle(
+        { method: 'PUT' } as any,
+        '/v1/admin/setup/tokens/' + issued.id,
+        async () => ({
+          expected: snapshot,
+          name,
+          expiresAt: new Date(Date.now() + 60 * 86400000).toISOString(),
+        }),
+        (code) => {
+          status = code;
+        },
+      );
+      return status;
+    }
+    assert.equal(await edit(expected), 200);
+    const updated = (await f.tokens.list(0, 20)).items.find((item) => item.id === issued.id)!;
+    assert.equal(updated.name, 'Home Assistant salón');
+    assert.equal(await f.tokens.authorize('Bearer ' + token, 'voice'), true);
+    assert.equal(await edit(expected, 'Stale update'), 409);
+    await f.tokens.revoke(issued.id);
+    assert.equal(await edit(updated), 409);
+    assert.equal(await f.tokens.authorize('Bearer ' + token, 'voice'), false);
+    const page = await f.tokens.list(0, 20);
+    assert.equal(JSON.stringify(page).includes(token), false);
+  } finally {
+    await f.close();
+  }
+});

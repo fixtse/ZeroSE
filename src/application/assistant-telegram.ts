@@ -15,20 +15,23 @@ export class AssistantTelegram {
   constructor(
     private repository: AssistantTelegramRepository,
     private legacy: Config['telegram'],
-    private publicUrl: string,
+    private publicUrl: string | (() => string),
     private definitions: Pick<AssistantDefinitions, 'get'>,
     private validate: (token: string) => Promise<void>,
     private secret: () => string,
     private webhooks: WebhookControl,
     private changed: (id: string) => Promise<void>,
   ) {}
+  private connectionUrl() {
+    return typeof this.publicUrl === 'function' ? this.publicUrl() : this.publicUrl;
+  }
   async effective(id: string): Promise<BotSettings> {
     const saved = await this.repository.bot(id);
     return saved
       ? {
           ...saved,
           transport: saved.transport || 'webhook',
-          webhookUrl: saved.webhookUrl || this.publicUrl + telegramWebhookPath(id),
+          webhookUrl: saved.webhookUrl || this.connectionUrl() + telegramWebhookPath(id),
         }
       : id === 'zero'
         ? {
@@ -37,7 +40,7 @@ export class AssistantTelegram {
             enabled: !!this.legacy.token && this.legacy.transport !== 'disabled',
             transport: this.legacy.transport,
             webhookSecret: this.legacy.webhookSecret,
-            webhookUrl: this.publicUrl + telegramWebhookPath(id),
+            webhookUrl: this.connectionUrl() + telegramWebhookPath(id),
             revision: 0,
           }
         : {
@@ -45,7 +48,7 @@ export class AssistantTelegram {
             token: '',
             enabled: false,
             transport: 'webhook',
-            webhookUrl: this.publicUrl + telegramWebhookPath(id),
+            webhookUrl: this.connectionUrl() + telegramWebhookPath(id),
             revision: 0,
           };
   }
@@ -106,7 +109,10 @@ export class AssistantTelegram {
         url.password ||
         url.search ||
         url.hash ||
-        url.pathname !== telegramWebhookPath(id)
+        ![
+          telegramWebhookPath(id),
+          new URL(this.connectionUrl()).pathname.replace(/\/+$/, '') + telegramWebhookPath(id),
+        ].includes(url.pathname)
       )
         throw new Error(
           'Usa una URL HTTPS pública que termine en ' +

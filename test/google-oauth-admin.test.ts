@@ -10,7 +10,7 @@ import {
 import { ConfigSchema } from '../src/adapters/outbound/config-schema.js';
 import type { AccessProfile } from '../src/domain/access.js';
 
-function setup() {
+function setup(redirectOrigin = 'https://zero.example', adminOrigin?: string) {
   const config = ConfigSchema.parse({});
   const profile: AccessProfile = {
     bot: 'zero',
@@ -41,9 +41,10 @@ function setup() {
         },
       },
       oauth,
-      'https://zero.example' + googleCallbackPath,
+      redirectOrigin + googleCallbackPath,
       config.google,
     ),
+    adminOrigin,
   );
   async function request(
     url: string,
@@ -242,4 +243,31 @@ test('callback errors distinguish missing cookies, invalid parameters and missin
     cookie,
   );
   assert.equal(unknown.value.code, 'state_missing');
+});
+
+test('relay redirect URI keeps initiation and cookie binding at the Zero admin origin', async () => {
+  const f = setup('https://ha.example/api/assistant_zero/relay/entry', 'https://zero.example');
+  const path = '/v1/admin/profiles/zero/123/google/oauth';
+  const details = await f.request(path, 'GET');
+  assert.equal(details.value.adminOrigin, 'https://zero.example');
+  assert.equal(
+    details.value.redirectUri,
+    'https://ha.example/api/assistant_zero/relay/entry' + googleCallbackPath,
+  );
+  const started = await f.request(path, 'POST', {}, '', 'https://zero.example');
+  assert.equal(started.status, 200);
+  const state = new URL(started.value.authorizationUrl).searchParams.get('state')!;
+  const cookies = started.headers['Set-Cookie'] as string[];
+  const cookie = cookies
+    .find((value) => value.startsWith('__Host-zero-google-oauth='))!
+    .split(';')[0];
+  const callback = await f.request(
+    googleCallbackPath + '?' + new URLSearchParams({ state, code: 'relay-code' }),
+    'GET',
+    {},
+    cookie,
+  );
+  assert.equal(callback.status, 303);
+  assert.equal(f.exchanged(), 1);
+  assert.equal((await f.request(path, 'POST', {}, '', 'https://ha.example')).status, 400);
 });

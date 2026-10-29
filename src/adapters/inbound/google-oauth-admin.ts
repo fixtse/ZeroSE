@@ -12,7 +12,10 @@ export const googleCallbackPath = '/v1/admin/google/oauth/callback';
 
 /** Initiation uses admin authentication/CSRF checks. Callback uses single-use state + browser cookie. */
 export class GoogleOAuthAdmin {
-  constructor(private connection: GoogleConnection) {}
+  constructor(
+    private connection: GoogleConnection,
+    private adminOrigin?: string,
+  ) {}
   async handle(
     req: IncomingMessage,
     res: ServerResponse,
@@ -20,7 +23,8 @@ export class GoogleOAuthAdmin {
     read: () => Promise<unknown>,
     send: (status: number, value: unknown) => void,
   ) {
-    const cookieName = this.connection.redirectUri.startsWith('https:')
+    const origin = this.adminOrigin || new URL(this.connection.redirectUri).origin;
+    const cookieName = origin.startsWith('https:')
       ? '__Host-zero-google-oauth'
       : 'zero-google-oauth';
     const browser =
@@ -74,7 +78,10 @@ export class GoogleOAuthAdmin {
     if (!match) return false;
     if (req.method === 'GET' && !match[3]) {
       try {
-        send(200, await this.connection.details(match[1] as BotId, match[2]));
+        send(200, {
+          ...(await this.connection.details(match[1] as BotId, match[2])),
+          adminOrigin: origin,
+        });
       } catch {
         send(404, { error: 'Perfil no encontrado.' });
       }
@@ -84,12 +91,12 @@ export class GoogleOAuthAdmin {
       send(405, { error: 'Método no permitido.' });
       return true;
     }
-    if (req.headers.origin && req.headers.origin !== new URL(this.connection.redirectUri).origin) {
+    if (req.headers.origin && req.headers.origin !== origin) {
       send(400, {
         code: 'origin_mismatch',
         error:
           'Abre Zero en ' +
-          new URL(this.connection.redirectUri).origin +
+          origin +
           '/admin/ antes de conectar Google. La autorización debe empezar y terminar en la misma dirección.',
       });
       return true;
@@ -129,7 +136,7 @@ export class GoogleOAuthAdmin {
         input.clientId,
         input.clientSecret,
       );
-      const secure = this.connection.redirectUri.startsWith('https:') ? '; Secure' : '';
+      const secure = origin.startsWith('https:') ? '; Secure' : '';
       const cookies = res.getHeader('Set-Cookie');
       res.setHeader('Set-Cookie', [
         ...(Array.isArray(cookies) ? cookies.map(String) : cookies ? [String(cookies)] : []),

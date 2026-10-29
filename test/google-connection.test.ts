@@ -319,3 +319,31 @@ test('Google connection CAS preserves unrelated credentials and rejects changed 
     await f.close();
   }
 });
+
+test('new OAuth attempts use the current connection URL and keep their original exchange URL', async () => {
+  const f = setup();
+  let redirect = 'https://old.example/v1/admin/google/oauth/callback';
+  let exchanged = '';
+  const flow = new GoogleConnection(
+    f.repository,
+    {
+      ...f.oauth,
+      exchange: async (input) => {
+        exchanged = input.redirectUri;
+        return f.oauth.exchange(input);
+      },
+    },
+    () => redirect,
+    f.config.google,
+  );
+  const authorization = new URL(await flow.begin('zero', '123', 'browser'));
+  assert.equal(authorization.searchParams.get('redirect_uri'), redirect);
+  redirect = 'https://new.example/v1/admin/google/oauth/callback';
+  assert.equal((await flow.details('zero', '123')).redirectUri, redirect);
+  assert.equal(
+    (await flow.complete(authorization.searchParams.get('state')!, 'browser', 'code', false))
+      .status,
+    'connected',
+  );
+  assert.equal(exchanged, 'https://old.example/v1/admin/google/oauth/callback');
+});

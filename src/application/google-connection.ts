@@ -68,6 +68,7 @@ export interface GoogleConnectionRepository {
   ): Promise<boolean>;
 }
 interface Pending {
+  redirectUri: string;
   bot: BotId;
   chatId: string;
   browser: string;
@@ -85,11 +86,14 @@ export class GoogleConnection {
   constructor(
     private repository: GoogleConnectionRepository,
     private oauth: GoogleOAuthPort,
-    readonly redirectUri: string,
+    private redirect: string | (() => string),
     private ownerGoogle: Config['google'],
     private ownerTaskProvider = 'google',
     private now: () => number = Date.now,
   ) {}
+  get redirectUri() {
+    return typeof this.redirect === 'function' ? this.redirect() : this.redirect;
+  }
   async details(bot: BotId, chatId: string) {
     const profile = await this.repository.profile(bot, chatId);
     if (!profile) throw new GoogleConnectionError('Guarda el perfil antes de conectar Google.');
@@ -132,7 +136,9 @@ export class GoogleConnection {
       throw new GoogleConnectionError('Introduce el client ID y su client secret.');
     const state = randomBytes(32).toString('base64url');
     const verifier = randomBytes(32).toString('base64url');
+    const redirectUri = this.redirectUri;
     this.pending.set(state, {
+      redirectUri,
       bot,
       chatId,
       browser,
@@ -145,7 +151,7 @@ export class GoogleConnection {
     });
     return this.oauth.authorizationUrl({
       clientId: resolvedId,
-      redirectUri: this.redirectUri,
+      redirectUri,
       state,
       scopes,
       challenge: createHash('sha256').update(verifier).digest('base64url'),
@@ -173,7 +179,7 @@ export class GoogleConnection {
     try {
       const refreshToken = await this.oauth.exchange({
         ...attempt.client,
-        redirectUri: this.redirectUri,
+        redirectUri: attempt.redirectUri,
         verifier: attempt.verifier,
         code,
       });

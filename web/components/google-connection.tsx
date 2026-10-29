@@ -33,6 +33,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
   const [clientId, setClientId] = useState(google?.clientId || legacy?.clientId || '');
   const [clientSecret, setClientSecret] = useState('');
   const [redirectUri, setRedirectUri] = useState('');
+  const [adminOrigin, setAdminOrigin] = useState('');
   const [services, setServices] = useState<string[]>([]);
   const [outcome, setOutcome] = useState('');
   const [embedded, setEmbedded] = useState(false);
@@ -49,9 +50,13 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
     setEmbedded(window.self !== window.top);
     if (path)
       void run(async () => {
-        const info = await api<{ redirectUri: string; scopes: string[] }>(path);
+        const info = await api<{ redirectUri: string; scopes: string[]; adminOrigin?: string }>(
+          path,
+        );
         setRedirectUri(info.redirectUri);
-        setWrongOrigin(location.origin !== new URL(info.redirectUri).origin);
+        const origin = info.adminOrigin || new URL(info.redirectUri).origin;
+        setAdminOrigin(origin);
+        setWrongOrigin(location.origin !== origin);
         const names: Record<string, string> = {
           calendar: 'Calendar',
           tasks: 'Tasks',
@@ -126,7 +131,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
             target="_blank"
             rel="noopener noreferrer"
             href={
-              new URL(redirectUri).origin +
+              adminOrigin +
               '/admin/?' +
               new URLSearchParams({
                 page: 'people',
@@ -135,7 +140,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
               })
             }
           >
-            abre este perfil en la dirección pública de Zero
+            abre este perfil en el administrador de Zero
           </a>
           .
         </p>

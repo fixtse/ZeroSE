@@ -11,6 +11,7 @@ export interface Config {
   apiKey: string;
   dataDir: string;
   database: { url: string };
+  connectionUrl?: string;
   timezone: string;
   concurrency: number;
   codex: {

@@ -38,6 +38,7 @@ export function HomeAssistantUsers({
             <div className="ha-user-summary">
               {user.profileRoute && user.assistantId && (
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="ha-user-avatar"
@@ -58,6 +59,7 @@ export function HomeAssistantUsers({
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
+                    type="button"
                     variant="destructive"
                     size="icon"
                     disabled={busy}

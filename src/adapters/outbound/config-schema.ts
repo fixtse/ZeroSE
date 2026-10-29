@@ -11,6 +11,28 @@ export const BootstrapConfigSchema = z.object({
 
 const secret = z.string().default('');
 export const ServiceConfigSchema = z.object({
+  connectionUrl: z
+    .string()
+    .trim()
+    .max(2000)
+    .default('')
+    .refine((value) => {
+      if (!value) return true;
+      try {
+        const url = new URL(value);
+        return (
+          ['http:', 'https:'].includes(url.protocol) &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash &&
+          /^\/[a-zA-Z0-9/_-]*$/.test(url.pathname)
+        );
+      } catch {
+        return false;
+      }
+    }, 'Usa una URL HTTP o HTTPS sin credenciales ni parámetros.')
+    .transform((value) => value.replace(/\/+$/, '')),
   timezone: z.string().default('Europe/Madrid'),
   concurrency: z.number().int().min(1).max(16).default(4),
   codex: z

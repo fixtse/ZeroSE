@@ -37,6 +37,8 @@ async def main():
             catalog_patch = patch.object(conversation_module, "bridge_request", new=AsyncMock(side_effect=catalog_request))
             catalog_patch.start()
             assert await async_setup_component(hass, "assistant_zero", {})
+            from relay_checks import verify_relay
+            await verify_relay(hass)
             from recovery_checks import verify_recovery
             await verify_recovery(hass)
             zero = importlib.import_module("custom_components.assistant_zero.config_flow")

@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { AudioLines, BookOpen, Search, Map, Save, Settings2, Trash2 } from 'lucide-react';
+import { Home, AudioLines, BookOpen, Search, Map, Save, Settings2, Trash2 } from 'lucide-react';
 import { useUrlState } from '../hooks/use-url-state';
+import { HomeAssistantAccess } from './home-assistant-access';
 import { SecretEditor } from './secret-editor';
 import { ServiceSpeechPicker } from './service-speech-picker';
 import {
@@ -37,6 +38,7 @@ interface Settings {
   fields: ServiceField[];
 }
 const names: Record<string, string> = {
+  homeAssistant: 'Home Assistant',
   general: 'General',
   media: 'Vídeo y voz',
   reader: 'Jina AI',
@@ -44,6 +46,7 @@ const names: Record<string, string> = {
   braveApiKey: 'Brave Search',
 };
 const icons = {
+  homeAssistant: Home,
   general: Settings2,
   media: AudioLines,
   reader: BookOpen,
@@ -51,6 +54,7 @@ const icons = {
   braveApiKey: Search,
 };
 const fieldNames: Record<string, string> = {
+  connectionUrl: 'URL de conexión pública',
   timezone: 'Zona horaria',
   concurrency: 'Conversaciones simultáneas',
   url: 'URL del servicio',
@@ -155,14 +159,17 @@ function SettingsForm({
   save,
   formId,
   reload,
+  tab,
+  setTab,
 }: {
   settings: Settings;
+  tab: string;
+  setTab: (value: string) => void;
   reload: () => Promise<void>;
   formId: string;
   busy: boolean;
   save: (data: FormData, extra: Record<string, unknown>) => void;
 }) {
-  const [tab, setTab] = useUrlState('settingsTab', 'general');
   const [cleared, setCleared] = useState<string[]>([]);
   const get = (path: string) =>
     String(settings.fields.find((field) => field.path === path)?.value ?? '');
@@ -177,8 +184,8 @@ function SettingsForm({
     return match?.[1] || '';
   });
   const groupFor = (field: ServiceField) =>
-    ['timezone', 'concurrency'].includes(field.group) ? 'general' : field.group;
-  const groups = [...new Set(settings.fields.map(groupFor))].sort((a, b) =>
+    ['connectionUrl', 'timezone', 'concurrency'].includes(field.group) ? 'general' : field.group;
+  const groups = [...new Set([...settings.fields.map(groupFor), 'homeAssistant'])].sort((a, b) =>
     a === 'general' ? -1 : b === 'general' ? 1 : 0,
   );
   function renderField(field: ServiceField) {
@@ -291,7 +298,17 @@ function SettingsForm({
             >
               <h3>{names[group] || group}</h3>
               {group === 'braveApiKey' && <p>Búsqueda web e imágenes con la misma clave.</p>}
-              {group === 'media' ? (
+              {group === 'general' && (
+                <p>
+                  La URL pública de Zero se usa para Telegram, Google y otros servicios. Si está
+                  vacía, Home Assistant puede configurarla al integrar su relay HTTPS; mientras
+                  tanto se usa la dirección del administrador. Cambiarla no registra de nuevo los
+                  webhooks existentes.
+                </p>
+              )}
+              {group === 'homeAssistant' ? (
+                <HomeAssistantAccess />
+              ) : group === 'media' ? (
                 <>
                   <div className="settings-grid">
                     <SelectField
@@ -388,6 +405,7 @@ function SettingsForm({
 
 export function ServiceSettings() {
   const formId = useId();
+  const [activeTab, setActiveTab] = useUrlState('settingsTab', 'general');
   const [settings, setSettings] = useState<Settings>();
   const { busy, run, setNotice } = useAdminTask();
   const endpoint = '/v1/admin/setup/services';
@@ -442,21 +460,25 @@ export function ServiceSettings() {
       <div className="service-settings-heading">
         <h2>Ajustes</h2>
         <div className="action-group">
-          <Button
-            type="submit"
-            form={formId}
-            disabled={busy || !settings}
-            size="icon"
-            tooltip="Guardar ajustes"
-          >
-            <Save />
-          </Button>
+          {activeTab !== 'homeAssistant' && (
+            <Button
+              type="submit"
+              form={formId}
+              disabled={busy || !settings}
+              size="icon"
+              tooltip="Guardar ajustes"
+            >
+              <Save />
+            </Button>
+          )}
         </div>
       </div>
       {settings ? (
         <SettingsForm
           key={settings.revision}
           settings={settings}
+          tab={activeTab}
+          setTab={setActiveTab}
           formId={formId}
           busy={busy}
           save={save}

@@ -1,3 +1,4 @@
+import { integrationScopes } from '../../domain/integration-access.js';
 import { isBotId } from '../../domain/access.js';
 import type { ServiceSettingsAdmin } from './service-settings-admin.js';
 import type { AssistantAdmin } from './assistant-admin.js';
@@ -22,6 +23,7 @@ export class SetupAdmin {
       bot: string,
       chatId: string,
     ) => Promise<string | undefined> = async () => undefined,
+    private connectionUrl: () => string = () => publicUrl,
   ) {}
   async handle(
     req: IncomingMessage,
@@ -36,7 +38,7 @@ export class SetupAdmin {
       send(200, {
         homeAssistantConnected: await this.homeAssistantConnected(),
         url: this.publicUrl,
-        callbackUrl: this.publicUrl + '/v1/triggers/rule-events',
+        callbackUrl: this.connectionUrl() + '/v1/triggers/rule-events',
         discovery: '_zero-assistant._tcp',
         fields: ['url', 'token', 'callback_url', 'callback_token', 'settings_token'],
       });
@@ -64,6 +66,41 @@ export class SetupAdmin {
         .strict()
         .parse(await read());
       send(201, await this.tokens.issue(input.name, input.days));
+    } else if (/^\/v1\/admin\/setup\/tokens\/[a-f0-9-]+$/.test(path) && req.method === 'PUT') {
+      const id = z.uuid().parse(path.split('/').pop());
+      const input = z
+        .object({
+          name: z.string().trim().min(1).max(100),
+          expiresAt: z.iso
+            .datetime()
+            .refine(
+              (value) =>
+                Date.parse(value) > Date.now() && Date.parse(value) <= Date.now() + 3650 * 86400000,
+            ),
+          expected: z
+            .object({
+              id: z.uuid(),
+              name: z.string(),
+              scopes: z.array(z.enum(integrationScopes)),
+              createdAt: z.iso.datetime(),
+              expiresAt: z.iso.datetime(),
+              revokedAt: z.iso.datetime().nullable(),
+            })
+            .strict(),
+        })
+        .strict()
+        .parse(await read());
+      if (id !== input.expected.id) {
+        send(400, { error: 'Acceso inválido.' });
+        return true;
+      }
+      const saved = await this.tokens.edit(id, input.expected, input.name, input.expiresAt);
+      send(
+        saved ? 200 : 409,
+        saved
+          ? { saved: true }
+          : { error: 'El acceso ha cambiado o se ha revocado. Recarga antes de editar.' },
+      );
     } else if (/^\/v1\/admin\/setup\/tokens\/[a-f0-9-]+$/.test(path) && req.method === 'DELETE') {
       await this.tokens.revoke(z.uuid().parse(path.split('/').pop()));
       send(200, { revoked: true });

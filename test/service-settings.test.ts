@@ -450,3 +450,29 @@ test('speech discovery forwards bounded filters and returns pagination without s
   assert.equal(result.items.length, 1);
   assert.equal(result.next_offset, 2);
 });
+
+test('public connection URL is editable, normalized and rejects credentials and non-origins', async () => {
+  const f = fixture();
+  const saved = await request(f.admin, 'PUT', {
+    revision: 1,
+    changes: { connectionUrl: 'https://zero.example/' },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(f.value().connectionUrl, 'https://zero.example');
+  assert.equal(f.applied.at(-1)?.connectionUrl, 'https://zero.example');
+  for (const value of [
+    'https://user:secret@zero.example',
+    'javascript:alert(1)',
+    'https://zero.example/../invalid%2fpath',
+    'https://zero.example?token=private',
+  ]) {
+    const rejected = await request(f.admin, 'PUT', {
+      revision: 2,
+      changes: { connectionUrl: value },
+    });
+    assert.equal(rejected.status, 400);
+  }
+  const cleared = await request(f.admin, 'PUT', { revision: 2, changes: { connectionUrl: '' } });
+  assert.equal(cleared.status, 200);
+  assert.equal(f.value().connectionUrl, '');
+});

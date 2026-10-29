@@ -35,6 +35,24 @@ export class PostgresIntegrationAccess implements IntegrationCredentialRepositor
     const [{ total }] = await this.db.select({ total: count() }).from(credentials);
     return { items: items.map((row) => row.value), total };
   }
+  async edit(
+    id: string,
+    expected: IntegrationCredential,
+    changes: Pick<IntegrationCredential, 'name' | 'expiresAt'>,
+  ) {
+    const rows = await this.db
+      .update(credentials)
+      .set({ value: { ...expected, ...changes } })
+      .where(
+        and(
+          eq(credentials.id, id),
+          eq(credentials.value, expected),
+          isNull(sql`${credentials.value}->>'revokedAt'`),
+        ),
+      )
+      .returning({ id: credentials.id });
+    return rows.length === 1;
+  }
   async revoke(id: string, at: string) {
     await this.db
       .update(credentials)

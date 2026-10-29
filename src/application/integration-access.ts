@@ -7,6 +7,11 @@ import {
 export interface IntegrationCredentialRepository {
   insert(value: IntegrationCredential, digest: string): Promise<void>;
   list(offset: number, limit: number): Promise<{ items: IntegrationCredential[]; total: number }>;
+  edit(
+    id: string,
+    expected: IntegrationCredential,
+    changes: Pick<IntegrationCredential, 'name' | 'expiresAt'>,
+  ): Promise<boolean>;
   revoke(id: string, at: string): Promise<void>;
   find(digest: string): Promise<IntegrationCredential | undefined>;
 }
@@ -40,6 +45,20 @@ export class IntegrationAccess {
     };
     await this.repository.insert(credential, this.crypto.digest(token));
     return { ...credential, token };
+  }
+  async edit(id: string, expected: IntegrationCredential, name: string, expiresAt: string) {
+    if (
+      !name.trim() ||
+      name.length > 100 ||
+      !Number.isFinite(Date.parse(expiresAt)) ||
+      Date.parse(expiresAt) <= this.now().getTime() ||
+      Date.parse(expiresAt) > this.now().getTime() + 3650 * 86400000
+    )
+      throw new Error('Nombre o caducidad inválidos.');
+    return this.repository.edit(id, expected, {
+      name: name.trim(),
+      expiresAt: new Date(expiresAt).toISOString(),
+    });
   }
   revoke(id: string) {
     return this.repository.revoke(id, this.now().toISOString());

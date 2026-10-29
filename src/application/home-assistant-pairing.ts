@@ -33,6 +33,7 @@ export class HomeAssistantPairing {
     private defaults: Config['homeAssistant'],
     private publicUrl: string,
     private now = () => Date.now(),
+    private connectionUrl: () => string = () => publicUrl,
   ) {}
   begin(input: {
     secret: string;
@@ -181,7 +182,7 @@ export class HomeAssistantPairing {
           token: credential.token,
           settings_token: credential.token,
           callback_token: credential.token,
-          callback_url: this.publicUrl + '/v1/triggers/rule-events',
+          callback_url: this.connectionUrl() + '/v1/triggers/rule-events',
           credential_id: credential.id,
         };
       },

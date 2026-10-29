@@ -1,3 +1,4 @@
+import { PublicConnection } from './application/public-connection.js';
 import { migrateProfileSchedules } from './application/migrate-profile-schedules.js';
 import { HomeAssistantMorningTriggers } from './adapters/outbound/ha-morning-triggers.js';
 import { MorningTriggers, importMorningTrigger } from './application/morning-triggers.js';
@@ -319,10 +320,11 @@ const ruleRepository = new PostgresRules(store.db);
 await ruleRepository.initialize();
 const localRuleScheduler = new LocalRuleScheduler(ruleRepository);
 const places = new OpenStreetMapPlaces(config.places?.photonUrl, config.places?.osrmUrl);
+const connectionUrl = () => config.connectionUrl || adminAuth.origin;
 const assistantTelegram = new AssistantTelegram(
   accessRepository,
   config.telegram,
-  adminAuth.origin,
+  connectionUrl,
   assistantDefinitions,
   async (token) => {
     const candidate = new Telegram({ ...config, telegram: { ...config.telegram, token } }, media);
@@ -571,6 +573,8 @@ const pairing = new HomeAssistantPairing(
   credentialCrypto,
   config.homeAssistant,
   adminAuth.origin,
+  undefined,
+  connectionUrl,
 );
 await zeroSettings.initialize(
   prompts.main || 'Eres Zero, un asistente personal. Responde en español.',
@@ -848,10 +852,11 @@ const codex = new AIAgent(
         new GoogleConnection(
           accessRepository,
           new GoogleOAuth(),
-          adminAuth.origin + googleCallbackPath,
+          () => connectionUrl() + googleCallbackPath,
           config.google,
           config.homeAssistant.taskProvider,
         ),
+        adminAuth.origin,
       ),
     },
     process.env.ASSISTANT_DEPLOY_WEBHOOK_URL
@@ -913,6 +918,7 @@ const codex = new AIAgent(
           // Normalize optional persisted settings to the same defaults used at startup.
           const value = ServiceConfigSchema.parse(saved);
           // Replace only infrastructure settings. In-flight scoped jobs keep their snapshot.
+          config.connectionUrl = value.connectionUrl;
           config.timezone = value.timezone;
           config.concurrency = value.concurrency;
           // Polling clients share this object; scoped jobs copy it when they start.
@@ -940,6 +946,14 @@ const codex = new AIAgent(
           profile?.pairedHomeAssistant || profile?.homeAssistant || config.homeAssistant;
         return homeAssistantUserName(connection, userId);
       },
+      connectionUrl,
+    ),
+    new PublicConnection(
+      serviceSettings,
+      (url) => {
+        config.connectionUrl = url;
+      },
+      adminAuth.origin,
     ),
   );
 

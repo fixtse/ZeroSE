@@ -1,3 +1,4 @@
+import type { PublicConnection } from '../../application/public-connection.js';
 import { profileNotifications, morningKey } from '../../application/profile-notifications.js';
 import { googleCallbackPath, type GoogleOAuthAdmin } from './google-oauth-admin.js';
 import { assistantIdPattern, telegramSession, type AccessProfile } from '../../domain/access.js';
@@ -56,6 +57,7 @@ export function createHttpServer(
   integrationAccess?: IntegrationAccess,
   pairing?: HomeAssistantPairing,
   setup?: SetupAdmin,
+  publicConnection?: PublicConnection,
 ) {
   return createServer(async (req, res) => {
     const send = (status: number, value: unknown) => {
@@ -112,6 +114,34 @@ export function createHttpServer(
           .strict()
           .parse(await body(req));
         return send(200, await pairing.exchange(input.id, input.secret, input.homeAssistantToken));
+      }
+      if (path === '/v1/integrations/home-assistant/relay') {
+        if (!(await integrationAccess?.authorize(req.headers.authorization, 'settings')))
+          return send(401, { error: 'Unauthorized' });
+        if (!publicConnection) return send(503, { error: 'Relay unavailable' });
+        if (req.method === 'GET') return send(200, { adminUrl: publicConnection.adminUrl });
+        if (req.method !== 'POST') return send(405, { error: 'Method not allowed' });
+        const input = z
+          .object({
+            url: z
+              .string()
+              .url()
+              .max(2000)
+              .refine((value) => {
+                const url = new URL(value);
+                return (
+                  url.protocol === 'https:' &&
+                  !url.username &&
+                  !url.password &&
+                  !url.search &&
+                  !url.hash &&
+                  /^\/api\/assistant_zero\/relay\/[a-zA-Z0-9_-]{1,100}$/.test(url.pathname)
+                );
+              }),
+          })
+          .strict()
+          .parse(await body(req));
+        return send(200, await publicConnection.offer(input.url));
       }
       if (req.method === 'GET' && path === '/health') return send(200, { status: 'ok' });
       if (
