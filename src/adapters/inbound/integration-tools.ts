@@ -226,8 +226,20 @@ export function registerHomeAssistantTools(
     list(search: string, offset: number, limit: number): Promise<unknown>;
     location(userId: string, signal: AbortSignal): Promise<unknown>;
   },
+  setPerson?: (entity: string) => Promise<unknown>,
 ) {
   if (!config.token) return;
+  if (setPerson && !group)
+    tools.add(
+      'location_set_person',
+      'Save the own person entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). No confirmation or matching against a previous tracker is needed. Call before location queries or alerts that use the declared identity. Never use this to assign another person or infer an identity from an alert target.',
+      z.object({ entity_id: z.string().regex(/^person\.[a-z0-9_]+$/) }),
+      async (a) => {
+        const result = await setPerson(a.entity_id);
+        config.locationEntity = a.entity_id;
+        return result;
+      },
+    );
   if (group)
     tools.add(
       'group_members_list',
@@ -236,7 +248,7 @@ export function registerHomeAssistantTools(
       z.object({ search: z.string().max(200).default(''), ...pagination }),
       async (a) => jsonPage(await group.list(a.search, a.offset, a.limit), a.result_offset),
     );
-  if (group || config.locationEntity || config.geocodedLocationEntity)
+  if (group || setPerson || config.locationEntity || config.geocodedLocationEntity)
     tools.add(
       'location_get',
       'Read the user’s home/away presence, known zone, GPS coordinates/accuracy and geocoded address from Home Assistant, with source timestamps. In a group, pass member_name for a named person (for example Ken), or user_id from group_members_list. Omit both only for the message sender. A missing known zone does not imply missing location: use returned coordinates/address. Use those same coordinates for nearby places_search and preserve Google Maps links. Qualify old coordinates with their age.' +

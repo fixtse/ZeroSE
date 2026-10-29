@@ -118,6 +118,7 @@ export function toolCapability(name: string): Capability | undefined {
   if (
     [
       'location_get',
+      'location_set_person',
       'group_members_list',
       'sensors_list',
       'sensor_get',

@@ -1,3 +1,4 @@
+import { PersonalLocation } from './application/personal-location.js';
 import { PostgresHomeAssistantConnections } from './adapters/outbound/postgres-home-assistant-connections.js';
 import { PublicConnection } from './application/public-connection.js';
 import { migrateProfileSchedules } from './application/migrate-profile-schedules.js';
@@ -546,6 +547,13 @@ async function services(context: ToolContext) {
             return new HomeAssistant({ ...scoped.homeAssistant, ...entities }).location(signal);
           },
         }
+      : undefined,
+    profile?.kind === 'user'
+      ? (entity) =>
+          new PersonalLocation(accessRepository, config.homeAssistant).assign(
+            context.session,
+            entity,
+          )
       : undefined,
   );
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
