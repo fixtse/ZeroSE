@@ -546,3 +546,54 @@ test('removing every saved HA selection clears credentials and keeps them cleare
   );
   assert.equal((await request(admin, 'helper/123')).value.hasHomeAssistant, false);
 });
+
+test('uncertain scheduler permits explicit deletion but blocks other changes', async () => {
+  const f = setup();
+  const id = '02804239-2882-44dc-86f5-4f103f7af410';
+  const calls: string[] = [];
+  const rule = { id, scheduler_state: 'uncertain' };
+  const notifications = {
+    repository: {
+      async read() {
+        return rule;
+      },
+    },
+    async change(_session: string, _id: string, operation: string) {
+      calls.push(operation);
+      return {
+        id,
+        status: operation === 'cancel' ? 'cancelled' : 'paused',
+        scheduler_state: 'uncertain',
+      };
+    },
+  } as unknown as import('../src/application/notification-rules.js').NotificationRules;
+  const admin = new Admin(
+    f.config,
+    f.repository,
+    async () => {},
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    notifications,
+  );
+  const path = 'helper/123/rules/' + id;
+  for (const state of ['uncertain', 'installing']) {
+    rule.scheduler_state = state;
+    assert.equal((await request(admin, path, 'PATCH', { operation: 'resume' })).status, 409);
+    assert.equal((await request(admin, path, 'PATCH', { operation: 'pause' })).status, 409);
+    const cancelled = await request(admin, path, 'DELETE');
+    assert.equal(cancelled.status, 200);
+    assert.match(cancelled.value.warning, /Cambio guardado/);
+  }
+  assert.deepEqual(calls, ['cancel', 'cancel']);
+});

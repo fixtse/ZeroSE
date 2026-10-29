@@ -137,7 +137,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                     {locked && (
                       <p role="status" className="settings-help">
                         Estado pendiente de confirmación en el planificador. No se reintentará el
-                        cambio automáticamente.
+                        cambio automáticamente. Puedes eliminar el elemento.
                       </p>
                     )}
                   </div>
@@ -190,7 +190,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                             className="danger"
                             size="icon"
                             tooltip="Eliminar"
-                            disabled={busy || locked}
+                            disabled={busy}
                           >
                             <Trash2 />
                           </Button>

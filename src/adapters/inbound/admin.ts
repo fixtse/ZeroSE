@@ -445,17 +445,20 @@ export class Admin {
         send(404, { error: 'Alerta o recordatorio no encontrado.' });
         return true;
       }
-      if (rule.scheduler_state === 'uncertain' || rule.scheduler_state === 'installing') {
+      const operation =
+        req.method === 'DELETE'
+          ? 'cancel'
+          : z.object({ operation: z.enum(['pause', 'resume']) }).parse(await read()).operation;
+      if (
+        operation !== 'cancel' &&
+        (rule.scheduler_state === 'uncertain' || rule.scheduler_state === 'installing')
+      ) {
         send(409, {
           error:
             'El planificador tiene un cambio pendiente de confirmación. Consulta su estado antes de hacer otro cambio.',
         });
         return true;
       }
-      const operation =
-        req.method === 'DELETE'
-          ? 'cancel'
-          : z.object({ operation: z.enum(['pause', 'resume']) }).parse(await read()).operation;
       try {
         const result = await this.notificationRules.change(
           session,
