@@ -1,10 +1,21 @@
 'use client';
 
+import { motion, useReducedMotion } from 'framer-motion';
+import { useState } from 'react';
 import { Switch as SwitchPrimitive } from 'radix-ui';
 import type * as React from 'react';
 import { cn } from '../../lib/utils';
 
-function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimitive.Root>) {
+function Switch({
+  className,
+  checked,
+  defaultChecked = false,
+  onCheckedChange,
+  ...props
+}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
+  const [internalChecked, setInternalChecked] = useState(defaultChecked);
+  const selected = checked ?? internalChecked;
+  const reducedMotion = useReducedMotion();
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
@@ -13,11 +24,22 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
         className,
       )}
       {...props}
+      checked={selected}
+      onCheckedChange={(value) => {
+        setInternalChecked(value);
+        onCheckedChange?.(value);
+      }}
     >
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
-        className="pointer-events-none block size-4 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
-      />
+      <SwitchPrimitive.Thumb data-slot="switch-thumb" asChild>
+        <motion.span
+          className="pointer-events-none block size-4 rounded-full bg-white shadow-sm"
+          initial={false}
+          animate={{ x: selected ? 16 : 0 }}
+          transition={
+            reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 30 }
+          }
+        />
+      </SwitchPrimitive.Thumb>
     </SwitchPrimitive.Root>
   );
 }

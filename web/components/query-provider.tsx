@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createAdminQueryClient } from '../lib/query-client';
 
@@ -17,5 +18,9 @@ export function AdminQueryProvider({ children }: { children: ReactNode }) {
       client.clear();
     };
   }, [client]);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <MotionConfig reducedMotion="user" transition={{ duration: 0.16, ease: 'easeOut' }}>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </MotionConfig>
+  );
 }

@@ -1,24 +1,40 @@
 'use client';
 
+import { motion, useReducedMotion } from 'framer-motion';
+import { createContext, useContext, useState } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Tabs as TabsPrimitive } from 'radix-ui';
 import type * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
+const ActiveTab = createContext<string | undefined>(undefined);
+const MotionTabsContent = motion.create(TabsPrimitive.Content);
+
 function Tabs({
   className,
   orientation = 'horizontal',
+  value,
+  defaultValue,
+  onValueChange,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root>) {
+  const [internalValue, setInternalValue] = useState(defaultValue);
   return (
-    <TabsPrimitive.Root
-      className={cn('group/tabs flex gap-2 data-[orientation=horizontal]:flex-col', className)}
-      data-orientation={orientation}
-      data-slot="tabs"
-      orientation={orientation}
-      {...props}
-    />
+    <ActiveTab.Provider value={value ?? internalValue}>
+      <TabsPrimitive.Root
+        className={cn('group/tabs flex gap-2 data-[orientation=horizontal]:flex-col', className)}
+        data-orientation={orientation}
+        data-slot="tabs"
+        orientation={orientation}
+        value={value ?? internalValue}
+        onValueChange={(next) => {
+          setInternalValue(next);
+          onValueChange?.(next);
+        }}
+        {...props}
+      />
+    </ActiveTab.Provider>
   );
 }
 
@@ -69,11 +85,16 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
 }
 
 function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
+  const activeTab = useContext(ActiveTab);
+  const reducedMotion = useReducedMotion();
   return (
-    <TabsPrimitive.Content
+    <MotionTabsContent
       className={cn('flex-1 outline-none', className)}
       data-slot="tabs-content"
-      {...props}
+      {...(props as React.ComponentProps<typeof MotionTabsContent>)}
+      initial={false}
+      animate={{ opacity: activeTab === props.value ? 1 : 0 }}
+      transition={{ duration: reducedMotion ? 0 : 0.16 }}
     />
   );
 }

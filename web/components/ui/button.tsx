@@ -1,4 +1,5 @@
 'use client';
+import { motion, useReducedMotion } from 'framer-motion';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Tooltip as TooltipPrimitive } from 'radix-ui';
 import { Slot } from 'radix-ui';
@@ -7,7 +8,7 @@ import type * as React from 'react';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm outline-none transition-[background-color,color,border-color,box-shadow,transform] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm outline-none transition-[background-color,color,border-color,box-shadow] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -38,7 +39,7 @@ const buttonVariants = cva(
   },
 );
 
-function Button({
+function ButtonControl({
   className,
   variant = 'default',
   size = 'default',
@@ -77,6 +78,19 @@ function Button({
         </TooltipPrimitive.Portal>
       </TooltipPrimitive.Root>
     </TooltipPrimitive.Provider>
+  );
+}
+
+// Animate the existing control so Radix slots, tooltips and refs keep their behavior.
+const MotionButton = motion.create(ButtonControl);
+function Button(props: React.ComponentProps<typeof ButtonControl>) {
+  const reducedMotion = useReducedMotion();
+  return (
+    <MotionButton
+      {...(props as React.ComponentProps<typeof MotionButton>)}
+      whileTap={props.disabled || reducedMotion ? undefined : { scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 600, damping: 35 }}
+    />
   );
 }
 
