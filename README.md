@@ -1051,9 +1051,11 @@ The unified Home Assistant integration exposes the assistant catalog as separate
 
 ### User and group context
 
-Prompts support `{{context}}`: the current user's or group's editable context text,
-loaded from Zero's PostgreSQL profile for each turn. Add this placeholder wherever
-personal context belongs in an assistant prompt. It is empty when memory is disabled.
+The current user's or group's editable context is loaded from Zero's PostgreSQL
+profile for each turn and automatically added to the instructions when nonempty
+even when mem0 is disabled. The user's name, timezone and current date/time are also
+added automatically; no prompt placeholders are required. Prompt placeholders
+are no longer expanded.
 Context is limited to 16,000 characters and requires no Google account or Documents
 permission. The former Google context document setting is no longer used for prompts
 or context writes; existing Google documents are not modified or imported automatically.

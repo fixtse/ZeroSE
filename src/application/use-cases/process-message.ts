@@ -2,7 +2,7 @@ import type { MemoryPolicy } from '../../domain/assistant-definition.js';
 import type { Config } from '../../domain/config.js';
 import type { Job, ToolContext } from '../../domain/models.js';
 import type { ConversationStore, AgentPort, GooglePort, TelegramPort } from '../ports.js';
-import { renderPrompt } from '../prompts.js';
+import { renderUserPrompt } from '../prompts.js';
 import type { JobResult } from './contracts.js';
 import { outingInstructions } from '../outing-instructions.js';
 
@@ -22,25 +22,21 @@ export class ProcessMessage {
 
   private async instructions(job: Job, signal: AbortSignal): Promise<string> {
     const enabled = this.config.memory.mode !== 'none';
-    const context = enabled ? this.userContext : '';
     const template =
       this.systemPrompt || `Eres ${this.identity}, un asistente personal. Responde en español.`;
-    const identity = renderPrompt(template, {
+    const identity = renderUserPrompt(template, {
       identity: this.identity,
       now: new Date().toLocaleString('es-ES', { timeZone: this.config.timezone }),
       timezone: this.config.timezone,
       name: job.payload.name || job.payload.message?.from?.first_name || 'usuario',
-      context,
-      categories: '',
-      tags: '',
+      context: this.userContext,
     });
     return `${identity}
-Current timezone: ${this.config.timezone}.
 ${
   enabled
     ? `When a request refers to previous conversations, advice, recommendations or plans, or prior context would help, search memories_get for relevant user facts and things you previously told the user. Preserve attribution: your past suggestions are not user preferences, accepted decisions or completed actions. ${this.memoryPolicy === 'explicit' ? 'Use memory_save only for an explicit request to remember something or a key personal fact supplied by the user. Do not save your own advice as user facts.' : 'Use memory_save for durable context worth remembering immediately, including relevant advice or plans you give, with explicit attribution.'} Do not invent missing memories.
 Use memory_catalog only when you need to discover existing categories or tags; it is not required before searching or saving memories.${this.config.memory.mode === 'simple' ? '\nMemory search uses keywords only; semantic embeddings are disabled.' : ''}`
-    : 'Long-term memory is disabled for this chat. Keep the context of this conversation, but do not search or save durable memories, including in external context documents. Do not claim to remember something beyond the conversation.'
+    : 'Mem0 long-term memory is disabled for this chat: do not search or save memories in mem0. Keep conversation context and use the profile context supplied in these instructions; context_get/context_save remain available to read and edit it.'
 }
 For today's agenda, consult calendar_list AND tasks_list. Notes without a date belong in tasks. For “at wake up”, “when I wake up” or “al despertar”, use wake_reminder_create with the requested local calendar date (in two days means two local dates ahead); it is included in the briefing when input_boolean.dormir turns off, never at a guessed clock time. If unavailable for this chat, explain that limitation. Use reminder_create for clock-time reminders and timer_start for countdowns; do not create calendar events for notification-only requests. Use reminder_change for cancellation, pause/resume or snooze. Never claim scheduling succeeded without a successful tool receipt. Conditional sensor, zone entry/exit and person-to-person distance alerts use alert_create; discover permitted person/zone IDs with ha_location_entities and inspect ha_location_entity first. Distances are straight-line metres; clarify within versus farther than a threshold. Group member location access alone does not grant persistent monitoring permission; weather forecast alerts use weather_alert_create (any_change by default; rain for rain-only requests; conditions for specific weather such as storms). Use alerts_list/alert_change to inspect and control them. Only offer monitoring supported by the available tools.
 Use shopping_list_get/shopping_list_change for Home Assistant shopping items. Use sensors_list/sensor_get/sensor_history for sensor readings. Unknown or unavailable states are not measurements.

@@ -17,8 +17,7 @@ export class UserContext {
   async read(session: string) {
     const address = sessionAddress(session);
     const profile = address ? await this.profiles.profile(address.bot, address.chatId) : undefined;
-    if (!profile?.enabled || profile.memoryMode === 'none')
-      throw new Error('Memory is disabled or profile unavailable');
+    if (!profile?.enabled) throw new Error('Profile is disabled or unavailable');
     return { context: profile.context || '', revision: profile.contextRevision || 0 };
   }
   async save(
@@ -31,8 +30,8 @@ export class UserContext {
     const address = sessionAddress(session);
     if (!address) throw new Error('User context requires a user or group profile');
     const profile = await this.profiles.profile(address.bot, address.chatId);
-    if (!profile || (requireEnabled && !profile.enabled) || profile.memoryMode === 'none')
-      throw new Error('Memory is disabled or profile unavailable');
+    if (!profile || (requireEnabled && !profile.enabled))
+      throw new Error('Profile is disabled or unavailable');
     if ((profile.contextRevision || 0) !== revision)
       throw new Error('Context changed; reload before editing');
     const value =
@@ -46,7 +45,7 @@ export class UserContext {
       requireEnabled,
     );
     if (saved === undefined)
-      throw new Error('Context changed or memory disabled; reload before editing');
+      throw new Error('Context changed or profile disabled; reload before editing');
     return { saved: true, revision: saved };
   }
 }

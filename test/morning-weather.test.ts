@@ -204,7 +204,8 @@ test('briefings and reminders always require Spanish with default or custom temp
       }
       if (template) {
         assert.match(instructions, /^Write in English\. Keep the briefing short\./);
-        assert(!instructions.includes('{{now}}'));
+        assert(instructions.includes('{{now}}'));
+        assert.match(instructions, /Fecha y hora actuales:/);
       }
     }
   }

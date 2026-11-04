@@ -346,10 +346,10 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                   placeholder="Eres un asistente especializado en… Define su personalidad, su objetivo y cómo debe responder."
                 />
                 <small>
-                  Puedes usar {'{{name}}'}, {'{{now}}'}, {'{{timezone}}'}, {'{{identity}}'} y{' '}
-                  {'{{context}}'}. El contexto es el texto editable del usuario o grupo, disponible
-                  con la memoria activada, sin Google. Cada usuario conserva sus permisos, memoria e
-                  historial.{' '}
+                  El nombre, la fecha y hora y la zona horaria se añaden automáticamente. El
+                  contexto del usuario o grupo también se añade cuando existe, aunque mem0 esté
+                  desactivado. No es necesario usar variables en el prompt. Cada usuario conserva
+                  sus permisos, memoria e historial.{' '}
                   {editor?.id === 'zero' &&
                     'Este es el mismo prompt de Zero que se edita desde Home Assistant.'}
                 </small>

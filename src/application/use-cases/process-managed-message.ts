@@ -85,6 +85,9 @@ export class ProcessManagedMessage {
       memoryPolicy,
       scope.profile?.context || '',
       true,
-    ).execute(job, context);
+    ).execute(
+      { ...job, payload: { ...job.payload, name: job.payload.name || scope.profile?.label } },
+      context,
+    );
   }
 }

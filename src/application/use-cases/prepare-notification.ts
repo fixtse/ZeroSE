@@ -3,7 +3,7 @@ import type { Job, ToolContext } from '../../domain/models.js';
 import type { AgentPort, GooglePort, HomeAssistantPort, ConversationStore } from '../ports.js';
 import type { RuleRepository } from '../notification-rules.js';
 import { localClock, dayRange } from '../../domain/time.js';
-import { renderPrompt } from '../prompts.js';
+import { renderUserPrompt } from '../prompts.js';
 import type { JobResult } from './contracts.js';
 import { eventWeatherContext } from '../../domain/event-weather.js';
 
@@ -18,6 +18,7 @@ export class PrepareNotification {
     private rules?: Pick<RuleRepository, 'wakeReminders' | 'completeWakeReminders'>,
     private userContext = '',
     private capabilities = { calendar: true, tasks: true },
+    private userName = 'usuario',
   ) {}
   private eventKey(event: any, session: string) {
     return `event:${session}:${event.id}:${event.start?.dateTime || event.start?.date}`;
@@ -79,12 +80,14 @@ export class PrepareNotification {
     const tasks =
       morning && this.capabilities.tasks ? await this.google.tasks(false, context.signal) : [];
     const weather = morning ? await this.forecast(context.signal) : undefined;
-    const instructions = renderPrompt(
+    const instructions = renderUserPrompt(
       this.prompts[morning ? 'morning' : 'reminder'] ||
         'Eres Zero. Resume la agenda y tareas en español con horarios de 12 horas. No hagas preguntas ni inventes datos.',
       {
-        now: new Date().toISOString(),
-        context: context.memoryMode === 'none' ? '' : this.userContext,
+        now: new Date().toLocaleString('es-ES', { timeZone: this.config.timezone }),
+        timezone: this.config.timezone,
+        name: job.payload.name || this.userName,
+        context: this.userContext,
       },
     );
     const output = await this.agent.run(

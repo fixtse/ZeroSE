@@ -149,8 +149,8 @@ test('no long-term memory retains conversation while excluding off-period messag
     {
       async run(_session, prompt, instructions) {
         assert.match(prompt, /Previous conversational context/);
-        assert.match(instructions, /Long-term memory is disabled/);
-        assert.match(instructions, /Current timezone: America\/New_York/);
+        assert.match(instructions, /Mem0 long-term memory is disabled/);
+        assert.match(instructions, /Zona horaria: America\/New_York/);
         assert(!instructions.includes('Use memory_save'));
         return 'Conversation continues';
       },

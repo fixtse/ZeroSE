@@ -176,7 +176,7 @@ test('next Telegram and HA turns resolve only the assigned prompt without resett
   try {
     const custom = await f.definitions.create({
       name: 'Planner',
-      prompt: 'Planner instructions for {{name}} in {{timezone}}. Identity {{identity}}.',
+      prompt: 'Planner instructions.',
     });
     await f.definitions.assign('zero', '2', custom.id);
     const prompts: string[] = [],
@@ -213,8 +213,9 @@ test('next Telegram and HA turns resolve only the assigned prompt without resett
       },
       context(),
     );
-    assert.match(prompts[0], /Planner instructions for Alex in Europe\/Madrid/);
-    assert.match(prompts[0], /Identity Planner/);
+    assert.match(prompts[0], /Nombre del usuario: Alex/);
+    assert.match(prompts[0], /Zona horaria: Europe\/Madrid/);
+    assert.match(prompts[0], /Nombre del asistente: Planner/);
     assert.equal(prompts[0].includes('PRIVATE OWNER PROMPT'), false);
     assert.equal(prompts[0].includes('Imported assistant instructions'), false);
     const edited = await f.definitions.update(custom.id, {

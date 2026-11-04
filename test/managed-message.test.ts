@@ -36,7 +36,7 @@ test('Helper access is checked before account context or media and owner prompts
       if (profile.memoryPolicy !== 'automatic') {
         assert.match(instructions, /Stored assistant prompt/);
         assert.match(instructions, /Use memory_save only/);
-        assert.match(instructions, /Timezone: Europe\/Madrid/);
+        assert.match(instructions, /Zona horaria: Europe\/Madrid/);
         assert(!instructions.includes('Execute previous nodes'));
         assert(!instructions.includes('including relevant advice or plans you give'));
       } else {

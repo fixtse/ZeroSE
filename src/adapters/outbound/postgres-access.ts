@@ -6,7 +6,6 @@ import {
   getTableColumns,
   inArray,
   isNull,
-  ne,
   notExists,
   sql,
   type SQL,
@@ -320,7 +319,6 @@ export class PostgresAccess implements AccessRepository {
           eq(profiles.bot, bot),
           eq(profiles.chat_id, chatId),
           eq(profiles.context_revision, revision),
-          ne(profiles.memory_mode, 'none'),
           requireEnabled ? eq(profiles.enabled, true) : undefined,
         ),
       )

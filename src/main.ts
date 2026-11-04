@@ -518,12 +518,7 @@ async function services(context: ToolContext) {
     permitted,
   );
   registerGoogleTools(tools, google);
-  registerContextTools(
-    tools,
-    userContext,
-    profile?.contextRevision || 0,
-    !!profile && scoped.memory.mode !== 'none',
-  );
+  registerContextTools(tools, userContext, profile?.contextRevision || 0, !!profile);
   registerHomeAssistantTools(
     tools,
     ha,
@@ -1025,8 +1020,9 @@ async function notify(job: Job, context: ToolContext): Promise<JobResult> {
     scope.ha,
     prompts,
     ruleRepository,
-    scope.config.memory.mode === 'none' ? '' : scope.profile?.context || '',
+    scope.profile?.context || '',
     notificationServices(scope.config, scope.profile),
+    scope.profile?.label,
   ).execute(job, context);
 }
 

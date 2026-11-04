@@ -557,7 +557,7 @@ export function registerContextTools(
   );
   tools.add(
     'context_save',
-    'Edit this user or group context. Append by default; replace to correct or remove existing facts (empty text clears it). Requires memory. Use the current context revision; after success use the returned revision. Never replay a write to retrieve output.',
+    'Edit this user or group context. Append by default; replace to correct or remove existing facts (empty text clears it). Use the current context revision; after success use the returned revision. Never replay a write to retrieve output.',
     z.object({
       memory: z.string().max(contextLimit),
       mode: z.enum(['append', 'replace']).default('append'),

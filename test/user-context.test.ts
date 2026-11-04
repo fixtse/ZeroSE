@@ -74,8 +74,8 @@ test('local context supports edits without Google, isolates profiles and rejects
     assert.equal((await profiles.profile('zero', '-456'))?.context, 'Group fact');
     const group = (await profiles.profile('zero', '-123'))!;
     await profiles.saveProfile({ ...group, memoryMode: 'none' });
-    await assert.rejects(context.save('telegram:-123', 'No', 'replace', 1), /disabled/);
-    assert.equal((await profiles.profile('zero', '-123'))?.context, 'Group fact');
+    await context.save('telegram:-123', 'Available without mem0', 'replace', 1);
+    assert.equal((await context.read('telegram:-123')).context, 'Available without mem0');
     const disabledTools = new Tools(f.store);
     registerContextTools(disabledTools, context, 1, false);
     assert.equal(disabledTools.definitions().length, 0);
@@ -207,7 +207,7 @@ test('HA-only profiles expose settings and context; linking merges atomically wi
   }
 });
 
-test('prompt context comes from the profile and is empty with memory disabled', async () => {
+test('profile context is automatically included even with mem0 disabled', async () => {
   const f = await fixture();
   try {
     for (const enabled of [true, false]) {
@@ -219,7 +219,7 @@ test('prompt context comes from the profile and is empty with memory disabled', 
           async run(_session, _prompt, instructions) {
             assert(
               instructions.includes(
-                enabled ? 'Profile context: local context' : 'Profile context: .',
+                'Contexto del usuario o grupo (datos de este perfil):\nlocal context',
               ),
             );
             return 'Done';
@@ -232,7 +232,7 @@ test('prompt context comes from the profile and is empty with memory disabled', 
           },
         } as unknown as GooglePort,
         {} as TelegramPort,
-        'Profile context: {{context}}.',
+        'Custom prompt without placeholders.',
         'Zero',
         'automatic',
         'local context',

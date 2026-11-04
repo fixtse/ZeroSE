@@ -11,13 +11,12 @@ export function ProfileContext({ profile }: { profile: Profile }) {
   const [text, setText] = useState(profile.context || '');
   const [revision, setRevision] = useState(profile.contextRevision || 0);
   const [busy, setBusy] = useState(false);
-  const disabled = profile.memoryMode === 'none';
   return (
     <section className="settings-section">
       <h3>Contexto · {profile.kind === 'group' ? 'grupo' : 'usuario'}</h3>
       <p>
-        El prompt puede incluir {'{{context}}'} para consultar este texto. El asistente puede
-        editarlo con context_save. Solo requiere memoria activada.
+        Este texto se añade automáticamente a las instrucciones cuando existe. El asistente puede
+        editarlo con context_save.
       </p>
       <Label htmlFor="profile-context">Contexto</Label>
       <Textarea
@@ -25,19 +24,13 @@ export function ProfileContext({ profile }: { profile: Profile }) {
         value={text}
         rows={10}
         maxLength={16000}
-        disabled={disabled || busy}
+        disabled={busy}
         onChange={(event) => setText(event.target.value)}
       />
-      {disabled && (
-        <p>
-          Activa y guarda la memoria del perfil para editar o usar el contexto. El texto existente
-          se conserva.
-        </p>
-      )}
       <div className="form-actions">
         <Button
           type="button"
-          disabled={disabled || busy}
+          disabled={busy}
           onClick={async () => {
             setBusy(true);
             try {
