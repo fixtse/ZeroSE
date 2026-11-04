@@ -12,9 +12,6 @@ test('admin cannot discover or mutate shared Home Assistant permissions', async 
     revision: 1,
     prompt: '',
     homeAssistant: true,
-    assist: false,
-    frigate: false,
-    services: [],
   };
   const admin = new SetupAdmin(
     {} as IntegrationAccess,

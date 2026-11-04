@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { sql } from 'drizzle-orm';
+import { zeroSettings as settingsTable } from '../src/adapters/outbound/database-schema.js';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createHmac } from 'node:crypto';
@@ -66,21 +68,40 @@ test('one authoritative prompt persists, rejects stale edits and isolates manage
   }
 });
 
-test('service access is checked on every invocation, including existing tool registries', async () => {
+test('retired service permissions are ignored on read and removed on the next settings save', async () => {
+  const f = await fixture();
+  const settings = new PostgresZeroSettings(f.store.db);
+  try {
+    await settings.initialize('Existing prompt');
+    const retired = JSON.stringify({
+      assist: true,
+      frigate: true,
+      services: ['homeassistant.restart'],
+    });
+    await f.store.db
+      .update(settingsTable)
+      .set({ value: sql`${settingsTable.value} || ${retired}::jsonb` });
+    const current = await settings.read();
+    assert.deepEqual(current, { revision: 1, prompt: 'Existing prompt', homeAssistant: true });
+    await settings.update({ ...current, prompt: 'Preserved settings' });
+    const [row] = await f.store.db.select().from(settingsTable);
+    assert.deepEqual(row!.value, { prompt: 'Preserved settings', homeAssistant: true });
+  } finally {
+    await f.close();
+  }
+});
+
+test('control tools use Assist exposure commands and recheck the global switch on every invocation', async () => {
   const f = await fixture();
   const settings = new PostgresZeroSettings(f.store.db);
   await settings.initialize('Zero');
-  let calls = 0;
+  const calls: Record<string, unknown>[] = [];
   const ha = {
-    async callService() {
-      calls++;
-      return { ok: true };
-    },
-    async services() {
-      return [
-        { domain: 'frigate', services: { restart: { fields: {} } } },
-        { domain: 'conversation', services: { process: { fields: {} } } },
-      ];
+    async assistCommand(command: Record<string, unknown>) {
+      calls.push(command);
+      if (command.type === 'assistant_zero/assist/call')
+        return { accepted: true, service: command.service };
+      return { items: [], total: 0, next_offset: null };
     },
   } as unknown as HomeAssistant;
   const tools = new Tools(f.store);
@@ -90,38 +111,34 @@ test('service access is checked on every invocation, including existing tool reg
     session: 'telegram:owner',
     signal: new AbortController().signal,
   };
-  const invoke = (service: string, data = {}) =>
-    tools.call('ha_service_call', { service, data }, context);
   try {
-    await assert.rejects(invoke('frigate.restart'), /not allowed/);
-    await settings.update({
-      ...(await settings.read()),
-      services: ['frigate.restart'],
-      frigate: true,
-      assist: true,
-    });
-    await invoke('frigate.restart');
-    const discovered = await tools.call('ha_services', {}, context);
-    assert.match(JSON.stringify(discovered), /conversation.process/);
-    await invoke('conversation.process', { agent_id: 'homeassistant' });
-    await assert.rejects(
-      invoke('conversation.process', { agent_id: 'conversation.zero' }),
-      /separate/,
+    await tools.call('ha_entities', { search: 'kitchen', offset: 2, limit: 5 }, context);
+    await tools.call('ha_entity', { entity_id: 'light.kitchen' }, context);
+    await tools.call('ha_services', { search: 'light.turn_on', limit: 1 }, context);
+    await tools.call(
+      'ha_service_call',
+      { service: 'light.turn_on', data: { entity_id: 'light.kitchen' } },
+      context,
     );
-    await settings.update({ ...(await settings.read()), assist: false });
-    await assert.rejects(
-      invoke('conversation.process', { agent_id: 'homeassistant' }),
-      /not allowed/,
-    );
-    await settings.update({ ...(await settings.read()), assist: true });
-    await settings.update({ ...(await settings.read()), frigate: false });
-    await assert.rejects(invoke('frigate.restart'), /not allowed/);
+    assert.deepEqual(calls, [
+      { type: 'assistant_zero/assist/entities', search: 'kitchen', offset: 2, limit: 5 },
+      { type: 'assistant_zero/assist/entity', entity_id: 'light.kitchen' },
+      { type: 'assistant_zero/assist/services', search: 'light.turn_on', offset: 0, limit: 1 },
+      {
+        type: 'assistant_zero/assist/call',
+        service: 'light.turn_on',
+        data: { entity_id: 'light.kitchen' },
+      },
+    ]);
     await settings.update({ ...(await settings.read()), homeAssistant: false });
-    await assert.rejects(
-      invoke('conversation.process', { agent_id: 'homeassistant' }),
-      /not allowed/,
-    );
-    assert.equal(calls, 2);
+    for (const [name, args] of [
+      ['ha_entities', {}],
+      ['ha_entity', { entity_id: 'light.kitchen' }],
+      ['ha_services', {}],
+      ['ha_service_call', { service: 'light.turn_on', data: { entity_id: 'light.kitchen' } }],
+    ] as const)
+      await assert.rejects(tools.call(name, args, context), /disabled/);
+    assert.equal(calls.length, 4);
   } finally {
     await f.close();
   }

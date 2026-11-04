@@ -42,9 +42,6 @@ test('connected instances come from enabled Zero bindings and are deduplicated b
           revision: 1,
           prompt: '',
           homeAssistant: true,
-          assist: true,
-          frigate: false,
-          services: [],
           homeAssistantUsers: { a: '1', b: '2', c: '3', d: '4', e: '-42' },
         };
       },

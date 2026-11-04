@@ -1,3 +1,4 @@
+import { homeAssistantCommand } from './home-assistant-socket.js';
 import { personDistance } from '../../domain/location-distance.js';
 import { permitsLocationEntity } from '../../domain/location-access.js';
 import { jsonRequest, jsonBody } from './http.js';
@@ -7,6 +8,10 @@ import type { Config } from '../../domain/config.js';
 
 export class HomeAssistant {
   constructor(private config: Config['homeAssistant']) {}
+  async assistCommand(command: Record<string, unknown>, signal?: AbortSignal) {
+    if (!this.config.token) throw new Error('Home Assistant token is not configured');
+    return homeAssistantCommand(this.config, command, signal ?? AbortSignal.timeout(15000));
+  }
   async services(
     signal?: AbortSignal,
   ): Promise<{ domain: string; services: Record<string, unknown> }[]> {

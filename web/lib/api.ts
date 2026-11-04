@@ -103,9 +103,6 @@ export interface Settings {
   revision: number;
   prompt: string;
   homeAssistant: boolean;
-  assist: boolean;
-  frigate: boolean;
-  services: string[];
   homeAssistantUsers?: Record<string, string>;
   homeAssistantUserProfiles?: {
     userId: string;

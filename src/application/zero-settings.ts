@@ -4,9 +4,6 @@ export interface ZeroSettings {
   revision: number;
   prompt: string;
   homeAssistant: boolean;
-  assist: boolean;
-  frigate: boolean;
-  services: string[];
   /** HA user ID -> legacy Zero chat ID or canonical private assistant session. */
   homeAssistantUsers?: Record<string, string>;
 }

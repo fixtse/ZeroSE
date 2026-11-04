@@ -13,6 +13,14 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
     private db: Database,
     private profiles?: PostgresAccess,
   ) {}
+  private publicSettings(value: Omit<ZeroSettings, 'revision'>, revision: number): ZeroSettings {
+    return {
+      revision,
+      prompt: value.prompt,
+      homeAssistant: value.homeAssistant,
+      ...(value.homeAssistantUsers ? { homeAssistantUsers: value.homeAssistantUsers } : {}),
+    };
+  }
   async initialize(prompt: string) {
     await this.db
       .insert(settingsTable)
@@ -22,9 +30,6 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
         value: {
           prompt,
           homeAssistant: true,
-          assist: false,
-          frigate: false,
-          services: [],
         },
       })
       .onConflictDoNothing();
@@ -35,7 +40,7 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
       .from(settingsTable)
       .where(eq(settingsTable.id, 1));
     if (!row) throw new Error('Zero settings not initialized');
-    return { ...row.value, revision: row.revision };
+    return this.publicSettings(row.value, row.revision);
   }
   async update(
     value: ZeroSettings,
@@ -55,7 +60,7 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
       .update(settingsTable)
       .set({
         revision: sql`${settingsTable.revision} + 1`,
-        value: sql`${settingsTable.value} || ${JSON.stringify(settings)}::jsonb`,
+        value: sql`(${settingsTable.value} - 'assist' - 'frigate' - 'services') || ${JSON.stringify(settings)}::jsonb`,
       })
       .where(and(eq(settingsTable.id, 1), eq(settingsTable.revision, revision)))
       .returning({ revision: settingsTable.revision, value: settingsTable.value });
@@ -80,6 +85,6 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
             .where(and(eq(profiles.bot, 'zero'), eq(profiles.chat_id, 'ha:' + user)));
       }
     }
-    return rows[0] ? { ...rows[0].value, revision: rows[0].revision } : undefined;
+    return rows[0] ? this.publicSettings(rows[0].value, rows[0].revision) : undefined;
   }
 }

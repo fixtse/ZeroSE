@@ -111,7 +111,7 @@ test('Zero edits use the same authoritative settings revision and reject stale w
       undefined,
     );
     const settings = await f.settings.read();
-    await f.settings.update({ ...settings, prompt: 'Changed in HA', assist: true });
+    await f.settings.update({ ...settings, prompt: 'Changed in HA', homeAssistant: false });
     assert.equal((await f.definitions.get('zero'))?.prompt, 'Changed in HA');
     assert.equal(
       await f.definitions.update('zero', {
@@ -121,7 +121,7 @@ test('Zero edits use the same authoritative settings revision and reject stale w
       }),
       undefined,
     );
-    assert.equal((await f.settings.read()).assist, true);
+    assert.equal((await f.settings.read()).homeAssistant, false);
   } finally {
     await f.close();
   }

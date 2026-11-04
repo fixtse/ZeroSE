@@ -214,9 +214,6 @@ export function createHttpServer(
               revision: z.number().int().positive(),
               prompt: z.string().max(100_000),
               homeAssistant: z.boolean(),
-              assist: z.boolean(),
-              frigate: z.boolean(),
-              services: z.array(z.string().regex(/^[a-z_]+\.[a-z_]+$/)).max(100),
               // Bindings are writable only through the validated /users endpoint.
               homeAssistantUsers: z.record(z.string(), z.string()).optional(),
             })
