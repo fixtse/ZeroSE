@@ -1,3 +1,4 @@
+import { replyText } from '../domain/language.js';
 import type { AISettingsPort, AIProvider, AIModel } from '../domain/ai.js';
 import type { AccessProfile } from '../domain/access.js';
 import type { AgentPort } from './ports.js';
@@ -14,28 +15,57 @@ export class AIAgent implements AgentPort {
     const match = /^\/model(?:@[a-z\d_]+)?(?:\s+(\S+))?\s*$/i.exec(text.trim());
     if (!match)
       return /^\/model(?:@[a-z\d_]+)?(?:\s|$)/i.test(text.trim())
-        ? 'Usa /model para ver y seleccionar un modelo para la siguiente pregunta.'
+        ? replyText(
+            (await this.profile(session))?.replyLanguage,
+            'Usa /model para ver y seleccionar un modelo para la siguiente pregunta.',
+            'Use /model to view and select a model for your next question.',
+          )
         : undefined;
     const [settings, profile] = await Promise.all([this.settings.read(), this.profile(session)]);
+    const language = profile?.replyLanguage;
     const allowed = settings.models.filter((m) => profile?.alternateModels?.includes(m.id));
     if (!match[1])
       return allowed.length
-        ? 'Modelos para la siguiente pregunta:\n' +
+        ? replyText(
+            language,
+            'Modelos para la siguiente pregunta:\n',
+            'Models for the next question:\n',
+          ) +
             allowed.map((m, index) => `/model #${index + 1} — ${m.label}`).join('\n') +
-            '\n/model default — cancelar selección'
-        : 'El administrador no ha habilitado modelos alternativos para este perfil.';
+            replyText(
+              language,
+              '\n/model default — cancelar selección',
+              '\n/model default — cancel selection',
+            )
+        : replyText(
+            language,
+            'El administrador no ha habilitado modelos alternativos para este perfil.',
+            'The administrator has not enabled alternative models for this profile.',
+          );
     if (match[1] === 'default') {
       await this.settings.selectNext(session, null);
-      return 'La siguiente pregunta usará tu modelo predeterminado.';
+      return replyText(
+        language,
+        'La siguiente pregunta usará tu modelo predeterminado.',
+        'Your next question will use your default model.',
+      );
     }
     const selected = /^#([1-9]\d*)$/.exec(match[1]);
     const model = selected
       ? allowed[Number(selected[1]) - 1]
       : allowed.find((m) => m.id === match[1]);
     if (!model)
-      return 'Modelo no permitido. Usa /model para ver los modelos habilitados por el administrador.';
+      return replyText(
+        language,
+        'Modelo no permitido. Usa /model para ver los modelos habilitados por el administrador.',
+        'Model not permitted. Use /model to view models enabled by the administrator.',
+      );
     await this.settings.selectNext(session, model.id);
-    return `La siguiente pregunta usará ${model.label}. Después volverás a tu modelo predeterminado.`;
+    return replyText(
+      language,
+      `La siguiente pregunta usará ${model.label}. Después volverás a tu modelo predeterminado.`,
+      `Your next question will use ${model.label}. Then you will return to your default model.`,
+    );
   }
   async run(...args: Parameters<AgentPort['run']>) {
     const [session, , , context] = args;

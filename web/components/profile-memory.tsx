@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -79,6 +80,7 @@ function navigate(values: Record<string, string | null>) {
 }
 
 export function ProfileMemory({ profile, active }: { profile: Profile; active: boolean }) {
+  const t = useTranslations();
   const [search] = useUrlState('memorySearch', '');
   const [category] = useUrlState('memoryCategory', '');
   const [pageNumber] = useUrlState('memoryPage', '0');
@@ -135,7 +137,9 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted)
-          setError(failure instanceof Error ? failure.message : 'No se pudo consultar la memoria.');
+          setError(
+            failure instanceof Error ? failure.message : t('No se pudo consultar la memoria.'),
+          );
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -164,7 +168,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted)
-          setError(failure instanceof Error ? failure.message : 'No se pudo abrir el recuerdo.');
+          setError(failure instanceof Error ? failure.message : t('No se pudo abrir el recuerdo.'));
       });
     return () => controller.abort();
   }, [path, selected, refresh]);
@@ -195,7 +199,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
     setRefresh((value) => value + 1);
   }
   const date = (value: string) =>
-    new Date(value).toLocaleDateString('es-ES', {
+    new Date(value).toLocaleDateString(t.locale, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -203,16 +207,18 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
     });
 
   return (
-    <section className="profile-memory" aria-label={'Memoria de ' + profile.label}>
+    <section className="profile-memory" aria-label={t('Memoria de ') + profile.label}>
       <div className="memory-heading">
         <div>
-          <h3>Memoria del {profile.kind === 'group' ? 'grupo' : 'usuario'}</h3>
-          <p>Recuerdos que el asistente puede recuperar en futuras conversaciones.</p>
+          <h3>
+            {t('Memoria del')} {profile.kind === 'group' ? 'grupo' : 'usuario'}
+          </h3>
+          <p>{t('Recuerdos que el asistente puede recuperar en futuras conversaciones.')}</p>
         </div>
         <Button
           type="button"
           size="icon"
-          tooltip="Añadir recuerdo"
+          tooltip={t('Añadir recuerdo')}
           disabled={busy || !enabled}
           onClick={() => navigate({ memoryId: 'new', memoryEdit: null })}
         >
@@ -221,27 +227,27 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
       </div>
       {!enabled && (
         <p className="memory-scope-note">
-          La memoria está desactivada. Puedes consultar y eliminar los recuerdos guardados.
+          {t('La memoria está desactivada. Puedes consultar y eliminar los recuerdos guardados.')}
         </p>
       )}
       {page?.shared && (
         <p className="memory-scope-note">
-          Este perfil utiliza la memoria compartida configurada para el administrador.
+          {t('Este perfil utiliza la memoria compartida configurada para el administrador.')}
         </p>
       )}
       {page?.linked && (
         <p className="memory-scope-note">
-          Se muestra la memoria del usuario de Telegram vinculado a esta cuenta.
+          {t('Se muestra la memoria del usuario de Telegram vinculado a esta cuenta.')}
         </p>
       )}
       <div className="memory-filters">
         <div>
-          <Label htmlFor="memory-search">Buscar recuerdos</Label>
+          <Label htmlFor="memory-search">{t('Buscar recuerdos')}</Label>
           <Input
             id="memory-search"
             value={draftSearch}
             maxLength={300}
-            placeholder="Texto o etiqueta"
+            placeholder={t('Texto o etiqueta')}
             onChange={(event) => setDraftSearch(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -252,12 +258,12 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
           />
         </div>
         <div>
-          <Label htmlFor="memory-category-filter">Categoría</Label>
+          <Label htmlFor="memory-category-filter">{t('Categoría')}</Label>
           <Input
             id="memory-category-filter"
             value={draftCategory}
             maxLength={200}
-            placeholder="Todas"
+            placeholder={t('Todas')}
             onChange={(event) => setDraftCategory(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -272,7 +278,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Buscar recuerdos"
+            tooltip={t('Buscar recuerdos')}
             disabled={busy}
             onClick={applySearch}
           >
@@ -282,7 +288,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
             type="button"
             variant="ghost"
             size="icon"
-            tooltip="Actualizar recuerdos"
+            tooltip={t('Actualizar recuerdos')}
             disabled={busy || loading}
             onClick={() => setRefresh((value) => value + 1)}
           >
@@ -299,18 +305,18 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
         <div className="memory-list-pane" aria-busy={loading}>
           <p className="memory-count" role="status">
             {loading
-              ? 'Consultando recuerdos…'
+              ? t('Consultando recuerdos…')
               : page
-                ? `${page.total} ${page.total === 1 ? 'recuerdo' : 'recuerdos'}`
-                : 'Memoria'}
+                ? `${page.total} ${page.total === 1 ? t('recuerdo') : t('recuerdos')}`
+                : t('Memoria')}
           </p>
           {page?.items.length === 0 && (
             <div className="memory-empty">
               <Brain aria-hidden="true" />
               <p>
                 {search || category
-                  ? 'No hay recuerdos que coincidan con estos filtros.'
-                  : 'Este perfil todavía no tiene recuerdos guardados.'}
+                  ? t('No hay recuerdos que coincidan con estos filtros.')
+                  : t('Este perfil todavía no tiene recuerdos guardados.')}
               </p>
             </div>
           )}
@@ -327,7 +333,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                   <span className="memory-item-meta">
                     <span>
                       {item.category}
-                      {item.expired ? ' · Caducado' : ''}
+                      {item.expired ? t(' · Caducado') : ''}
                     </span>
                     <time dateTime={item.created}>{date(item.created)}</time>
                   </span>
@@ -345,7 +351,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  tooltip="Eliminar recuerdo"
+                  tooltip={t('Eliminar recuerdo')}
                   className="danger"
                   disabled={busy}
                   onClick={() => setDeleting(item)}
@@ -356,25 +362,26 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
             ))}
           </ul>
           {page && page.total > 20 && (
-            <nav className="memory-pagination" aria-label="Páginas de recuerdos">
+            <nav className="memory-pagination" aria-label={t('Páginas de recuerdos')}>
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                tooltip="Recuerdos anteriores"
+                tooltip={t('Recuerdos anteriores')}
                 disabled={!offset || loading}
                 onClick={() => navigate({ memoryPage: offset > 20 ? String(offset - 20) : null })}
               >
                 <ArrowLeft />
               </Button>
               <span>
-                {offset + 1}–{Math.min(offset + page.items.length, page.total)} de {page.total}
+                {offset + 1}–{Math.min(offset + page.items.length, page.total)} {t('de')}{' '}
+                {page.total}
               </span>
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                tooltip="Recuerdos siguientes"
+                tooltip={t('Recuerdos siguientes')}
                 disabled={page.next_offset === null || loading}
                 onClick={() => navigate({ memoryPage: String(page.next_offset) })}
               >
@@ -387,12 +394,12 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
           {composing ? (
             <>
               <div className="memory-detail-heading">
-                <h4>{selected === 'new' ? 'Añadir recuerdo' : 'Corregir recuerdo'}</h4>
+                <h4>{selected === 'new' ? t('Añadir recuerdo') : t('Corregir recuerdo')}</h4>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  tooltip="Cancelar edición del recuerdo"
+                  tooltip={t('Cancelar edición del recuerdo')}
                   disabled={busy}
                   onClick={() =>
                     navigate({ memoryId: selected === 'new' ? null : selected, memoryEdit: null })
@@ -403,11 +410,12 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
               </div>
               {selected !== 'new' && (
                 <p className="memory-editor-help">
-                  La corrección sustituye al recuerdo anterior. Conserva quién dijo, recomendó o
-                  decidió cada cosa.
+                  {t(
+                    'La corrección sustituye al recuerdo anterior. Conserva quién dijo, recomendó o decidió cada cosa.',
+                  )}
                 </p>
               )}
-              <Label htmlFor="memory-text">Recuerdo</Label>
+              <Label htmlFor="memory-text">{t('Recuerdo')}</Label>
               <Textarea
                 id="memory-text"
                 value={text}
@@ -415,11 +423,11 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                 rows={7}
                 disabled={busy || !enabled}
                 onChange={(event) => setText(event.target.value)}
-                placeholder="Escribe un hecho o una recomendación con su contexto."
+                placeholder={t('Escribe un hecho o una recomendación con su contexto.')}
               />
               <div className="memory-editor-fields">
                 <div>
-                  <Label htmlFor="memory-category">Categoría del recuerdo</Label>
+                  <Label htmlFor="memory-category">{t('Categoría del recuerdo')}</Label>
                   <Input
                     id="memory-category"
                     value={memoryCategory}
@@ -429,20 +437,22 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                   />
                 </div>
                 <div>
-                  <Label htmlFor="memory-tags">Etiquetas</Label>
+                  <Label htmlFor="memory-tags">{t('Etiquetas')}</Label>
                   <Input
                     id="memory-tags"
                     value={tags}
                     maxLength={1600}
                     disabled={busy || !enabled}
-                    placeholder="Separadas por comas"
+                    placeholder={t('Separadas por comas')}
                     onChange={(event) => setTags(event.target.value)}
                   />
                 </div>
               </div>
               <div className="memory-editor-fields">
                 <div>
-                  <Label htmlFor="memory-expiration">Caducidad (hora de este dispositivo)</Label>
+                  <Label htmlFor="memory-expiration">
+                    {t('Caducidad (hora de este dispositivo)')}
+                  </Label>
                   <Input
                     id="memory-expiration"
                     type="datetime-local"
@@ -451,23 +461,24 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                     onChange={(event) => setExpiresAt(event.target.value)}
                   />
                   <small>
-                    Vacío: sin caducidad. Al vencer deja de aparecer en las búsquedas; puedes
-                    revisarlo y eliminarlo aquí.
+                    {t(
+                      'Vacío: sin caducidad. Al vencer deja de aparecer en las búsquedas; puedes revisarlo y eliminarlo aquí.',
+                    )}
                   </small>
                 </div>
                 <div>
-                  <Label htmlFor="memory-entities">Personas, lugares y entidades</Label>
+                  <Label htmlFor="memory-entities">{t('Personas, lugares y entidades')}</Label>
                   <Input
                     id="memory-entities"
                     value={entities}
                     maxLength={6000}
                     disabled={busy || !enabled}
-                    placeholder="Nombres separados por comas"
+                    placeholder={t('Nombres separados por comas')}
                     onChange={(event) => setEntities(event.target.value)}
                   />
                 </div>
               </div>
-              <Label htmlFor="memory-relations">Relaciones explícitas</Label>
+              <Label htmlFor="memory-relations">{t('Relaciones explícitas')}</Label>
               <Textarea
                 id="memory-relations"
                 rows={3}
@@ -475,14 +486,16 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                 maxLength={6500}
                 disabled={busy || !enabled}
                 onChange={(event) => setRelations(event.target.value)}
-                placeholder="Una por línea: Ana | trabaja en | Acme"
+                placeholder={t('Una por línea: Ana | trabaja en | Acme')}
               />
               <div className="memory-editor-actions">
-                <small>{text.length.toLocaleString('es-ES')} / 16.000 caracteres</small>
+                <small>
+                  {text.length.toLocaleString(t.locale)} {t('/ 16.000 caracteres')}
+                </small>
                 <Button
                   type="button"
                   size="icon"
-                  tooltip="Guardar recuerdo"
+                  tooltip={t('Guardar recuerdo')}
                   disabled={
                     busy ||
                     !enabled ||
@@ -512,7 +525,9 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                             const parts = line.split('|').map((part) => part.trim());
                             if (parts.length !== 3 || parts.some((part) => !part))
                               throw new Error(
-                                'Cada relación necesita persona o entidad, relación y entidad de destino, separados por |.',
+                                t(
+                                  'Cada relación necesita persona o entidad, relación y entidad de destino, separados por |.',
+                                ),
                               );
                             return { subject: parts[0], predicate: parts[1], object: parts[2] };
                           }),
@@ -527,7 +542,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                         ],
                       };
                       if (value.tags.length > 20 || value.tags.some((tag) => tag.length > 80))
-                        throw new Error('Usa hasta 20 etiquetas de 80 caracteres como máximo.');
+                        throw new Error(t('Usa hasta 20 etiquetas de 80 caracteres como máximo.'));
                       await api(
                         path + (selected === 'new' ? '' : '/' + selected),
                         selected === 'new' ? 'POST' : 'PUT',
@@ -542,7 +557,9 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                         setRefresh((value) => value + 1);
                       }
                       setNotice(
-                        (selected === 'new' ? 'Recuerdo guardado en ' : 'Recuerdo corregido en ') +
+                        (selected === 'new'
+                          ? t('Recuerdo guardado en ')
+                          : t('Recuerdo corregido en ')) +
                           profile.label +
                           '.',
                       );
@@ -557,7 +574,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
             <>
               <div className="memory-detail-heading">
                 <div>
-                  <h4>Recuerdo</h4>
+                  <h4>{t('Recuerdo')}</h4>
                   <time dateTime={detail.metadata.created_at}>
                     {date(detail.metadata.created_at)}
                   </time>
@@ -567,7 +584,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                     type="button"
                     variant="outline"
                     size="icon-sm"
-                    tooltip="Corregir recuerdo"
+                    tooltip={t('Corregir recuerdo')}
                     disabled={
                       busy ||
                       !enabled ||
@@ -583,7 +600,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    tooltip="Eliminar este recuerdo"
+                    tooltip={t('Eliminar este recuerdo')}
                     className="danger"
                     disabled={busy}
                     onClick={() =>
@@ -597,26 +614,28 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
               <span className="memory-category-label">{detail.metadata.category}</span>
               {detail.superseded_by && (
                 <p className="memory-scope-note">
-                  Este recuerdo fue sustituido por una corrección.
+                  {t('Este recuerdo fue sustituido por una corrección.')}
                 </p>
               )}
               {detail.metadata.expires_at && (
                 <p className="memory-scope-note">
                   {Date.parse(detail.metadata.expires_at) <= Date.now()
-                    ? 'Caducado desde'
-                    : 'Caduca el'}{' '}
-                  {new Date(detail.metadata.expires_at).toLocaleString('es-ES', {
+                    ? t('Caducado desde')
+                    : t('Caduca el')}{' '}
+                  {new Date(detail.metadata.expires_at).toLocaleString(t.locale, {
                     timeZone: profile.timezone || 'Europe/Madrid',
                   })}
-                  . Los recuerdos caducados no aparecen en las búsquedas.
+                  {t('. Los recuerdos caducados no aparecen en las búsquedas.')}
                 </p>
               )}
               <p className="memory-full-text">{detail.text}</p>
               {!!detail.metadata.entities?.length && (
-                <p>Entidades: {detail.metadata.entities.join(', ')}</p>
+                <p>
+                  {t('Entidades:')} {detail.metadata.entities.join(', ')}
+                </p>
               )}
               {!!detail.metadata.relations?.length && (
-                <ul aria-label="Relaciones del recuerdo">
+                <ul aria-label={t('Relaciones del recuerdo')}>
                   {detail.metadata.relations.map((relation, index) => (
                     <li key={index}>
                       {relation.subject} · {relation.predicate} · {relation.object}
@@ -643,7 +662,7 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                     })
                   }
                 >
-                  Cargar más texto
+                  {t('Cargar más texto')}
                 </Button>
               )}
               {detail.metadata.tags.length > 0 && (
@@ -659,8 +678,8 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
               <Brain aria-hidden="true" />
               <p>
                 {selected && !error
-                  ? 'Abriendo recuerdo…'
-                  : 'Selecciona un recuerdo para consultar su texto completo.'}
+                  ? t('Abriendo recuerdo…')
+                  : t('Selecciona un recuerdo para consultar su texto completo.')}
               </p>
             </div>
           )}
@@ -674,15 +693,15 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este recuerdo?</AlertDialogTitle>
+            <AlertDialogTitle>{t('¿Eliminar este recuerdo?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará de la memoria de {profile.label}. El historial de conversación se
-              conserva.
+              {t('Se eliminará de la memoria de')} {profile.label}
+              {t('. El historial de conversación se conserva.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <p className="memory-delete-preview">{deleting?.summary.slice(0, 240)}</p>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={busy}
@@ -694,11 +713,11 @@ export function ProfileMemory({ profile, active }: { profile: Profile; active: b
                     if (selected === deleting.id) navigate({ memoryId: null, memoryEdit: null });
                     setDeleting(undefined);
                     setRefresh((value) => value + 1);
-                    setNotice('Recuerdo eliminado.');
+                    setNotice(t('Recuerdo eliminado.'));
                   });
               }}
             >
-              Eliminar recuerdo
+              {t('Eliminar recuerdo')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

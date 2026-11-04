@@ -62,6 +62,7 @@ export interface Profile {
   capabilities: string[];
   hasHomeAssistant: boolean;
   assistantId?: string;
+  replyLanguage?: 'en' | 'es';
   voiceReplies?: boolean;
   respondToReplies?: boolean;
   timezone?: string;

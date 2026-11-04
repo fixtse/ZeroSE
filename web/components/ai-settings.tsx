@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { AIEditorCard } from './ai-editor-card';
 import { SecretEditor } from './secret-editor';
 import { notifyError } from '../lib/notifications';
@@ -96,6 +97,7 @@ const kinds = {
   home_assistant: 'Home Assistant',
 };
 export function AISettingsEditor() {
+  const t = useTranslations();
   const [value, setValue] = useState<AISettings>();
   const [savedSettings, setSavedSettings] = useState('');
   const [reprocessing, setReprocessing] = useState(false);
@@ -162,15 +164,15 @@ export function AISettingsEditor() {
   return (
     <section className="ai-settings">
       <div className="ai-settings-header">
-        <h2>Proveedores IA</h2>
+        <h2>{t('Proveedores IA')}</h2>
         {value && (
           <div className="form-actions">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Recargar configuración"
-              tooltip="Recargar configuración guardada"
+              aria-label={t('Recargar configuración')}
+              tooltip={t('Recargar configuración guardada')}
               disabled={busy || reprocessing}
               onClick={() => void run(load)}
             >
@@ -187,7 +189,7 @@ export function AISettingsEditor() {
                   !value.embeddings?.model)
               }
               size="icon"
-              tooltip="Guardar configuración IA"
+              tooltip={t('Guardar configuración IA')}
             >
               <Save />
             </Button>
@@ -195,8 +197,9 @@ export function AISettingsEditor() {
         )}
       </div>
       <p>
-        Configura conexiones y modelos. El modelo predeterminado se aplica a los perfiles sin
-        selección propia. Los modelos alternativos se autorizan en cada perfil.
+        {t(
+          'Configura conexiones y modelos. El modelo predeterminado se aplica a los perfiles sin selección propia. Los modelos alternativos se autorizan en cada perfil.',
+        )}
       </p>
       {value && (
         <form
@@ -238,21 +241,21 @@ export function AISettingsEditor() {
                 ),
               });
               await load();
-              setNotice('Configuración IA guardada.');
+              setNotice(t('Configuración IA guardada.'));
             });
           }}
         >
           <fieldset disabled={busy || reprocessing}>
             <Tabs value={tab} onValueChange={setTab} className="provider-settings">
               <div className="ai-settings-toolbar">
-                <TabsList aria-label="Tipo de IA" className="provider-tabs-list">
+                <TabsList aria-label={t('Tipo de IA')} className="provider-tabs-list">
                   <TabsTrigger value="conversation">
                     <MessagesSquare aria-hidden="true" />
-                    Conversación
+                    {t('Conversación')}
                   </TabsTrigger>
                   <TabsTrigger value="embeddings">
                     <Brain aria-hidden="true" />
-                    Embeddings de memoria
+                    {t('Embeddings de memoria')}
                   </TabsTrigger>
                   <TabsTrigger value="reranking">
                     <ListOrdered aria-hidden="true" />
@@ -262,7 +265,7 @@ export function AISettingsEditor() {
               </div>
               <TabsContent value="conversation">
                 <div className="ai-section-heading">
-                  <h3>Conexiones</h3>
+                  <h3>{t('Conexiones')}</h3>
                   <div className="ai-heading-actions">
                     <span>
                       {
@@ -270,7 +273,7 @@ export function AISettingsEditor() {
                           (provider) => !provider.scope || provider.scope === 'conversation',
                         ).length
                       }{' '}
-                      conexiones
+                      {t('conexiones')}
                     </span>
                     <Button
                       type="button"
@@ -293,30 +296,30 @@ export function AISettingsEditor() {
                         });
                       }}
                       size="icon"
-                      tooltip="Añadir conexión"
+                      tooltip={t('Añadir conexión')}
                     >
                       <Plus />
                     </Button>
                   </div>
                 </div>
-                <p>Añade las cuentas que usarán tus modelos.</p>
+                <p>{t('Añade las cuentas que usarán tus modelos.')}</p>
                 {value.providers.map((p, i) =>
                   p.scope && p.scope !== 'conversation' ? null : (
                     <AIEditorCard
                       key={p.id}
                       id={p.id}
                       kind="connection"
-                      title={p.name || kinds[p.kind as keyof typeof kinds]}
+                      title={p.name || t(kinds[p.kind as keyof typeof kinds])}
                       detail={
-                        p.baseUrl || (p.name ? kinds[p.kind as keyof typeof kinds] : undefined)
+                        p.baseUrl || (p.name ? t(kinds[p.kind as keyof typeof kinds]) : undefined)
                       }
                       status={
                         savedProviders.some(
                           (saved) =>
                             saved.id === p.id && JSON.stringify(saved) === JSON.stringify(p),
                         )
-                          ? 'Guardada'
-                          : 'Sin guardar'
+                          ? t('Guardada')
+                          : t('Sin guardar')
                       }
                       actions={
                         <>
@@ -330,9 +333,9 @@ export function AISettingsEditor() {
                                       saved.id === p.id &&
                                       JSON.stringify(saved) === JSON.stringify(p),
                                   )
-                                  ? 'Eliminar conexión'
-                                  : 'Descartar cambios'
-                                : 'Cancelar conexión'
+                                  ? t('Eliminar conexión')
+                                  : t('Descartar cambios')
+                                : t('Cancelar conexión')
                             }
                             variant="ghost"
                             onClick={() => {
@@ -377,7 +380,7 @@ export function AISettingsEditor() {
                       <div className="ai-provider-selector">
                         <SelectField
                           id={'ai-kind-' + i}
-                          label="Proveedor"
+                          label={t('Proveedor')}
                           value={p.kind}
                           onChange={(e) =>
                             provider(i, {
@@ -393,30 +396,30 @@ export function AISettingsEditor() {
                         >
                           {p.kind === 'codex' && !value.codexAvailable && (
                             <option value="codex" disabled>
-                              Codex CLI (no disponible)
+                              {t('Codex CLI (no disponible)')}
                             </option>
                           )}
                           {Object.entries(kinds)
                             .filter(([id]) => id !== 'codex' || value.codexAvailable)
                             .map(([id, label]) => (
                               <option key={id} value={id}>
-                                {label}
+                                {t(label)}
                               </option>
                             ))}
                         </SelectField>
                       </div>
                       {p.kind === 'home_assistant' && (
                         <p>
-                          Reutiliza la conexión de Home Assistant habilitada en cada perfil. No
-                          requiere otra API key. Selecciona una entidad AI Task de tu integración IA
-                          o usa la preferida de Home Assistant.
+                          {t(
+                            'Reutiliza la conexión de Home Assistant habilitada en cada perfil. No requiere otra API key. Selecciona una entidad AI Task de tu integración IA o usa la preferida de Home Assistant.',
+                          )}
                         </p>
                       )}
                       {!['codex', 'home_assistant'].includes(p.kind) && (
                         <>
                           <Field
                             id={'ai-url-' + i}
-                            label="URL base (incluye /v1; vacía para usar la oficial)"
+                            label={t('URL base (incluye /v1; vacía para usar la oficial)')}
                             type="url"
                             value={p.baseUrl}
                             required={p.kind === 'compatible'}
@@ -442,7 +445,9 @@ export function AISettingsEditor() {
                                     reprocessing ||
                                     JSON.stringify(value) !== savedSettings
                                   }
-                                  description="La clave se borrará inmediatamente de esta conexión. Los modelos que la usan necesitarán una nueva clave."
+                                  description={t(
+                                    'La clave se borrará inmediatamente de esta conexión. Los modelos que la usan necesitarán una nueva clave.',
+                                  )}
                                   onConfirm={() =>
                                     void run(async () => {
                                       await api('/v1/admin/ai/api-key', 'DELETE', {
@@ -450,7 +455,7 @@ export function AISettingsEditor() {
                                         provider: p.id,
                                       });
                                       await load();
-                                      setNotice('API key borrada.');
+                                      setNotice(t('API key borrada.'));
                                     })
                                   }
                                 />
@@ -465,10 +470,12 @@ export function AISettingsEditor() {
                 <div className="ai-section-heading">
                   <h3 className="ai-heading-label">
                     <Cpu aria-hidden="true" />
-                    Modelos
+                    {t('Modelos')}
                   </h3>
                   <div className="ai-heading-actions">
-                    <span>{value.models.length} configurados</span>
+                    <span>
+                      {value.models.length} {t('configurados')}
+                    </span>
                     <Button
                       type="button"
                       disabled={value.models.length >= 100}
@@ -489,37 +496,41 @@ export function AISettingsEditor() {
                         });
                       }}
                       size="icon"
-                      tooltip="Añadir modelo"
+                      tooltip={t('Añadir modelo')}
                     >
                       <Plus />
                     </Button>
                   </div>
                 </div>
                 <p>
-                  Elige una conexión, selecciona un modelo y ajusta su esfuerzo de razonamiento.
+                  {t(
+                    'Elige una conexión, selecciona un modelo y ajusta su esfuerzo de razonamiento.',
+                  )}
                 </p>
                 {value.models.map((m, i) => (
                   <AIEditorCard
                     key={m.id}
                     id={m.id}
                     kind="model"
-                    title={m.label || m.model || 'Nuevo modelo'}
+                    title={m.label || m.model || t('Nuevo modelo')}
                     detail={
                       value.providers.find((provider) => provider.id === m.provider)?.name ||
-                      kinds[
-                        value.providers.find((provider) => provider.id === m.provider)
-                          ?.kind as keyof typeof kinds
-                      ]
+                      t(
+                        kinds[
+                          value.providers.find((provider) => provider.id === m.provider)
+                            ?.kind as keyof typeof kinds
+                        ],
+                      )
                     }
                     status={
                       m.id === value.defaultModel
-                        ? 'Predeterminado'
+                        ? t('Predeterminado')
                         : savedModels.some(
                               (saved) =>
                                 saved.id === m.id && JSON.stringify(saved) === JSON.stringify(m),
                             )
-                          ? 'Guardado'
-                          : 'Sin guardar'
+                          ? t('Guardado')
+                          : t('Sin guardar')
                     }
                     actions={
                       <>
@@ -531,7 +542,7 @@ export function AISettingsEditor() {
                             setValue({ ...value, models: value.models.filter((_, n) => n !== i) })
                           }
                           size="icon"
-                          tooltip="Eliminar modelo"
+                          tooltip={t('Eliminar modelo')}
                         >
                           <Trash2 />
                         </Button>
@@ -542,7 +553,7 @@ export function AISettingsEditor() {
                   >
                     <SelectField
                       id={'ai-model-provider-' + i}
-                      label="Conexión"
+                      label={t('Conexión')}
                       value={m.provider}
                       required
                       onChange={(e) =>
@@ -554,7 +565,7 @@ export function AISettingsEditor() {
                         })
                       }
                     >
-                      <option value="">Selecciona una conexión</option>
+                      <option value="">{t('Selecciona una conexión')}</option>
                       {value.providers
                         .filter(
                           (p) =>
@@ -563,7 +574,7 @@ export function AISettingsEditor() {
                         )
                         .map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.name || kinds[p.kind as keyof typeof kinds]}
+                            {p.name || t(kinds[p.kind as keyof typeof kinds])}
                           </option>
                         ))}
                     </SelectField>
@@ -586,7 +597,7 @@ export function AISettingsEditor() {
                         <div className="ai-effort">
                           <SelectField
                             id={'ai-model-effort-' + i}
-                            label="Esfuerzo de razonamiento"
+                            label={t('Esfuerzo de razonamiento')}
                             value={m.effort || ''}
                             onChange={(e) =>
                               model(i, {
@@ -594,12 +605,12 @@ export function AISettingsEditor() {
                               })
                             }
                           >
-                            <option value="">Predeterminado del proveedor</option>
-                            <option value="low">Bajo · más rápido</option>
-                            <option value="medium">Medio · equilibrado</option>
-                            <option value="high">Alto</option>
-                            <option value="xhigh">Muy alto</option>
-                            <option value="max">Máximo</option>
+                            <option value="">{t('Predeterminado del proveedor')}</option>
+                            <option value="low">{t('Bajo · más rápido')}</option>
+                            <option value="medium">{t('Medio · equilibrado')}</option>
+                            <option value="high">{t('Alto')}</option>
+                            <option value="xhigh">{t('Muy alto')}</option>
+                            <option value="max">{t('Máximo')}</option>
                           </SelectField>
                         </div>
                       )}
@@ -609,12 +620,12 @@ export function AISettingsEditor() {
 
                 <SelectField
                   id="ai-default"
-                  label="Modelo predeterminado"
+                  label={t('Modelo predeterminado')}
                   value={value.defaultModel}
                   required
                   onChange={(e) => setValue({ ...value, defaultModel: e.target.value })}
                 >
-                  <option value="">Selecciona un modelo</option>
+                  <option value="">{t('Selecciona un modelo')}</option>
                   {value.models.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.label}
@@ -622,17 +633,17 @@ export function AISettingsEditor() {
                   ))}
                 </SelectField>
                 <p>
-                  Codex CLI conserva su autenticación y configuración actuales. Las API externas
-                  usan sus propias capacidades; búsqueda web e imágenes generadas de Codex no están
-                  disponibles en ellas. Usa modelos que admitan herramientas y, si corresponde,
-                  imágenes y salida JSON estructurada.
+                  {t(
+                    'Codex CLI conserva su autenticación y configuración actuales. Las API externas usan sus propias capacidades; búsqueda web e imágenes generadas de Codex no están disponibles en ellas. Usa modelos que admitan herramientas y, si corresponde, imágenes y salida JSON estructurada.',
+                  )}
                 </p>
               </TabsContent>
               <TabsContent value="reranking">
-                <h3>Relevancia de recuerdos</h3>
+                <h3>{t('Relevancia de recuerdos')}</h3>
                 <p>
-                  Ordena hasta 20 recuerdos del mismo perfil. Puedes reutilizar cualquier conexión
-                  compatible o crear una exclusiva de reranking, sin añadir modelos a Conversación.
+                  {t(
+                    'Ordena hasta 20 recuerdos del mismo perfil. Puedes reutilizar cualquier conexión compatible o crear una exclusiva de reranking, sin añadir modelos a Conversación.',
+                  )}
                 </p>
                 <SelectField
                   id="reranking-mode"
@@ -663,9 +674,9 @@ export function AISettingsEditor() {
                     )
                   }
                 >
-                  <option value="disabled">Desactivar reranking (orden de búsqueda)</option>
-                  <option value="model">Modelo de IA (respuesta estructurada)</option>
-                  <option value="rerank">API rerank (Cohere, Jina o compatible)</option>
+                  <option value="disabled">{t('Desactivar reranking (orden de búsqueda)')}</option>
+                  <option value="model">{t('Modelo de IA (respuesta estructurada)')}</option>
+                  <option value="rerank">{t('API rerank (Cohere, Jina o compatible)')}</option>
                 </SelectField>
                 {value.reranking?.enabled && (
                   <>
@@ -699,7 +710,7 @@ export function AISettingsEditor() {
                       {value.reranking.api === 'rerank' ? (
                         <Field
                           id="reranking-model"
-                          label="Modelo de reranking"
+                          label={t('Modelo de reranking')}
                           required
                           maxLength={200}
                           value={value.reranking.model}
@@ -739,7 +750,7 @@ export function AISettingsEditor() {
                         ) && (
                           <SelectField
                             id="reranking-effort"
-                            label="Esfuerzo de razonamiento"
+                            label={t('Esfuerzo de razonamiento')}
                             value={value.reranking.effort || ''}
                             onChange={(event) =>
                               setValue(
@@ -755,12 +766,12 @@ export function AISettingsEditor() {
                               )
                             }
                           >
-                            <option value="">Predeterminado del proveedor</option>
-                            <option value="low">Bajo · más rápido</option>
-                            <option value="medium">Medio · equilibrado</option>
-                            <option value="high">Alto</option>
-                            <option value="xhigh">Muy alto</option>
-                            <option value="max">Máximo</option>
+                            <option value="">{t('Predeterminado del proveedor')}</option>
+                            <option value="low">{t('Bajo · más rápido')}</option>
+                            <option value="medium">{t('Medio · equilibrado')}</option>
+                            <option value="high">{t('Alto')}</option>
+                            <option value="xhigh">{t('Muy alto')}</option>
+                            <option value="max">{t('Máximo')}</option>
                           </SelectField>
                         )}
                     </div>
@@ -769,34 +780,35 @@ export function AISettingsEditor() {
                         type="button"
                         size="icon"
                         variant="outline"
-                        tooltip="Probar reranking con textos de ejemplo"
+                        tooltip={t('Probar reranking con textos de ejemplo')}
                         disabled={busy || JSON.stringify(value) !== savedSettings}
                         onClick={() =>
                           void run(async () => {
                             await api('/v1/admin/ai/reranking/test', 'POST', {
                               revision: value.revision,
                             });
-                            setNotice('Conexión y modelo de reranking compatibles.');
+                            setNotice(t('Conexión y modelo de reranking compatibles.'));
                           })
                         }
                       >
                         <FlaskConical />
                       </Button>
-                      <small>Guarda antes de probar. La prueba no envía recuerdos.</small>
+                      <small>{t('Guarda antes de probar. La prueba no envía recuerdos.')}</small>
                     </div>
                     <p>
-                      La API rerank utiliza la URL base de la conexión más /rerank (por ejemplo,
-                      https://api.cohere.com/v2 o https://api.jina.ai/v1). Si falla, la búsqueda
-                      conserva el orden híbrido sin reintentar.
+                      {t(
+                        'La API rerank utiliza la URL base de la conexión más /rerank (por ejemplo, https://api.cohere.com/v2 o https://api.jina.ai/v1). Si falla, la búsqueda conserva el orden híbrido sin reintentar.',
+                      )}
                     </p>
                   </>
                 )}
               </TabsContent>
               <TabsContent value="embeddings">
-                <h3>Embeddings de memoria</h3>
+                <h3>{t('Embeddings de memoria')}</h3>
                 <p>
-                  La memoria avanzada usa el proveedor de embeddings seleccionado para guardar y
-                  buscar recuerdos. Los modos simple y sin memoria no consultan embeddings.
+                  {t(
+                    'La memoria avanzada usa el proveedor de embeddings seleccionado para guardar y buscar recuerdos. Los modos simple y sin memoria no consultan embeddings.',
+                  )}
                 </p>
                 {value.embeddings ? (
                   <EmbeddingEditor
@@ -814,7 +826,9 @@ export function AISettingsEditor() {
                           reprocessing ||
                           JSON.stringify(value) !== savedSettings
                         }
-                        description="Se eliminará la clave de embeddings guardada en Zero y se desactivarán los embeddings. Los recuerdos seguirán disponibles por palabras. Si la clave procede del servidor, Zero dejará de usarla; el archivo del servidor no se modifica."
+                        description={t(
+                          'Se eliminará la clave de embeddings guardada en Zero y se desactivarán los embeddings. Los recuerdos seguirán disponibles por palabras. Si la clave procede del servidor, Zero dejará de usarla; el archivo del servidor no se modifica.',
+                        )}
                         onConfirm={() =>
                           void run(async () => {
                             await api('/v1/admin/ai/api-key', 'DELETE', {
@@ -822,7 +836,7 @@ export function AISettingsEditor() {
                             });
                             await load();
                             setNotice(
-                              'API key retirada de embeddings. Búsqueda por palabras activada.',
+                              t('API key retirada de embeddings. Búsqueda por palabras activada.'),
                             );
                           })
                         }
@@ -834,14 +848,15 @@ export function AISettingsEditor() {
                     }
                   />
                 ) : (
-                  <p role="status">Configuración de embeddings no disponible.</p>
+                  <p role="status">{t('Configuración de embeddings no disponible.')}</p>
                 )}
                 <div className="ai-embedding-maintenance">
                   <div>
-                    <strong>Recuerdos existentes</strong>
+                    <strong>{t('Recuerdos existentes')}</strong>
                     <p>
-                      Al cambiar de modelo, los recuerdos anteriores se buscan por palabras hasta
-                      reprocesarlos. El texto y los perfiles se conservan.
+                      {t(
+                        'Al cambiar de modelo, los recuerdos anteriores se buscan por palabras hasta reprocesarlos. El texto y los perfiles se conservan.',
+                      )}
                     </p>
                   </div>
                   <AlertDialog>
@@ -850,7 +865,7 @@ export function AISettingsEditor() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        tooltip="Reprocesar todos los recuerdos"
+                        tooltip={t('Reprocesar todos los recuerdos')}
                         disabled={
                           reprocessing ||
                           value.embeddings?.mode === 'disabled' ||
@@ -862,22 +877,22 @@ export function AISettingsEditor() {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>¿Reprocesar todos los recuerdos?</AlertDialogTitle>
+                        <AlertDialogTitle>{t('¿Reprocesar todos los recuerdos?')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Se enviará el texto de los recuerdos de todos los perfiles al proveedor
-                          guardado para generar nuevos vectores. Puede tener coste. Mantén esta
-                          página abierta hasta terminar.
+                          {t(
+                            'Se enviará el texto de los recuerdos de todos los perfiles al proveedor guardado para generar nuevos vectores. Puede tener coste. Mantén esta página abierta hasta terminar.',
+                          )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => {
                             setReprocessing(true);
                             void run(async () => {
                               let after = '0';
                               let count = 0;
-                              setProgress('Reprocesando recuerdos…');
+                              setProgress(t('Reprocesando recuerdos…'));
                               try {
                                 while (true) {
                                   const result = await api<{
@@ -889,14 +904,17 @@ export function AISettingsEditor() {
                                     after,
                                   });
                                   count += result.processed;
-                                  setProgress(`${count} recuerdos reprocesados.`);
+                                  setProgress(t('{count} recuerdos reprocesados.', { count }));
                                   after = result.after;
                                   if (result.done) break;
                                 }
-                                setNotice('Recuerdos reprocesados.');
+                                setNotice(t('Recuerdos reprocesados.'));
                               } catch (error) {
                                 setProgress(
-                                  `Reprocesado detenido tras ${count} recuerdos confirmados. No se ha reintentado.`,
+                                  t(
+                                    'Reprocesado detenido tras {count} recuerdos confirmados. No se ha reintentado.',
+                                    { count },
+                                  ),
                                 );
                                 throw error;
                               } finally {
@@ -905,13 +923,13 @@ export function AISettingsEditor() {
                             });
                           }}
                         >
-                          Reprocesar recuerdos
+                          {t('Reprocesar recuerdos')}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
                   {JSON.stringify(value) !== savedSettings && (
-                    <p>Guarda la configuración antes de reprocesar.</p>
+                    <p>{t('Guarda la configuración antes de reprocesar.')}</p>
                   )}
                   {progress && <p role="status">{progress}</p>}
                 </div>
@@ -928,6 +946,7 @@ export function ProfileModels({
 }: {
   profile?: { defaultModel?: string; alternateModels?: string[] } | null;
 }) {
+  const t = useTranslations();
   const [models, setModels] = useState<AIModel[]>();
   const [error, setError] = useState('');
   useEffect(() => {
@@ -939,7 +958,7 @@ export function ProfileModels({
       });
   }, []);
   if (!models)
-    return <p role="status">{error ? 'Modelos no disponibles.' : 'Cargando modelos…'}</p>;
+    return <p role="status">{error ? t('Modelos no disponibles.') : t('Cargando modelos…')}</p>;
   const missing = [
     ...new Set(
       [profile?.defaultModel, ...(profile?.alternateModels || [])].filter(
@@ -949,14 +968,14 @@ export function ProfileModels({
   ];
   return (
     <>
-      <h3 className="settings-heading">Modelos IA</h3>
+      <h3 className="settings-heading">{t('Modelos IA')}</h3>
       <SelectField
         id="profile-default-model"
         name="defaultModel"
-        label="Modelo predeterminado de este perfil"
+        label={t('Modelo predeterminado de este perfil')}
         defaultValue={profile?.defaultModel || ''}
       >
-        <option value="">Usar predeterminado global</option>
+        <option value="">{t('Usar predeterminado global')}</option>
         {models.map((m) => (
           <option key={m.id} value={m.id}>
             {m.label}
@@ -964,13 +983,14 @@ export function ProfileModels({
         ))}
         {missing.map((id) => (
           <option key={id} value={id} disabled>
-            Modelo no disponible
+            {t('Modelo no disponible')}
           </option>
         ))}
       </SelectField>
       <p>
-        Modelos alternativos permitidos para /model. La selección del usuario solo se aplica a la
-        siguiente pregunta.
+        {t(
+          'Modelos alternativos permitidos para /model. La selección del usuario solo se aplica a la siguiente pregunta.',
+        )}
       </p>
       {models.map((m) => (
         <CheckField
@@ -984,7 +1004,9 @@ export function ProfileModels({
       ))}
       {missing.length > 0 && (
         <p role="status">
-          Hay modelos eliminados en este perfil. Selecciona modelos disponibles antes de guardar.
+          {t(
+            'Hay modelos eliminados en este perfil. Selecciona modelos disponibles antes de guardar.',
+          )}
         </p>
       )}
       <input type="hidden" name="modelsLoaded" value="true" />
@@ -1013,6 +1035,7 @@ function ProviderModels({
   value: string;
   onSelect: (item: { id: string; name: string }) => void;
 }) {
+  const t = useTranslations();
   const [page, setPage] = useState<{ items: { id: string; name: string }[]; total: number }>();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -1066,7 +1089,7 @@ function ProviderModels({
   return (
     <div className="ai-model-discovery">
       <div className="settings-field ai-model-selector">
-        <Label htmlFor={id}>Modelo del proveedor</Label>
+        <Label htmlFor={id}>{t('Modelo del proveedor')}</Label>
         <div className="ai-model-selector-controls">
           <Popover.Root open={open} onOpenChange={setOpen}>
             <Popover.Trigger asChild>
@@ -1082,8 +1105,8 @@ function ProviderModels({
               >
                 <span>
                   {items.find((item) => item.id === value)?.name ||
-                    (value === 'preferred' ? 'IA preferida de Home Assistant' : value) ||
-                    (!provider ? 'Selecciona una conexión' : 'Selecciona un modelo')}
+                    (value === 'preferred' ? t('IA preferida de Home Assistant') : value) ||
+                    (!provider ? t('Selecciona una conexión') : t('Selecciona un modelo'))}
                 </span>
               </Button>
             </Popover.Trigger>
@@ -1092,11 +1115,11 @@ function ProviderModels({
                 align="start"
                 sideOffset={4}
                 className="ai-model-popover"
-                aria-label="Modelos del proveedor"
+                aria-label={t('Modelos del proveedor')}
               >
                 <Input
-                  aria-label="Buscar en modelos del proveedor"
-                  placeholder="Buscar modelo…"
+                  aria-label={t('Buscar en modelos del proveedor')}
+                  placeholder={t('Buscar modelo…')}
                   value={search}
                   maxLength={200}
                   onChange={(event) => {
@@ -1107,7 +1130,7 @@ function ProviderModels({
                 <div
                   id={id + '-options'}
                   role="listbox"
-                  aria-label="Modelo del proveedor"
+                  aria-label={t('Modelo del proveedor')}
                   aria-busy={busy}
                   onKeyDown={(event) => {
                     const options = Array.from(
@@ -1131,7 +1154,7 @@ function ProviderModels({
                   }}
                 >
                   {provider?.kind === 'home_assistant' &&
-                    'ia preferida de home assistant'.includes(search.toLowerCase()) && (
+                    t('ia preferida de home assistant').includes(search.toLowerCase()) && (
                       <button
                         type="button"
                         role="option"
@@ -1141,7 +1164,7 @@ function ProviderModels({
                           setOpen(false);
                         }}
                       >
-                        IA preferida de Home Assistant
+                        {t('IA preferida de Home Assistant')}
                       </button>
                     )}
                   {!busy &&
@@ -1160,12 +1183,14 @@ function ProviderModels({
                       </button>
                     ))}
                 </div>
-                {busy && <p role="status">Consultando modelos del proveedor…</p>}
+                {busy && <p role="status">{t('Consultando modelos del proveedor…')}</p>}
                 {!busy && page && !items.length && (
                   <p role="status">
                     {provider?.kind === 'home_assistant' && !search
-                      ? 'Home Assistant no publica entidades AI Task disponibles. Si ya existe la subentrada, comprueba que tenga una entidad habilitada y que la integración esté cargada; después actualiza los modelos.'
-                      : 'No se encontraron modelos disponibles.'}
+                      ? t(
+                          'Home Assistant no publica entidades AI Task disponibles. Si ya existe la subentrada, comprueba que tenga una entidad habilitada y que la integración esté cargada; después actualiza los modelos.',
+                        )
+                      : t('No se encontraron modelos disponibles.')}
                   </p>
                 )}
                 <div className="form-actions ai-catalog-actions">
@@ -1176,7 +1201,7 @@ function ProviderModels({
                     disabled={busy || offset === 0}
                     onClick={() => setOffset(Math.max(0, offset - 20))}
                     size="icon"
-                    tooltip="Anterior"
+                    tooltip={t('Anterior')}
                   >
                     <ArrowLeft />
                   </Button>
@@ -1187,7 +1212,7 @@ function ProviderModels({
                     disabled={busy || !page || offset + 20 >= page.total}
                     onClick={() => setOffset(offset + 20)}
                     size="icon"
-                    tooltip="Siguiente"
+                    tooltip={t('Siguiente')}
                   >
                     <ArrowRight />
                   </Button>
@@ -1201,7 +1226,7 @@ function ProviderModels({
             disabled={!provider || busy}
             onClick={() => setReload((n) => n + 1)}
             size="icon"
-            tooltip="Actualizar modelos"
+            tooltip={t('Actualizar modelos')}
           >
             <RefreshCw />
           </Button>
@@ -1222,6 +1247,7 @@ function DeleteAIKey({
   description: string;
   onConfirm: () => void;
 }) {
+  const t = useTranslations();
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -1229,7 +1255,7 @@ function DeleteAIKey({
           type="button"
           variant="destructive"
           size="icon"
-          tooltip="Borrar API key guardada"
+          tooltip={t('Borrar API key guardada')}
           disabled={disabled}
         >
           <Trash2 />
@@ -1237,15 +1263,15 @@ function DeleteAIKey({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Borrar API key guardada?</AlertDialogTitle>
+          <AlertDialogTitle>{t('¿Borrar API key guardada?')}</AlertDialogTitle>
           <AlertDialogDescription>
-            {description} Guarda los cambios pendientes antes de borrar la clave.
+            {description} {t('Guarda los cambios pendientes antes de borrar la clave.')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            Borrar API key
+            {t('Borrar API key')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1270,6 +1296,7 @@ function MemoryConnection({
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const t = useTranslations();
   const connection = providers.find((provider) => provider.id === selected);
   const change = (patch: Partial<Provider>) =>
     onProviders(
@@ -1283,7 +1310,7 @@ function MemoryConnection({
       <div className="ai-connection-selector">
         <SelectField
           id={scope + '-connection'}
-          label={'Conexión de ' + title}
+          label={t('Conexión de ') + title}
           value={selected}
           required
           onChange={(event) => {
@@ -1301,17 +1328,17 @@ function MemoryConnection({
             } else onSelect(event.target.value);
           }}
         >
-          <option value="">Selecciona una conexión</option>
+          <option value="">{t('Selecciona una conexión')}</option>
           {providers
             .filter((provider) => allowed.includes(provider.kind))
             .map((provider) => (
               <option key={provider.id} value={provider.id}>
-                {provider.name || kinds[provider.kind as keyof typeof kinds]}
-                {provider.scope ? ' · ' + provider.scope : ' · conversación'}
+                {provider.name || t(kinds[provider.kind as keyof typeof kinds])}
+                {provider.scope ? ' · ' + provider.scope : t(' · conversación')}
               </option>
             ))}
           <option value="__new__" disabled={providers.length >= 30}>
-            Nueva conexión exclusiva de {title}
+            {t('Nueva conexión exclusiva de')} {title}
           </option>
         </SelectField>
         {connection?.scope === scope && (
@@ -1322,23 +1349,24 @@ function MemoryConnection({
                 variant="ghost"
                 size="icon"
                 className="danger"
-                tooltip="Eliminar conexión exclusiva"
+                tooltip={t('Eliminar conexión exclusiva')}
               >
                 <Trash2 />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar esta conexión?</AlertDialogTitle>
+                <AlertDialogTitle>{t('¿Eliminar esta conexión?')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Al guardar se borrará la conexión y su clave. Si se reutiliza en embeddings o
-                  reranking, esas funciones se desactivarán. Los recuerdos existentes se conservan.
+                  {t(
+                    'Al guardar se borrará la conexión y su clave. Si se reutiliza en embeddings o reranking, esas funciones se desactivarán. Los recuerdos existentes se conservan.',
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                 <AlertDialogAction variant="destructive" onClick={() => onRemove(connection.id)}>
-                  Eliminar conexión
+                  {t('Eliminar conexión')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1349,7 +1377,7 @@ function MemoryConnection({
         <>
           <SelectField
             id={scope + '-kind'}
-            label="Proveedor"
+            label={t('Proveedor')}
             value={connection.kind}
             onChange={(event) => {
               change({
@@ -1364,13 +1392,13 @@ function MemoryConnection({
           >
             {allowed.map((kind) => (
               <option key={kind} value={kind}>
-                {kinds[kind as keyof typeof kinds]}
+                {t(kinds[kind as keyof typeof kinds])}
               </option>
             ))}
           </SelectField>
           <Field
             id={scope + '-name'}
-            label="Nombre de la conexión (opcional)"
+            label={t('Nombre de la conexión (opcional)')}
             value={connection.name}
             maxLength={100}
             onChange={(event) => change({ name: event.target.value })}
@@ -1379,7 +1407,7 @@ function MemoryConnection({
             <>
               <Field
                 id={scope + '-url'}
-                label="URL base (vacía para usar la oficial)"
+                label={t('URL base (vacía para usar la oficial)')}
                 type="url"
                 value={connection.baseUrl}
                 required={connection.kind === 'compatible'}
@@ -1398,20 +1426,22 @@ function MemoryConnection({
           )}
 
           <p>
-            Esta conexión se guarda de forma independiente y no aparece en Conversación. También
-            puede reutilizarse desde otra función compatible.
+            {t(
+              'Esta conexión se guarda de forma independiente y no aparece en Conversación. También puede reutilizarse desde otra función compatible.',
+            )}
           </p>
         </>
       ) : (
         connection && (
           <p>
-            Reutiliza esta conexión sin crear un modelo de conversación. Sus credenciales se
-            gestionan en{' '}
+            {t(
+              'Reutiliza esta conexión sin crear un modelo de conversación. Sus credenciales se gestionan en',
+            )}{' '}
             {connection.scope === 'embeddings'
-              ? 'Embeddings de memoria'
+              ? t('Embeddings de memoria')
               : connection.scope === 'reranking'
                 ? 'Reranking'
-                : 'Conversación'}
+                : t('Conversación')}
             .
           </p>
         )
@@ -1437,6 +1467,7 @@ function EmbeddingEditor({
   deleteKey: ReactNode;
   onChange: (settings: EmbeddingSettings) => void;
 }) {
+  const t = useTranslations();
   // Keep discovery inputs stable when unrelated model labels or default selections change.
   const discovery = JSON.stringify(value);
   const connection = JSON.stringify(
@@ -1469,15 +1500,17 @@ function EmbeddingEditor({
           })
         }
       >
-        <option value="gemini">Configurar Gemini</option>
-        <option value="provider">Usar conexión OpenAI, OpenRouter, Ollama o compatible</option>
-        <option value="disabled">Desactivar embeddings (búsqueda por palabras)</option>
+        <option value="gemini">{t('Configurar Gemini')}</option>
+        <option value="provider">
+          {t('Usar conexión OpenAI, OpenRouter, Ollama o compatible')}
+        </option>
+        <option value="disabled">{t('Desactivar embeddings (búsqueda por palabras)')}</option>
       </SelectField>
       {value.mode === 'gemini' && (
         <>
           <SecretEditor
             id="ai-embedding-key"
-            label="API key de Gemini"
+            label={t('API key de Gemini')}
             value={value.apiKey}
             configured={value.hasApiKey}
             hint={value.secretHint}
@@ -1506,13 +1539,14 @@ function EmbeddingEditor({
           />
           {inputs.provider?.kind === 'compatible' && (
             <p>
-              El servidor compatible puede listar modelos sin indicar sus capacidades. Usa la prueba
-              para confirmar que el modelo admite embeddings.
+              {t(
+                'El servidor compatible puede listar modelos sin indicar sus capacidades. Usa la prueba para confirmar que el modelo admite embeddings.',
+              )}
             </p>
           )}
           <Field
             id="ai-embedding-dimensions"
-            label="Dimensiones de salida (opcional; solo si el modelo lo admite)"
+            label={t('Dimensiones de salida (opcional; solo si el modelo lo admite)')}
             type="number"
             min={1}
             max={dimensions || 4000}
@@ -1545,10 +1579,10 @@ function EmbeddingEditor({
         </>
       )}
       <p>
-        La base de datos conserva {dimensions ?? 'las'} dimensiones configuradas. Al cambiar de
-        modelo, los vectores anteriores se conservan y siguen disponibles por palabras; la búsqueda
-        semántica solo compara vectores del mismo modelo. Puedes reprocesarlos con el modelo
-        guardado desde «Recuerdos existentes».
+        {t('La base de datos conserva')} {dimensions ?? 'las'}{' '}
+        {t(
+          'dimensiones configuradas. Al cambiar de modelo, los vectores anteriores se conservan y siguen disponibles por palabras; la búsqueda semántica solo compara vectores del mismo modelo. Puedes reprocesarlos con el modelo guardado desde «Recuerdos existentes».',
+        )}
       </p>
     </>
   );
@@ -1561,6 +1595,7 @@ function EmbeddingTest({
   settings: EmbeddingSettings;
   connection?: Provider;
 }) {
+  const t = useTranslations();
   const { busy, run, setNotice } = useAdminTask();
   return (
     <Button
@@ -1578,14 +1613,14 @@ function EmbeddingTest({
             ...(selected ? { connection: selected } : {}),
           });
           setNotice(
-            'Embeddings verificados: vector compatible con ' +
+            t('Embeddings verificados: vector compatible con ') +
               result.dimensions +
-              ' dimensiones de almacenamiento.',
+              t(' dimensiones de almacenamiento.'),
           );
         })
       }
       size="icon"
-      tooltip="Probar embeddings"
+      tooltip={t('Probar embeddings')}
     >
       <FlaskConical />
     </Button>

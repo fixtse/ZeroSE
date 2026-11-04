@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { Check, Fingerprint, Plus, RefreshCw, ShieldPlus, ShieldOff, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { authClient, authResult } from '../lib/auth-client';
@@ -26,6 +27,7 @@ export function AccountFactors({
   section: 'two-factor' | 'passkeys';
   active: boolean;
 }) {
+  const t = useTranslations();
   const { busy, setNotice, run } = useAdminTask();
   const [enabled, setEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -53,7 +55,7 @@ export function AccountFactors({
     if (enabled) {
       authResult(await authClient.twoFactor.disable({ password }));
       setEnrollment(undefined);
-      setNotice('Segundo factor desactivado.');
+      setNotice(t('Segundo factor desactivado.'));
     } else {
       const result = authResult(await authClient.twoFactor.enable({ password }));
       if (result.data && 'totpURI' in result.data) setEnrollment(result.data);
@@ -71,9 +73,9 @@ export function AccountFactors({
     <Card className="security-panel">
       <div className="security-panel-heading">
         <div className="security-panel-title">
-          <h3>{section === 'two-factor' ? 'Autenticación en dos pasos' : 'Passkeys'}</h3>
+          <h3>{section === 'two-factor' ? t('Autenticación en dos pasos') : 'Passkeys'}</h3>
           {section === 'two-factor' && loaded && (
-            <Badge variant="secondary">{enabled ? 'Activada' : 'Desactivada'}</Badge>
+            <Badge variant="secondary">{enabled ? t('Activada') : t('Desactivada')}</Badge>
           )}
           {section === 'passkeys' && loaded && <Badge variant="secondary">{keys.length}</Badge>}
         </div>
@@ -81,7 +83,7 @@ export function AccountFactors({
           type="button"
           variant="outline"
           size="icon"
-          tooltip="Recargar métodos de acceso"
+          tooltip={t('Recargar métodos de acceso')}
           disabled={busy || !!enrollment}
           onClick={() => void run(refresh)}
         >
@@ -92,15 +94,17 @@ export function AccountFactors({
         <>
           <p>
             {enabled
-              ? 'Al entrar con contraseña se pedirá un código de tu aplicación.'
-              : 'Añade los códigos de tu aplicación de autenticación como segundo paso de acceso.'}
+              ? t('Al entrar con contraseña se pedirá un código de tu aplicación.')
+              : t(
+                  'Añade los códigos de tu aplicación de autenticación como segundo paso de acceso.',
+                )}
           </p>
           {!enrollment && (
             <form ref={factorForm} className="security-inline-form" onSubmit={configure}>
               <Field
                 id="factor-password"
                 name="password"
-                label="Contraseña actual"
+                label={t('Contraseña actual')}
                 type="password"
                 autoComplete="current-password"
                 required
@@ -111,7 +115,7 @@ export function AccountFactors({
                 size="icon"
                 variant={enabled ? 'outline' : 'default'}
                 className={enabled ? 'danger' : undefined}
-                tooltip={enabled ? 'Desactivar 2FA' : 'Configurar 2FA'}
+                tooltip={enabled ? t('Desactivar 2FA') : t('Configurar 2FA')}
               >
                 {enabled ? <ShieldOff /> : <ShieldPlus />}
               </Button>
@@ -120,13 +124,17 @@ export function AccountFactors({
           <AlertDialog open={confirmDisable} onOpenChange={setConfirmDisable}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Desactivar la autenticación en dos pasos?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t('¿Desactivar la autenticación en dos pasos?')}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tu cuenta dejará de pedir el código de la aplicación al entrar con contraseña.
+                  {t(
+                    'Tu cuenta dejará de pedir el código de la aplicación al entrar con contraseña.',
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   onClick={() => {
@@ -134,7 +142,7 @@ export function AccountFactors({
                     if (form?.reportValidity()) void run(() => toggle(form));
                   }}
                 >
-                  Desactivar
+                  {t('Desactivar')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -142,17 +150,20 @@ export function AccountFactors({
           {enrollment && (
             <div className="security-enrollment">
               <p>
-                Añade esta clave como una cuenta Zero en tu aplicación: códigos de 6 cifras cada 30
-                segundos.
+                {t(
+                  'Añade esta clave como una cuenta Zero en tu aplicación: códigos de 6 cifras cada 30 segundos.',
+                )}
               </p>
               <Field
                 id="factor-secret"
-                label="Clave de configuración manual"
+                label={t('Clave de configuración manual')}
                 readOnly
                 value={new URL(enrollment.totpURI).searchParams.get('secret') || ''}
               />
               <p>
-                Guarda los códigos de recuperación en un lugar seguro. Cada uno sirve una sola vez.
+                {t(
+                  'Guarda los códigos de recuperación en un lugar seguro. Cada uno sirve una sola vez.',
+                )}
               </p>
               <pre>{enrollment.backupCodes.join('\n')}</pre>
               <form
@@ -164,21 +175,21 @@ export function AccountFactors({
                     authResult(await authClient.twoFactor.verifyTotp({ code }));
                     setEnrollment(undefined);
                     await refresh();
-                    setNotice('Segundo factor activado.');
+                    setNotice(t('Segundo factor activado.'));
                   });
                 }}
               >
                 <Field
                   id="factor-code"
                   name="code"
-                  label="Código de la aplicación"
+                  label={t('Código de la aplicación')}
                   autoComplete="one-time-code"
                   inputMode="numeric"
                   pattern="[0-9]{6}"
                   required
                   disabled={busy}
                 />
-                <Button disabled={busy} size="icon" tooltip="Confirmar y activar">
+                <Button disabled={busy} size="icon" tooltip={t('Confirmar y activar')}>
                   <Check />
                 </Button>
               </form>
@@ -188,8 +199,9 @@ export function AccountFactors({
       ) : (
         <>
           <p>
-            Usa la huella, el reconocimiento facial o una llave de seguridad. Requiere HTTPS o
-            localhost.
+            {t(
+              'Usa la huella, el reconocimiento facial o una llave de seguridad. Requiere HTTPS o localhost.',
+            )}
           </p>
           <form
             className="security-inline-form"
@@ -201,23 +213,23 @@ export function AccountFactors({
                 authResult(await authClient.passkey.addPasskey({ name }));
                 form.reset();
                 await refresh();
-                setNotice('Passkey añadida.');
+                setNotice(t('Passkey añadida.'));
               });
             }}
           >
             <Field
               id="passkey-name"
               name="name"
-              label="Nombre del dispositivo"
+              label={t('Nombre del dispositivo')}
               maxLength={100}
               required
               disabled={busy}
             />
-            <Button disabled={busy || !loaded} size="icon" tooltip="Añadir passkey">
+            <Button disabled={busy || !loaded} size="icon" tooltip={t('Añadir passkey')}>
               <Plus />
             </Button>
           </form>
-          {loaded && keys.length === 0 && <p>No tienes passkeys registradas.</p>}
+          {loaded && keys.length === 0 && <p>{t('No tienes passkeys registradas.')}</p>}
           <div className="security-key-list">
             {keys.map((key) => (
               <div className="security-key-row" key={key.id}>
@@ -231,32 +243,35 @@ export function AccountFactors({
                       className="danger"
                       disabled={busy}
                       size="icon"
-                      tooltip={'Eliminar ' + (key.name || 'passkey')}
+                      tooltip={t('Eliminar ') + (key.name || 'passkey')}
                     >
                       <Trash2 />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>¿Eliminar {key.name || 'esta passkey'}?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {t('¿Eliminar')} {key.name || t('esta passkey')}?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta credencial dejará de permitir el acceso a Zero. Conserva otro método de
-                        acceso a tu cuenta.
+                        {t(
+                          'Esta credencial dejará de permitir el acceso a Zero. Conserva otro método de acceso a tu cuenta.',
+                        )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                       <AlertDialogAction
                         variant="destructive"
                         onClick={() =>
                           void run(async () => {
                             authResult(await authClient.passkey.deletePasskey({ id: key.id }));
                             await refresh();
-                            setNotice('Passkey eliminada.');
+                            setNotice(t('Passkey eliminada.'));
                           })
                         }
                       >
-                        Eliminar passkey
+                        {t('Eliminar passkey')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

@@ -1310,3 +1310,26 @@ are not migrated or cancelled automatically. Stored backend identities and priva
 legacy settings are retained; reminders from an unavailable backend are not routed
 to Home Assistant or the local scheduler. New clock reminders and timers use Zero's
 local scheduler; existing HA rules and additional HA conditions remain supported.
+
+### Admin interface languages
+
+The admin interface supports English and Spanish, following ScribeSE's shared
+message dictionary and React provider approach. It detects the browser language
+on first use (English fallback). The header language selector saves a browser
+preference and updates `?lang=en` or `?lang=es`, preserving the current page,
+editor, tabs and Home Assistant ingress path. Shared URLs and browser back/forward
+restore the language. Selection also works when browser storage is unavailable.
+Dates, numbers and speech-language names follow the interface language. Speech
+configuration, user content and integration identifiers remain independent of the
+interface preference. Each profile has a separate English/Spanish reply language
+setting for generated replies, briefings, weather alerts and built-in commands.
+Existing profiles default to Spanish. This preference applies after the saved
+personality prompt without rewriting it, and also applies to its linked Home
+Assistant client. Reminder text and quoted user content are retained as written.
+
+UI messages live in `web/i18n/messages.ts`: Spanish source messages are lookup
+keys, with English translations and named `{placeholder}` interpolation. Use
+`useTranslations()` inside components, and keep stored names, prompts, secrets
+and API payload values out of translation lookups. Unknown server errors retain
+their original text. Add further locales in `web/i18n/config.ts`, their message
+catalog and the header selector.

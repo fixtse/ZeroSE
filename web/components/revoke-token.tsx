@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { Check } from 'lucide-react';
 import { Button } from './ui/button';
 import {
@@ -21,6 +22,7 @@ export function RevokeToken({
   disabled: boolean;
   onRevoke: () => void;
 }) {
+  const t = useTranslations();
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -29,22 +31,23 @@ export function RevokeToken({
           className="quiet danger"
           disabled={disabled}
           size="icon"
-          tooltip="Revocar"
+          tooltip={t('Revocar')}
         >
           <Check />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Revocar esta conexión?</AlertDialogTitle>
+          <AlertDialogTitle>{t('¿Revocar esta conexión?')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Home Assistant dejará de conectarse con el token «{name}». Puedes crear una nueva
-            conexión cuando lo necesites.
+            {t('Home Assistant dejará de conectarse con el token «')}
+            {name}
+            {t('». Puedes crear una nueva conexión cuando lo necesites.')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onRevoke}>Revocar token</AlertDialogAction>
+          <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+          <AlertDialogAction onClick={onRevoke}>{t('Revocar token')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

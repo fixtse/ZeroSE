@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Home, AudioLines, BookOpen, Search, Map, Save, Settings2, Trash2 } from 'lucide-react';
 import { useUrlState } from '../hooks/use-url-state';
@@ -82,11 +83,12 @@ function fieldLabel(path: string) {
 }
 
 function BooleanField({ field }: { field: ServiceField }) {
+  const t = useTranslations();
   const [checked, setChecked] = useState(field.value === true);
   const id = 'service-' + field.path;
   return (
     <div className="service-switch-field">
-      <Label htmlFor={id}>{fieldLabel(field.path)}</Label>
+      <Label htmlFor={id}>{t(fieldLabel(field.path))}</Label>
       <Switch id={id} checked={checked} onCheckedChange={setChecked} disabled={field.readOnly} />
       <input type="hidden" name={field.path} value={String(checked)} disabled={field.readOnly} />
     </div>
@@ -102,7 +104,8 @@ function SecretField({
   cleared: boolean;
   onClear: () => void;
 }) {
-  const label = fieldLabel(field.path);
+  const t = useTranslations();
+  const label = t(fieldLabel(field.path));
   return (
     <SecretEditor
       key={String(cleared)}
@@ -111,7 +114,7 @@ function SecretField({
       label={label}
       configured={field.configured && !cleared}
       hint={field.secretHint}
-      preview={cleared ? 'Se eliminará al guardar' : undefined}
+      preview={cleared ? t('Se eliminará al guardar') : undefined}
       disabled={field.readOnly}
       deleteAction={
         field.configured && !cleared ? (
@@ -122,7 +125,7 @@ function SecretField({
                 variant="ghost"
                 className="danger"
                 size="icon-sm"
-                tooltip={'Eliminar ' + label}
+                tooltip={t('Eliminar ') + label}
                 disabled={field.readOnly}
               >
                 <Trash2 />
@@ -130,20 +133,22 @@ function SecretField({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar {label.toLowerCase()}?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t('¿Eliminar')} {label.toLowerCase()}?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  La credencial se eliminará al guardar los ajustes.
+                  {t('La credencial se eliminará al guardar los ajustes.')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   onClick={() => {
                     onClear();
                   }}
                 >
-                  Eliminar
+                  {t('Eliminar')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -171,6 +176,7 @@ function SettingsForm({
   busy: boolean;
   save: (data: FormData, extra: Record<string, unknown>) => void;
 }) {
+  const t = useTranslations();
   const [cleared, setCleared] = useState<string[]>([]);
   const get = (path: string) =>
     String(settings.fields.find((field) => field.path === path)?.value ?? '');
@@ -202,7 +208,7 @@ function SettingsForm({
     const common = {
       id: 'service-' + field.path,
       name: field.path,
-      label: fieldLabel(field.path),
+      label: t(fieldLabel(field.path)),
       disabled: field.readOnly,
     };
     if (field.path === 'concurrency')
@@ -219,7 +225,7 @@ function SettingsForm({
     if (field.type === 'list')
       return (
         <label key={field.path} className="service-list-field">
-          {fieldLabel(field.path)} · un valor por línea
+          {t(fieldLabel(field.path))} {t('· un valor por línea')}
           <textarea
             name={field.path}
             readOnly={field.readOnly}
@@ -278,13 +284,13 @@ function SettingsForm({
           onValueChange={setTab}
           className="provider-settings service-tabs"
         >
-          <TabsList aria-label="Secciones de ajustes" className="provider-tabs-list">
+          <TabsList aria-label={t('Secciones de ajustes')} className="provider-tabs-list">
             {groups.map((group) => {
               const Icon = icons[group as keyof typeof icons] || Settings2;
               return (
                 <TabsTrigger key={group} value={group}>
                   <Icon aria-hidden="true" />
-                  {names[group] || group}
+                  {t(names[group] || group)}
                 </TabsTrigger>
               );
             })}
@@ -297,21 +303,21 @@ function SettingsForm({
               className="service-panel"
               data-service-panel={group}
             >
-              <h3>{names[group] || group}</h3>
-              {group === 'braveApiKey' && <p>Búsqueda web e imágenes con la misma clave.</p>}
+              <h3>{t(names[group] || group)}</h3>
+              {group === 'braveApiKey' && <p>{t('Búsqueda web e imágenes con la misma clave.')}</p>}
               {group === 'general' && (
                 <p>
-                  La URL pública de Zero se usa para Telegram, Google y otros servicios. Si está sin
-                  configurar, se usa la dirección del servidor. Home Assistant puede añadir su relay
-                  HTTPS si no hay una dirección pública configurada. Cambiarla no registra de nuevo
-                  los webhooks existentes.
+                  {t(
+                    'La URL pública de Zero se usa para Telegram, Google y otros servicios. Si está sin configurar, se usa la dirección del servidor. Home Assistant puede añadir su relay HTTPS si no hay una dirección pública configurada. Cambiarla no registra de nuevo los webhooks existentes.',
+                  )}
                 </p>
               )}
               {group === 'general' &&
                 settings.fields.find((field) => field.path === 'connectionUrl')?.inherited && (
                   <p>
-                    La URL mostrada procede de la configuración del servidor. Puedes guardar otra
-                    dirección para sustituirla; dejar el campo vacío vuelve a usar la del servidor.
+                    {t(
+                      'La URL mostrada procede de la configuración del servidor. Puedes guardar otra dirección para sustituirla; dejar el campo vacío vuelve a usar la del servidor.',
+                    )}
                   </p>
                 )}
               {group === 'homeAssistant' ? (
@@ -321,18 +327,18 @@ function SettingsForm({
                   <div className="settings-grid">
                     <SelectField
                       id="service-extraction"
-                      label="Extracción de audio de vídeos"
+                      label={t('Extracción de audio de vídeos')}
                       value={extraction}
                       onChange={(event) => setExtraction(event.target.value)}
                     >
-                      <option value="internal">FFmpeg interno</option>
-                      <option value="external">Servicio externo</option>
+                      <option value="internal">{t('FFmpeg interno')}</option>
+                      <option value="external">{t('Servicio externo')}</option>
                     </SelectField>
                     {extraction === 'external' && (
                       <Field
                         id="service-media.audioExtractionUrl"
                         name="media.audioExtractionUrl"
-                        label="URL del servicio de extracción de audio"
+                        label={t('URL del servicio de extracción de audio')}
                         type="url"
                         required
                         defaultValue={get('media.audioExtractionUrl')}
@@ -342,7 +348,7 @@ function SettingsForm({
                   <div className="settings-grid">
                     <SelectField
                       id="service-tts"
-                      label="Síntesis de voz"
+                      label={t('Síntesis de voz')}
                       value={tts}
                       onChange={(event) => setTts(event.target.value)}
                     >
@@ -357,13 +363,13 @@ function SettingsForm({
                       <>
                         <ServiceSpeechPicker
                           kind="languages"
-                          label="Filtrar voces por idioma"
+                          label={t('Filtrar voces por idioma')}
                           value={language}
                           onChange={setLanguage}
                         />
                         <ServiceSpeechPicker
                           kind="voices"
-                          label="Voz"
+                          label={t('Voz')}
                           value={voice}
                           language={language}
                           onChange={setVoice}
@@ -374,11 +380,11 @@ function SettingsForm({
                   <div className="settings-grid">
                     <SelectField
                       id="service-stt"
-                      label="Transcripción de audio"
+                      label={t('Transcripción de audio')}
                       value={stt}
                       onChange={(event) => setStt(event.target.value)}
                     >
-                      <option value="default">Servicio externo</option>
+                      <option value="default">{t('Servicio externo')}</option>
                       {get('media.speech.stt') && get('media.speech.stt') !== 'default' && (
                         <option value={get('media.speech.stt')}>
                           Home Assistant · {get('media.speech.stt')}
@@ -388,7 +394,7 @@ function SettingsForm({
                     {stt === 'default' && field('media.asrUrl')}
                   </div>
                   <details className="service-advanced">
-                    <summary>Opciones avanzadas</summary>
+                    <summary>{t('Opciones avanzadas')}</summary>
                     <div className="settings-grid">
                       {field('media.maxBytes')}
                       {tts !== 'default' &&
@@ -412,6 +418,7 @@ function SettingsForm({
 }
 
 export function ServiceSettings() {
+  const t = useTranslations();
   const formId = useId();
   const [activeTab, setActiveTab] = useUrlState('settingsTab', 'general');
   const [settings, setSettings] = useState<Settings>();
@@ -460,13 +467,13 @@ export function ServiceSettings() {
       }
       await api(endpoint, 'PUT', { revision: settings!.revision, changes });
       await load();
-      setNotice('Ajustes guardados y aplicados.');
+      setNotice(t('Ajustes guardados y aplicados.'));
     });
   }
   return (
     <section className="service-settings">
       <div className="service-settings-heading">
-        <h2>Ajustes</h2>
+        <h2>{t('Ajustes')}</h2>
         <div className="action-group">
           {activeTab !== 'homeAssistant' && (
             <Button
@@ -474,7 +481,7 @@ export function ServiceSettings() {
               form={formId}
               disabled={busy || !settings}
               size="icon"
-              tooltip="Guardar ajustes"
+              tooltip={t('Guardar ajustes')}
             >
               <Save />
             </Button>
@@ -493,7 +500,7 @@ export function ServiceSettings() {
           reload={load}
         />
       ) : (
-        <p>Cargando ajustes…</p>
+        <p>{t('Cargando ajustes…')}</p>
       )}
     </section>
   );

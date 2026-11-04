@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { ArrowRight, Check, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type Profile, type SpeechSettings, type CatalogPage } from '../lib/api';
@@ -33,6 +34,7 @@ export function ProfileSpeech({
   value: SpeechSettings;
   onChange: (speech: SpeechSettings) => void;
 }) {
+  const t = useTranslations();
   const { busy, run } = useAdminTask();
   const [engines, setEngines] = useState<{ stt: Engine[]; tts: Engine[] }>({ stt: [], tts: [] }),
     [voices, setVoices] = useState<Voice[]>([]),
@@ -61,7 +63,7 @@ export function ProfileSpeech({
     ? '/v1/admin/profiles/' + profile.bot + '/' + profile.chatId + '/speech/'
     : '';
   async function catalog<T>(input: unknown) {
-    if (!profile) throw new Error('Guarda primero el perfil y su conexión.');
+    if (!profile) throw new Error(t('Guarda primero el perfil y su conexión.'));
     return api<CatalogPage<T>>(path + 'catalog', 'POST', input);
   }
   async function loadEngines(kind: 'stt' | 'tts', append = false) {
@@ -176,25 +178,28 @@ export function ProfileSpeech({
   }
   return (
     <section className="settings-section">
-      <h3>Voz · transcripción y síntesis</h3>
+      <h3>{t('Voz · transcripción y síntesis')}</h3>
       <p>
-        Predeterminado conserva la transcripción actual y Edge TTS. Para consultar motores de Home
-        Assistant, guarda primero su conexión y habilita ese permiso.
+        {t(
+          'Predeterminado conserva la transcripción actual y Edge TTS. Para consultar motores de Home Assistant, guarda primero su conexión y habilita ese permiso.',
+        )}
       </p>
       <div className="settings-grid">
         {(['stt', 'tts'] as const).map((kind) => (
           <div key={kind}>
             <SelectField
               id={'profile-' + kind + '-engine'}
-              label={kind === 'stt' ? 'Transcripción (STT)' : 'Síntesis (TTS)'}
+              label={kind === 'stt' ? t('Transcripción (STT)') : t('Síntesis (TTS)')}
               value={value[kind]}
               disabled={busy}
               onChange={(event) => selectEngine(kind, event.target.value)}
             >
-              <option value="default">Predeterminado</option>
+              <option value="default">{t('Predeterminado')}</option>
               {value[kind] !== 'default' &&
                 !engines[kind].some((engine) => engine.id === value[kind]) && (
-                  <option value={value[kind]}>{value[kind]} (guardado)</option>
+                  <option value={value[kind]}>
+                    {value[kind]} {t('(guardado)')}
+                  </option>
                 )}
               {engines[kind].map((engine) => (
                 <option value={engine.id} key={engine.id}>
@@ -204,7 +209,7 @@ export function ProfileSpeech({
             </SelectField>
             <SpeechLanguagePicker
               id={'profile-' + kind + '-language'}
-              label={'Idioma ' + kind.toUpperCase()}
+              label={t('Idioma ') + kind.toUpperCase()}
               disabled={busy}
               value={value[kind === 'stt' ? 'sttLanguage' : 'ttsLanguage']}
               languages={engines[kind].find((engine) => engine.id === value[kind])?.languages || []}
@@ -228,7 +233,7 @@ export function ProfileSpeech({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  tooltip={'Más motores ' + kind.toUpperCase()}
+                  tooltip={t('Más motores ') + kind.toUpperCase()}
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
@@ -247,14 +252,16 @@ export function ProfileSpeech({
         <SelectField
           id="profile-tts-voice"
           className="h-12"
-          label="Voz TTS"
+          label={t('Voz TTS')}
           value={value.voice}
           disabled={busy}
           onChange={(event) => onChange({ ...value, voice: event.target.value })}
         >
-          <option value="">Voz predeterminada del motor</option>
+          <option value="">{t('Voz predeterminada del motor')}</option>
           {value.voice && !voices.some((voice) => voice.id === value.voice) && (
-            <option value={value.voice}>{value.voice} (guardada)</option>
+            <option value={value.voice}>
+              {value.voice} {t('(guardada)')}
+            </option>
           )}
           {voices.map((voice) => (
             <option value={voice.id} key={voice.id}>
@@ -268,7 +275,7 @@ export function ProfileSpeech({
           disabled={busy || !profile || value.tts === 'default'}
           onClick={() => void run(() => loadVoices())}
           size="icon"
-          tooltip="Recargar voces TTS"
+          tooltip={t('Recargar voces TTS')}
           className="size-12"
         >
           <RefreshCw />
@@ -282,18 +289,18 @@ export function ProfileSpeech({
             disabled={busy}
             onClick={() => void run(() => loadVoices(true))}
             size="icon"
-            tooltip="Más voces"
+            tooltip={t('Más voces')}
           >
             <Check />
           </Button>
         )}
-        <small>{voiceTotal ? voiceOffset + ' de ' + voiceTotal + ' voces' : ''}</small>
+        <small>{voiceTotal ? voiceOffset + t(' de ') + voiceTotal + t(' voces') : ''}</small>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
         <Field
           id="profile-speech-text"
           className="h-12"
-          label="Texto de prueba"
+          label={t('Texto de prueba')}
           value={text}
           disabled={busy}
           maxLength={1000}
@@ -323,7 +330,7 @@ export function ProfileSpeech({
             })
           }
           size="icon"
-          tooltip="Probar voz seleccionada"
+          tooltip={t('Probar voz seleccionada')}
           className="size-12"
         >
           <Play />
@@ -331,7 +338,9 @@ export function ProfileSpeech({
       </div>
       {audio && <audio src={audio} controls className="speech-preview" />}
       <small>
-        La prueba usa la selección actual sin guardarla. Guarda el perfil para aplicar los cambios.
+        {t(
+          'La prueba usa la selección actual sin guardarla. Guarda el perfil para aplicar los cambios.',
+        )}
       </small>
     </section>
   );

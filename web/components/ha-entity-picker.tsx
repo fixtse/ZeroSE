@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type CatalogPage, type Profile } from '../lib/api';
 import { Label } from './ui/label';
@@ -32,6 +33,7 @@ export function HAEntityPicker({
   pattern?: string;
   assignment?: boolean;
 }) {
+  const t = useTranslations();
   const [local, setLocal] = useState(defaultValue);
   const [inputId, setInputId] = useState(id);
   const registerInput = useCallback((input: HTMLInputElement | null) => {
@@ -73,7 +75,7 @@ export function HAEntityPicker({
         .catch(() => {
           if (!controller.signal.aborted)
             setError(
-              'No se pudieron cargar las entidades. Comprueba la conexión de Home Assistant.',
+              t('No se pudieron cargar las entidades. Comprueba la conexión de Home Assistant.'),
             );
         })
         .finally(() => {
@@ -123,10 +125,10 @@ export function HAEntityPicker({
           aria-describedby={id + '-help'}
         />
         {open && (
-          <CommandList aria-label={'Entidades · ' + label}>
+          <CommandList aria-label={t('Entidades · ') + label}>
             {loading ? (
               <p role="status" className="px-3 py-2 text-sm">
-                Buscando entidades…
+                {t('Buscando entidades…')}
               </p>
             ) : error ? (
               <p role="alert" className="px-3 py-2 text-sm">
@@ -134,7 +136,7 @@ export function HAEntityPicker({
               </p>
             ) : (
               <>
-                <CommandEmpty>Sin entidades que coincidan.</CommandEmpty>
+                <CommandEmpty>{t('Sin entidades que coincidan.')}</CommandEmpty>
                 {page?.items.map((item) => (
                   <CommandItem
                     key={item.id}
@@ -162,20 +164,20 @@ export function HAEntityPicker({
               type="button"
               size="icon"
               variant="outline"
-              tooltip={'Sugerencias anteriores de ' + label}
+              tooltip={t('Sugerencias anteriores de ') + label}
               disabled={!offset || loading}
               onClick={() => setOffset(Math.max(0, offset - 20))}
             >
               <ArrowLeft />
             </Button>
             <small>
-              {offset + 1}–{offset + page.items.length} de {page.total}
+              {offset + 1}–{offset + page.items.length} {t('de')} {page.total}
             </small>
             <Button
               type="button"
               size="icon"
               variant="outline"
-              tooltip={'Más sugerencias de ' + label}
+              tooltip={t('Más sugerencias de ') + label}
               disabled={offset + 20 >= page.total || loading}
               onClick={() => setOffset(offset + 20)}
             >
@@ -187,10 +189,10 @@ export function HAEntityPicker({
       <small id={id + '-help'} role="status">
         {error ||
           (loading
-            ? 'Buscando entidades…'
+            ? t('Buscando entidades…')
             : page?.items.length === 0
-              ? 'Sin coincidencias.'
-              : 'Escribe un nombre o identificador para ver sugerencias.')}
+              ? t('Sin coincidencias.')
+              : t('Escribe un nombre o identificador para ver sugerencias.'))}
       </small>
     </div>
   );

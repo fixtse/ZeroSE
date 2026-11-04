@@ -1,3 +1,4 @@
+import type { ReplyLanguage } from './language.js';
 import type { MemoryPolicy } from './assistant-definition.js';
 import type { SpeechSettings } from './speech.js';
 import type { MemoryMode } from './memory.js';
@@ -35,6 +36,7 @@ export interface AccessProfile {
   alternateModels?: string[];
   memoryMode?: MemoryMode;
   timezone?: string;
+  replyLanguage?: ReplyLanguage;
   voiceReplies?: boolean;
   respondToReplies?: boolean;
   notifications?: ProfileNotifications;

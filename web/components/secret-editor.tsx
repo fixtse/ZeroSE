@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import { Button } from './ui/button';
@@ -7,7 +8,7 @@ import { Label } from './ui/label';
 
 export function SecretEditor({
   id,
-  label = 'Clave API',
+  label: providedLabel,
   name,
   value: controlled,
   configured,
@@ -32,6 +33,8 @@ export function SecretEditor({
   deleteAction?: ReactNode;
   actions?: ReactNode;
 }) {
+  const t = useTranslations();
+  const label = providedLabel ?? t('Clave API');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   useEffect(() => {
@@ -67,12 +70,12 @@ export function SecretEditor({
             disabled={disabled}
             maxLength={maxLength}
             autoFocus={editing}
-            placeholder={configured ? hint || '••••••••' : 'Introduce la credencial'}
+            placeholder={configured ? hint || '••••••••' : t('Introduce la credencial')}
             onChange={(event) => change(event.target.value)}
           />
         ) : (
           <span className="secret-editor-preview">
-            {preview || (configured ? hint || '•••••••• · Configurada' : 'Sin configurar')}
+            {preview || (configured ? hint || t('•••••••• · Configurada') : t('Sin configurar'))}
           </span>
         )}
       </div>
@@ -84,7 +87,9 @@ export function SecretEditor({
           size="icon-sm"
           disabled={disabled}
           tooltip={
-            expanded ? 'Cancelar cambio de ' + label : (configured ? 'Cambiar ' : 'Añadir ') + label
+            expanded
+              ? t('Cancelar cambio de ') + label
+              : (configured ? t('Cambiar ') : t('Añadir ')) + label
           }
           onClick={() => {
             if (expanded) change('');

@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { Check, ChevronsUpDown, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type Profile } from '../lib/api';
@@ -39,7 +40,9 @@ export function GoogleDestinationPicker({
   profile: Profile | null;
   service: keyof typeof destinations;
 }) {
-  const config = destinations[service];
+  const t = useTranslations();
+  const original = destinations[service];
+  const config = { ...original, label: t(original.label), defaultLabel: t(original.defaultLabel) };
   const field = config.key;
   const [selected, setSelected] = useState<Item>({
     id: profile?.google?.[field] || config.fallback,
@@ -89,7 +92,7 @@ export function GoogleDestinationPicker({
       setSelected((previous) => page.items.find((item) => item.id === previous.id) || previous);
     } catch (error) {
       if (!controller.signal.aborted && sequence === request.current.sequence)
-        setError(error instanceof Error ? error.message : 'No se pudieron cargar las opciones.');
+        setError(error instanceof Error ? error.message : t('No se pudieron cargar las opciones.'));
     } finally {
       if (sequence === request.current.sequence) setLoading(false);
     }
@@ -118,7 +121,7 @@ export function GoogleDestinationPicker({
       });
       setSelected(result.selected);
       setOpen(false);
-      setNotice(config.label + ' guardado.');
+      setNotice(config.label + t(' guardado.'));
     });
   }
   const defaultItem = { id: config.fallback, name: config.defaultLabel };
@@ -145,21 +148,25 @@ export function GoogleDestinationPicker({
               disabled={!profile?.hasGoogle || busy}
               className="min-w-0 flex-1 justify-between font-normal"
             >
-              <span className="truncate">{selected.name}</span>
+              <span className="truncate">
+                {selected.id === config.fallback && !profile?.google?.destinationNames?.[field]
+                  ? config.defaultLabel
+                  : selected.name}
+              </span>
               <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent>
             <Command shouldFilter={false}>
               <CommandInput
-                aria-label={'Buscar ' + config.label.toLocaleLowerCase()}
-                placeholder="Buscar…"
+                aria-label={t('Buscar ') + config.label.toLocaleLowerCase()}
+                placeholder={t('Buscar…')}
                 value={search}
                 onValueChange={setSearch}
               />
               {loading && (
                 <p role="status" className="px-3 py-2 text-sm text-muted-foreground">
-                  Cargando…
+                  {t('Cargando…')}
                 </p>
               )}
               {error && (
@@ -168,7 +175,7 @@ export function GoogleDestinationPicker({
                 </p>
               )}
               <CommandList aria-label={config.label}>
-                {!loading && !error && <CommandEmpty>No hay resultados.</CommandEmpty>}
+                {!loading && !error && <CommandEmpty>{t('No hay resultados.')}</CommandEmpty>}
                 {options.map((item) => (
                   <CommandItem
                     key={item.id || '__root'}
@@ -187,7 +194,7 @@ export function GoogleDestinationPicker({
                 ))}
                 {next && (
                   <CommandItem value="__more" disabled={loading} onSelect={() => void load(next)}>
-                    Mostrar más resultados
+                    {t('Mostrar más resultados')}
                   </CommandItem>
                 )}
               </CommandList>
@@ -198,14 +205,14 @@ export function GoogleDestinationPicker({
           type="button"
           variant="outline"
           size="icon"
-          tooltip={'Recargar ' + config.label.toLocaleLowerCase()}
+          tooltip={t('Recargar ') + config.label.toLocaleLowerCase()}
           disabled={!profile?.hasGoogle || busy || loading}
           onClick={() => void load()}
         >
           {loading ? <Loader2 className="motion-safe:animate-spin" /> : <RefreshCw />}
         </Button>
       </div>
-      {!profile?.hasGoogle && <small>Conecta Google para elegir un destino.</small>}
+      {!profile?.hasGoogle && <small>{t('Conecta Google para elegir un destino.')}</small>}
       {!open && error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

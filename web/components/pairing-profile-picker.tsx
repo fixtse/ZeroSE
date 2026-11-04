@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
@@ -26,6 +27,7 @@ export function PairingProfilePicker({
   selected?: PairingTarget;
   onSelect(target?: PairingTarget): void;
 }) {
+  const t = useTranslations();
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<Page>();
   const [loading, setLoading] = useState(false);
@@ -51,7 +53,7 @@ export function PairingProfilePicker({
         .catch(() => {
           if (!controller.signal.aborted)
             setError(
-              'No se pudieron cargar los perfiles. Comprueba que la solicitud no haya caducado.',
+              t('No se pudieron cargar los perfiles. Comprueba que la solicitud no haya caducado.'),
             );
         })
         .finally(() => {
@@ -65,7 +67,7 @@ export function PairingProfilePicker({
   }, [pairingId, offset]);
   return (
     <div className="grid min-w-0 gap-2">
-      <Label htmlFor="pairing-profile">Conectar a usuario o grupo</Label>
+      <Label htmlFor="pairing-profile">{t('Conectar a usuario o grupo')}</Label>
       <select
         id="pairing-profile"
         value={selected ? selected.bot + ':' + selected.chatId : ''}
@@ -79,19 +81,19 @@ export function PairingProfilePicker({
           )
         }
       >
-        <option value="">Selecciona un perfil activo</option>
+        <option value="">{t('Selecciona un perfil activo')}</option>
         {selected &&
           !page?.items.some(
             (item) => item.chatId === selected.chatId && item.bot === selected.bot,
           ) && (
             <option value={selected.bot + ':' + selected.chatId}>
-              {selected.label} · {selected.kind === 'group' ? 'Grupo' : 'Usuario'} · {selected.bot}{' '}
-              · {selected.chatId}
+              {selected.label} · {selected.kind === 'group' ? t('Grupo') : t('Usuario')} ·{' '}
+              {selected.bot} · {selected.chatId}
             </option>
           )}
         {page?.items.map((item) => (
           <option key={item.bot + ':' + item.chatId} value={item.bot + ':' + item.chatId}>
-            {item.label} · {item.kind === 'group' ? 'Grupo' : 'Usuario'} · {item.bot} ·{' '}
+            {item.label} · {item.kind === 'group' ? t('Grupo') : t('Usuario')} · {item.bot} ·{' '}
             {item.chatId}
           </option>
         ))}
@@ -99,17 +101,21 @@ export function PairingProfilePicker({
       <div className="flex flex-wrap items-center gap-2" aria-live="polite">
         <small>
           {loading
-            ? 'Cargando perfiles…'
+            ? t('Cargando perfiles…')
             : error ||
               (page?.total
-                ? `${offset + 1}–${Math.min(offset + 20, page.total)} de ${page.total} perfiles`
-                : 'No hay perfiles activos.')}
+                ? t('{start}–{end} de {total} perfiles', {
+                    start: offset + 1,
+                    end: Math.min(offset + 20, page.total),
+                    total: page.total,
+                  })
+                : t('No hay perfiles activos.'))}
         </small>
         <Button
           type="button"
           size="icon-xs"
           variant="ghost"
-          tooltip="Perfiles anteriores"
+          tooltip={t('Perfiles anteriores')}
           disabled={loading || offset === 0}
           onClick={() => setOffset(Math.max(0, offset - 20))}
         >
@@ -119,7 +125,7 @@ export function PairingProfilePicker({
           type="button"
           size="icon-xs"
           variant="ghost"
-          tooltip="Perfiles siguientes"
+          tooltip={t('Perfiles siguientes')}
           disabled={loading || page?.next_offset == null}
           onClick={() => setOffset(page!.next_offset!)}
         >

@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useState } from 'react';
 import { ChevronDown, Link, ShieldCheck } from 'lucide-react';
 import { api, type Profile } from '../lib/api';
@@ -28,6 +29,7 @@ const outcomes: Record<string, string> = {
     'La conexión cambió durante la autorización. Recarga el perfil e inicia una autorización nueva.',
 };
 export function GoogleConnectionSettings({ profile }: { profile: Profile | null }) {
+  const t = useTranslations();
   const google = profile?.google;
   const legacy = Object.values(google?.credentials || {}).find((value) => value?.clientId);
   const [clientId, setClientId] = useState(google?.clientId || legacy?.clientId || '');
@@ -68,7 +70,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
     const url = new URL(location.href);
     const result = url.searchParams.get('googleOAuth');
     if (result) {
-      setOutcome(outcomes[result] || 'Autorización no válida.');
+      setOutcome(t(outcomes[result] || t('Autorización no válida.')));
       url.searchParams.delete('googleOAuth');
       history.replaceState(null, '', url);
     }
@@ -76,13 +78,13 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
   return (
     <section className="google-connection">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="settings-heading">Conexión Google</h3>
+        <h3 className="settings-heading">{t('Conexión Google')}</h3>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               type="button"
               size="icon"
-              tooltip={profile?.hasGoogle ? 'Volver a conectar Google' : 'Conectar Google'}
+              tooltip={profile?.hasGoogle ? t('Volver a conectar Google') : t('Conectar Google')}
               disabled={
                 !profile || busy || !redirectUri || embedded || wrongOrigin || !services.length
               }
@@ -92,17 +94,15 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Conectar Google</AlertDialogTitle>
+              <AlertDialogTitle>{t('Conectar Google')}</AlertDialogTitle>
               <AlertDialogDescription>
-                Se abrirá Google para elegir una cuenta y autorizar las herramientas Google
-                permitidas y guardadas en este perfil. Las tareas de Home Assistant no solicitan
-                permisos de Google Tasks. Tras verificar el acceso, esta conexión sustituirá las
-                conexiones individuales del perfil. Si cancelas o falla la verificación, se
-                conservarán las anteriores.
+                {t(
+                  'Se abrirá Google para elegir una cuenta y autorizar las herramientas Google permitidas y guardadas en este perfil. Las tareas de Home Assistant no solicitan permisos de Google Tasks. Tras verificar el acceso, esta conexión sustituirá las conexiones individuales del perfil. Si cancelas o falla la verificación, se conservarán las anteriores.',
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() =>
                   void run(async () => {
@@ -117,7 +117,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
                   })
                 }
               >
-                Continuar con Google
+                {t('Continuar con Google')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -125,7 +125,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
       </div>
       {(embedded || wrongOrigin) && redirectUri && (
         <p>
-          Para autorizar Google,{' '}
+          {t('Para autorizar Google,')}{' '}
           <a
             className="underline"
             target="_blank"
@@ -140,7 +140,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
               })
             }
           >
-            abre este perfil en el administrador de Zero
+            {t('abre este perfil en el administrador de Zero')}
           </a>
           .
         </p>
@@ -149,14 +149,14 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
       <p>
         <ShieldCheck className="inline size-4" aria-hidden="true" />{' '}
         {google?.refreshTokenHint
-          ? 'Conexión compartida configurada.'
+          ? t('Conexión compartida configurada.')
           : profile?.hasGoogle
-            ? 'Conexiones anteriores guardadas. Conecta Google para unificarlas.'
-            : 'Google aún no está conectado.'}
+            ? t('Conexiones anteriores guardadas. Conecta Google para unificarlas.')
+            : t('Google aún no está conectado.')}
       </p>
       <p>
-        Permisos solicitados:{' '}
-        {services.length ? services.join(', ') : 'ninguna herramienta Google guardada'}.
+        {t('Permisos solicitados:')}{' '}
+        {services.length ? services.join(', ') : t('ninguna herramienta Google guardada')}.
       </p>
       <div className="settings-grid">
         <Field
@@ -181,14 +181,14 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
           type="button"
           className="group flex w-full items-center justify-between gap-2 py-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Configurar APIs de Google
+          {t('Configurar APIs de Google')}
           <ChevronDown className="size-4 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <p>
-            Guarda primero los cambios de Herramientas permitidas y del proveedor de tareas. Usa un
-            cliente de tipo «Aplicación web». La conexión se guarda automáticamente al completar la
-            autorización.
+            {t(
+              'Guarda primero los cambios de Herramientas permitidas y del proveedor de tareas. Usa un cliente de tipo «Aplicación web». La conexión se guarda automáticamente al completar la autorización.',
+            )}
           </p>
           <ul className="grid gap-2 text-sm">
             {services.map((service) => {
@@ -206,7 +206,7 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Activar Google {service} API
+                    {t('Activar Google')} {service} API
                   </a>
                 </li>
               );
@@ -214,12 +214,12 @@ export function GoogleConnectionSettings({ profile }: { profile: Profile | null 
           </ul>
           {redirectUri && (
             <p className="break-all">
-              URI de redirección autorizada en Google Cloud: <code>{redirectUri}</code>
+              {t('URI de redirección autorizada en Google Cloud:')} <code>{redirectUri}</code>
             </p>
           )}
         </CollapsibleContent>
       </Collapsible>
-      {!profile && <p>Guarda primero el perfil para conectar Google.</p>}
+      {!profile && <p>{t('Guarda primero el perfil para conectar Google.')}</p>}
     </section>
   );
 }

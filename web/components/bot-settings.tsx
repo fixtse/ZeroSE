@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { Activity, Check, RefreshCw, Save, Trash2, TriangleAlert, Webhook } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../lib/api';
@@ -38,6 +39,7 @@ interface Status {
   probeError?: string;
 }
 export function BotSettings({ id, name }: { id: string; name: string }) {
+  const t = useTranslations();
   const { busy, setNotice, run } = useAdminTask();
   const [value, setValue] = useState<Connection>(),
     [version, setVersion] = useState(0),
@@ -75,24 +77,30 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
       setStatus(undefined);
       setToken('');
       setVersion((v) => v + 1);
-      setNotice('Conexión guardada. Los webhooks se registran solo con el botón de confirmación.');
+      setNotice(
+        t('Conexión guardada. Los webhooks se registran solo con el botón de confirmación.'),
+      );
       window.dispatchEvent(new CustomEvent('assistant-telegram-changed', { detail: id }));
     });
   }
   return (
     <details className="settings-section assistant-telegram-settings">
-      <summary>Telegram de {name} · opcional</summary>
+      <summary>
+        {t('Telegram de')} {name} {t('· opcional')}
+      </summary>
       <p>
-        Sin esta conexión, {name} sigue disponible en Home Assistant. Conecta un bot propio para
-        hablarle directamente por Telegram.
+        {t('Sin esta conexión,')} {name}{' '}
+        {t(
+          'sigue disponible en Home Assistant. Conecta un bot propio para hablarle directamente por Telegram.',
+        )}
       </p>
       {value ? (
         <>
           <p className="connection-status">
             <span className={value.enabled ? 'status-indicator enabled' : 'status-indicator'} />
             {value.configured
-              ? 'Bot configurado' + (value.accountId ? ' · ID ' + value.accountId : '')
-              : 'Sin bot configurado'}
+              ? t('Bot configurado') + (value.accountId ? ' · ID ' + value.accountId : '')
+              : t('Sin bot configurado')}
             {value.source === 'server'
               ? ' · Valores originales del servidor. Puedes sustituirlos aquí.'
               : ''}
@@ -107,7 +115,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
               <SecretEditor
                 id={'telegram-token-' + id}
                 name="token"
-                label="Token de Telegram"
+                label={t('Token de Telegram')}
                 value={token}
                 configured={value.configured}
                 hint={value.tokenHint}
@@ -119,19 +127,19 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
               <SelectField
                 id={'telegram-transport-' + id}
                 name="transport"
-                label="Transporte de Telegram"
+                label={t('Transporte de Telegram')}
                 value={transport}
                 onChange={(event) => setTransport(event.target.value as Connection['transport'])}
               >
-                <option value="disabled">Desactivado</option>
+                <option value="disabled">{t('Desactivado')}</option>
                 <option value="webhook">Webhook</option>
-                <option value="polling">Polling · sin URL pública</option>
+                <option value="polling">{t('Polling · sin URL pública')}</option>
               </SelectField>
               {transport === 'webhook' && (
                 <Field
                   id={'telegram-webhook-' + id}
                   name="webhookUrl"
-                  label="URL pública del webhook"
+                  label={t('URL pública del webhook')}
                   type="url"
                   maxLength={2048}
                   value={webhookUrl}
@@ -141,23 +149,24 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
               <CheckField
                 id={'telegram-enabled-' + id}
                 name="enabled"
-                label="Activar Telegram para este asistente"
+                label={t('Activar Telegram para este asistente')}
                 defaultChecked={value.enabled}
               />
 
               <p>
-                Los secretos guardados muestran solo una referencia parcial. Cambiar de bot conserva
-                los perfiles y conversaciones existentes.
+                {t(
+                  'Los secretos guardados muestran solo una referencia parcial. Cambiar de bot conserva los perfiles y conversaciones existentes.',
+                )}
               </p>
             </fieldset>
           </form>
           <div className="connection-toolbar">
-            <div className="action-group" role="group" aria-label="Guardar conexión">
+            <div className="action-group" role="group" aria-label={t('Guardar conexión')}>
               <Button
                 form={'telegram-form-' + id}
                 disabled={busy}
                 size="icon"
-                tooltip="Guardar conexión de Telegram"
+                tooltip={t('Guardar conexión de Telegram')}
               >
                 <Save />
               </Button>
@@ -167,7 +176,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                 disabled={busy}
                 onClick={() => void run(load)}
                 size="icon"
-                tooltip="Recargar conexión"
+                tooltip={t('Recargar conexión')}
               >
                 <RefreshCw />
               </Button>
@@ -175,7 +184,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
             <div
               className="action-group connection-operations"
               role="group"
-              aria-label="Operaciones de Telegram"
+              aria-label={t('Operaciones de Telegram')}
             >
               <Button
                 type="button"
@@ -183,7 +192,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                 disabled={busy || !value.configured}
                 onClick={() => void run(async () => setStatus(await api(endpoint + '/status')))}
                 size="icon"
-                tooltip="Comprobar webhook y estado en Telegram"
+                tooltip={t('Comprobar webhook y estado en Telegram')}
               >
                 <Activity />
               </Button>
@@ -194,22 +203,26 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                     variant="outline"
                     disabled={busy || !value.enabled || value.transport !== 'webhook'}
                     size="icon"
-                    tooltip="Registrar webhook"
+                    tooltip={t('Registrar webhook')}
                   >
                     <Webhook />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Registrar el webhook de {name}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t('¿Registrar el webhook de')} {name}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Telegram enviará los mensajes del bot {value.accountId} a {value.webhookUrl}.
-                      Esto sustituye el webhook de ese bot y conserva las actualizaciones
-                      pendientes.
+                      {t('Telegram enviará los mensajes del bot')} {value.accountId} {t('a')}{' '}
+                      {value.webhookUrl}
+                      {t(
+                        '. Esto sustituye el webhook de ese bot y conserva las actualizaciones pendientes.',
+                      )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                     <AlertDialogAction
                       type="button"
                       onClick={() =>
@@ -218,12 +231,12 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                             confirm: true,
                             revision: value.revision,
                           });
-                          setNotice('Telegram ha confirmado el registro del webhook.');
+                          setNotice(t('Telegram ha confirmado el registro del webhook.'));
                           setStatus(undefined);
                         })
                       }
                     >
-                      Confirmar registro
+                      {t('Confirmar registro')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -236,21 +249,24 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                     disabled={busy || !value.configured}
                     size="icon"
                     className="danger"
-                    tooltip="Desactivar Telegram y eliminar credenciales"
+                    tooltip={t('Desactivar Telegram y eliminar credenciales')}
                   >
                     <Trash2 />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Desactivar Telegram de {name}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t('¿Desactivar Telegram de')} {name}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Se eliminarán el webhook y el token guardado y se desactivará el bot. Se
-                      conservan los perfiles, las conversaciones y los mensajes pendientes.
+                      {t(
+                        'Se eliminarán el webhook y el token guardado y se desactivará el bot. Se conservan los perfiles, las conversaciones y los mensajes pendientes.',
+                      )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                     <AlertDialogAction
                       type="button"
                       onClick={() =>
@@ -263,11 +279,11 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
                           window.dispatchEvent(
                             new CustomEvent('assistant-telegram-changed', { detail: id }),
                           );
-                          setNotice('Telegram desactivado. Webhook y credenciales eliminados.');
+                          setNotice(t('Telegram desactivado. Webhook y credenciales eliminados.'));
                         })
                       }
                     >
-                      Desactivar y eliminar
+                      {t('Desactivar y eliminar')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -283,32 +299,40 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
               status.reachable === true ? (
                 <p className="flex items-center gap-2">
                   <Check className="size-4 text-primary" aria-hidden="true" />
-                  Webhook verificado
+                  {t('Webhook verificado')}
                 </p>
               ) : (
                 <>
                   <p className="flex items-center gap-2">
                     <TriangleAlert className="size-4 text-primary" aria-hidden="true" />
                     {!value.enabled || value.transport === 'disabled'
-                      ? 'Conexión de Telegram desactivada.'
+                      ? t('Conexión de Telegram desactivada.')
                       : value.transport === 'polling'
-                        ? 'Telegram utiliza polling.'
+                        ? t('Telegram utiliza polling.')
                         : !status.url
-                          ? 'Telegram no tiene un webhook registrado.'
+                          ? t('Telegram no tiene un webhook registrado.')
                           : status.url !== status.expectedUrl
-                            ? 'El webhook registrado no coincide con la URL guardada.'
-                            : status.probeError || 'No se ha podido verificar el webhook.'}
+                            ? t('El webhook registrado no coincide con la URL guardada.')
+                            : status.probeError || t('No se ha podido verificar el webhook.')}
                   </p>
-                  {status.url && <p>Webhook actual: {status.url}</p>}
-                  <p>Mensajes pendientes: {status.pending}</p>
+                  {status.url && (
+                    <p>
+                      {t('Webhook actual:')} {status.url}
+                    </p>
+                  )}
+                  <p>
+                    {t('Mensajes pendientes:')} {status.pending}
+                  </p>
                   {value.enabled &&
                     value.transport === 'webhook' &&
                     status.reachable === false &&
                     status.lastError && (
                       <p>
-                        Último error registrado
+                        {t('Último error registrado')}
                         {status.lastErrorAt
-                          ? ' (' + new Date(status.lastErrorAt * 1000).toLocaleString('es-ES') + ')'
+                          ? ' (' +
+                            new Date(status.lastErrorAt * 1000).toLocaleString(t.locale) +
+                            ')'
                           : ''}
                         : {status.lastError}
                       </p>
@@ -319,7 +343,7 @@ export function BotSettings({ id, name }: { id: string; name: string }) {
           )}
         </>
       ) : (
-        <p>Cargando conexión…</p>
+        <p>{t('Cargando conexión…')}</p>
       )}
     </details>
   );

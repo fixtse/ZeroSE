@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { notify as setNotice, notifyError } from '../lib/notifications';
 import { Save } from 'lucide-react';
 import { useState } from 'react';
@@ -8,17 +9,21 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 
 export function ProfileContext({ profile }: { profile: Profile }) {
+  const t = useTranslations();
   const [text, setText] = useState(profile.context || '');
   const [revision, setRevision] = useState(profile.contextRevision || 0);
   const [busy, setBusy] = useState(false);
   return (
     <section className="settings-section">
-      <h3>Contexto · {profile.kind === 'group' ? 'grupo' : 'usuario'}</h3>
+      <h3>
+        {t('Contexto ·')} {profile.kind === 'group' ? 'grupo' : 'usuario'}
+      </h3>
       <p>
-        Este texto se añade automáticamente a las instrucciones cuando existe. El asistente puede
-        editarlo con context_save.
+        {t(
+          'Este texto se añade automáticamente a las instrucciones cuando existe. El asistente puede editarlo con context_save.',
+        )}
       </p>
-      <Label htmlFor="profile-context">Contexto</Label>
+      <Label htmlFor="profile-context">{t('Contexto')}</Label>
       <Textarea
         id="profile-context"
         value={text}
@@ -44,15 +49,15 @@ export function ProfileContext({ profile }: { profile: Profile }) {
                 { memory: text, revision },
               );
               setRevision(saved.revision);
-              setNotice('Contexto guardado.');
+              setNotice(t('Contexto guardado.'));
             } catch (error) {
-              notifyError(error instanceof Error ? error.message : 'No se pudo guardar.');
+              notifyError(error instanceof Error ? error.message : t('No se pudo guardar.'));
             } finally {
               setBusy(false);
             }
           }}
           size="icon"
-          tooltip="Guardar contexto"
+          tooltip={t('Guardar contexto')}
         >
           <Save />
         </Button>

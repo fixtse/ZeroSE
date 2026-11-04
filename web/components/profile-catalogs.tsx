@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { ArrowLeft, ArrowRight, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type Profile, type CatalogPage } from '../lib/api';
@@ -36,6 +37,7 @@ const statuses: Record<string, string> = {
   completed: 'Completado',
 };
 export function ProfileCatalogs({ profile, active }: { profile: Profile; active: boolean }) {
+  const t = useTranslations();
   const { busy, run, setNotice } = useAdminTask();
   const [kind, setKind] = useState('');
   const [offset, setOffset] = useState(0);
@@ -69,7 +71,8 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
       if (result.warning) {
         setUncertain((ids) => [...ids, item.id]);
         notifyWarning(result.warning);
-      } else setNotice(operation === 'cancel' ? 'Elemento eliminado.' : 'Estado actualizado.');
+      } else
+        setNotice(operation === 'cancel' ? t('Elemento eliminado.') : t('Estado actualizado.'));
     } catch (error) {
       setUncertain((ids) => [...ids, item.id]);
       throw error;
@@ -81,11 +84,11 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
   return (
     <section className="profile-notifications">
       <div className="notification-toolbar">
-        <h3>Alertas y recordatorios</h3>
+        <h3>{t('Alertas y recordatorios')}</h3>
         <div className="action-group">
           <SelectField
             id="profile-rule-kind"
-            label="Mostrar"
+            label={t('Mostrar')}
             value={kind}
             disabled={busy}
             onChange={(event) => {
@@ -94,16 +97,16 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
               setOffset(0);
             }}
           >
-            <option value="">Todos</option>
-            <option value="alert">Alertas</option>
-            <option value="reminder">Recordatorios</option>
-            <option value="timer">Temporizadores</option>
+            <option value="">{t('Todos')}</option>
+            <option value="alert">{t('Alertas')}</option>
+            <option value="reminder">{t('Recordatorios')}</option>
+            <option value="timer">{t('Temporizadores')}</option>
           </SelectField>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Recargar alertas y recordatorios"
+            tooltip={t('Recargar alertas y recordatorios')}
             disabled={busy}
             onClick={() => void run(() => load(offset))}
           >
@@ -111,7 +114,9 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
           </Button>
         </div>
       </div>
-      {!page && <p role="status">{busy ? 'Cargando…' : 'Recarga para consultar los elementos.'}</p>}
+      {!page && (
+        <p role="status">{busy ? t('Cargando…') : t('Recarga para consultar los elementos.')}</p>
+      )}
       {page && (
         <>
           <div className="notification-list">
@@ -125,19 +130,20 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                   <div className="notification-description">
                     <strong>{item.message || item.id}</strong>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">{statuses[item.status] || item.status}</Badge>
+                      <Badge variant="secondary">{t(statuses[item.status] || item.status)}</Badge>
                       <small>
                         {item.next_at ||
                           item.wake_date ||
                           (item.condition?.source === 'weather'
-                            ? 'Según el tiempo'
-                            : item.condition?.entity_id || 'Según condición')}
+                            ? t('Según el tiempo')
+                            : item.condition?.entity_id || t('Según condición'))}
                       </small>
                     </div>
                     {locked && (
                       <p role="status" className="settings-help">
-                        Estado pendiente de confirmación en el planificador. No se reintentará el
-                        cambio automáticamente. Puedes eliminar el elemento.
+                        {t(
+                          'Estado pendiente de confirmación en el planificador. No se reintentará el cambio automáticamente. Puedes eliminar el elemento.',
+                        )}
                       </p>
                     )}
                   </div>
@@ -150,7 +156,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                             variant="outline"
                             size="icon"
                             disabled={busy || locked}
-                            tooltip={item.status === 'active' ? 'Desactivar' : 'Activar'}
+                            tooltip={item.status === 'active' ? t('Desactivar') : t('Activar')}
                           >
                             {item.status === 'active' ? <Pause /> : <Play />}
                           </Button>
@@ -159,15 +165,15 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                           <AlertDialogHeader>
                             <AlertDialogTitle>
                               {item.status === 'active'
-                                ? '¿Desactivar este elemento?'
-                                : '¿Activar este elemento?'}
+                                ? t('¿Desactivar este elemento?')
+                                : t('¿Activar este elemento?')}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              {item.message} · Se actualizará en su planificador actual.
+                              {item.message} {t('· Se actualizará en su planificador actual.')}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() =>
                                 void run(() =>
@@ -175,7 +181,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                                 )
                               }
                             >
-                              Confirmar
+                              {t('Confirmar')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -189,7 +195,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                             variant="ghost"
                             className="danger"
                             size="icon"
-                            tooltip="Eliminar"
+                            tooltip={t('Eliminar')}
                             disabled={busy}
                           >
                             <Trash2 />
@@ -197,19 +203,21 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar este elemento?</AlertDialogTitle>
+                            <AlertDialogTitle>{t('¿Eliminar este elemento?')}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              {item.message} · Se cancelarán sus próximas notificaciones. Se
-                              conserva el historial.
+                              {item.message}{' '}
+                              {t(
+                                '· Se cancelarán sus próximas notificaciones. Se conserva el historial.',
+                              )}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                             <AlertDialogAction
                               variant="destructive"
                               onClick={() => void run(() => change(item, 'cancel'))}
                             >
-                              Eliminar
+                              {t('Eliminar')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -219,27 +227,27 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                 </article>
               );
             })}
-            {!page.items.length && <p>No hay elementos de este tipo en este perfil.</p>}
+            {!page.items.length && <p>{t('No hay elementos de este tipo en este perfil.')}</p>}
           </div>
           <div className="pager">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              tooltip="Anterior"
+              tooltip={t('Anterior')}
               disabled={busy || !offset}
               onClick={() => void run(() => load(Math.max(0, offset - 20)))}
             >
               <ArrowLeft />
             </Button>
             <small>
-              {page.total ? offset + 1 : 0}–{offset + page.items.length} de {page.total}
+              {page.total ? offset + 1 : 0}–{offset + page.items.length} {t('de')} {page.total}
             </small>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              tooltip="Siguiente"
+              tooltip={t('Siguiente')}
               disabled={busy || page.next_offset === null}
               onClick={() => void run(() => load(page.next_offset ?? offset + 20))}
             >

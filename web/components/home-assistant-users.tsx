@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 
 import { Unlink } from 'lucide-react';
 import type { Settings } from '../lib/api';
@@ -28,10 +29,11 @@ export function HomeAssistantUsers({
   onEdit: (route: string) => void;
   onUnlink: (userId: string) => void;
 }) {
+  const t = useTranslations();
   return (
     <Card className="panel">
-      <h2>Usuarios de Home Assistant</h2>
-      <p>Cada usuario utiliza los permisos y la memoria de su perfil vinculado en Zero.</p>
+      <h2>{t('Usuarios de Home Assistant')}</h2>
+      <p>{t('Cada usuario utiliza los permisos y la memoria de su perfil vinculado en Zero.')}</p>
       <div className="people-list">
         {(settings.homeAssistantUserProfiles || []).map((user) => (
           <div className="ha-user-row" key={user.userId}>
@@ -42,8 +44,8 @@ export function HomeAssistantUsers({
                   variant="outline"
                   size="icon"
                   className="ha-user-avatar"
-                  tooltip={'Editar perfil de ' + user.profileName}
-                  aria-label={'Editar perfil de ' + user.profileName}
+                  tooltip={t('Editar perfil de ') + user.profileName}
+                  aria-label={t('Editar perfil de ') + user.profileName}
                   onClick={() => onEdit(user.profileRoute!)}
                 >
                   <span className="assistant-avatar">
@@ -63,24 +65,26 @@ export function HomeAssistantUsers({
                     variant="destructive"
                     size="icon"
                     disabled={busy}
-                    tooltip="Desvincular usuario"
-                    aria-label={'Desvincular ' + user.userName + ' de ' + user.profileName}
+                    tooltip={t('Desvincular usuario')}
+                    aria-label={t('Desvincular ') + user.userName + t(' de ') + user.profileName}
                   >
                     <Unlink />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Desvincular {user.userName}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t('¿Desvincular')} {user.userName}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Este usuario dejará de utilizar el perfil {user.profileName} desde Home
-                      Assistant. El perfil y su memoria se conservarán.
+                      {t('Este usuario dejará de utilizar el perfil')} {user.profileName}{' '}
+                      {t('desde Home Assistant. El perfil y su memoria se conservarán.')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                     <AlertDialogAction variant="destructive" onClick={() => onUnlink(user.userId)}>
-                      Desvincular
+                      {t('Desvincular')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -89,10 +93,11 @@ export function HomeAssistantUsers({
           </div>
         ))}
       </div>
-      {!settings.homeAssistantUserProfiles?.length && <p>No hay usuarios vinculados.</p>}
+      {!settings.homeAssistantUserProfiles?.length && <p>{t('No hay usuarios vinculados.')}</p>}
       <p>
-        Para vincular un usuario, aprueba la configuración desde Home Assistant. También puedes
-        gestionar los vínculos en las opciones de la integración.
+        {t(
+          'Para vincular un usuario, aprueba la configuración desde Home Assistant. También puedes gestionar los vínculos en las opciones de la integración.',
+        )}
       </p>
     </Card>
   );

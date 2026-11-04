@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import { api, type Profile, type CatalogPage } from '../lib/api';
@@ -38,6 +39,7 @@ const empty: Member = {
   geocodedLocationEntity: '',
 };
 export function GroupMembers({ profile, active }: { profile: Profile; active: boolean }) {
+  const t = useTranslations();
   const { busy, run, setNotice } = useAdminTask();
   const [selected, setSelected] = useUrlState('member', '');
   const [page, setPage] = useState<CatalogPage<Member>>();
@@ -107,7 +109,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
     setSelected('');
     setEditing(undefined);
     await load();
-    setNotice('Integrante guardado.');
+    setNotice(t('Integrante guardado.'));
   }
   function requestSave() {
     if (
@@ -123,15 +125,16 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
     setEditing((current) => (current ? { ...current, [key]: value } : current));
   return (
     <section className="settings-section">
-      <h3 className="settings-heading">Integrantes del grupo</h3>
+      <h3 className="settings-heading">{t('Integrantes del grupo')}</h3>
       <p>
-        Telegram no proporciona la lista completa. Aquí aparecen las personas detectadas en mensajes
-        y avisos de entrada o salida, y las que añadas por ID. Esto no habilita su perfil privado.
+        {t(
+          'Telegram no proporciona la lista completa. Aquí aparecen las personas detectadas en mensajes y avisos de entrada o salida, y las que añadas por ID. Esto no habilita su perfil privado.',
+        )}
       </p>
       <div className="member-search-toolbar">
         <Field
           id="member-search"
-          label="Buscar integrante"
+          label={t('Buscar integrante')}
           value={search}
           maxLength={200}
           onChange={(event) => setSearch(event.target.value)}
@@ -140,7 +143,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
           type="button"
           size="icon"
           variant="outline"
-          tooltip="Buscar integrantes"
+          tooltip={t('Buscar integrantes')}
           disabled={busy}
           onClick={() => void run(() => load(0))}
         >
@@ -150,7 +153,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
           type="button"
           size="icon"
           variant="outline"
-          tooltip="Recargar integrantes"
+          tooltip={t('Recargar integrantes')}
           disabled={busy}
           onClick={() => void run(() => load())}
         >
@@ -159,7 +162,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         <Button
           type="button"
           size="icon"
-          tooltip="Añadir integrante por ID"
+          tooltip={t('Añadir integrante por ID')}
           disabled={busy}
           onClick={() => setSelected('new')}
         >
@@ -175,21 +178,21 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
               {item.userId} ·{' '}
               {item.observed
                 ? item.present
-                  ? 'Detectado'
-                  : 'Salió del grupo'
-                : 'Añadido manualmente'}
+                  ? t('Detectado')
+                  : t('Salió del grupo')
+                : t('Añadido manualmente')}
             </small>
             <small>
               {item.locationEntity || item.geocodedLocationEntity
-                ? 'Ubicación asignada'
-                : 'Sin ubicación asignada'}
+                ? t('Ubicación asignada')
+                : t('Sin ubicación asignada')}
             </small>
           </div>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            tooltip={'Editar a ' + item.name}
+            tooltip={t('Editar a ') + item.name}
             disabled={busy}
             onClick={() => setSelected(item.userId)}
           >
@@ -198,26 +201,28 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         </div>
       ))}
       {page && !page.items.length && (
-        <p>No hay integrantes que mostrar. Puedes añadirlos por su ID de Telegram.</p>
+        <p>{t('No hay integrantes que mostrar. Puedes añadirlos por su ID de Telegram.')}</p>
       )}
       {page && (
-        <div className="member-pagination" role="group" aria-label="Paginación de integrantes">
+        <div className="member-pagination" role="group" aria-label={t('Paginación de integrantes')}>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Integrantes anteriores"
+            tooltip={t('Integrantes anteriores')}
             disabled={busy || offset === 0}
             onClick={() => void run(() => load(Math.max(0, offset - 20)))}
           >
             <ArrowLeft />
           </Button>
-          <span>{page.total} integrantes</span>
+          <span>
+            {page.total} {t('integrantes')}
+          </span>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Integrantes siguientes"
+            tooltip={t('Integrantes siguientes')}
             disabled={busy || offset + 20 >= page.total}
             onClick={() => void run(() => load(offset + 20))}
           >
@@ -234,13 +239,17 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         >
           <DialogContent className="member-editor">
             <DialogHeader>
-              <DialogTitle>{selected === 'new' ? 'Añadir integrante' : editing.name}</DialogTitle>
-              <DialogDescription>Datos y entidades de este integrante del grupo.</DialogDescription>
+              <DialogTitle>
+                {selected === 'new' ? t('Añadir integrante') : editing.name}
+              </DialogTitle>
+              <DialogDescription>
+                {t('Datos y entidades de este integrante del grupo.')}
+              </DialogDescription>
             </DialogHeader>
             <div className="settings-grid">
               <Field
                 id="member-user-id"
-                label="ID de usuario de Telegram"
+                label={t('ID de usuario de Telegram')}
                 value={editing.userId}
                 readOnly={selected !== 'new'}
                 inputMode="numeric"
@@ -250,13 +259,15 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
               {selected === 'new' ? (
                 <Field
                   id="member-name"
-                  label="Nombre del integrante"
+                  label={t('Nombre del integrante')}
                   value={editing.name}
                   maxLength={100}
                   onChange={(event) => update('name', event.target.value)}
                 />
               ) : (
-                <p>Nombre: {editing.name}</p>
+                <p>
+                  {t('Nombre:')} {editing.name}
+                </p>
               )}
               {profile.hasHomeAssistant && (
                 <>
@@ -264,7 +275,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                     profile={profile}
                     assignment
                     id="member-location"
-                    label="Entidad de ubicación del integrante"
+                    label={t('Entidad de ubicación del integrante')}
                     domains="person,device_tracker"
                     value={editing.locationEntity}
                     onChange={(value) => update('locationEntity', value)}
@@ -273,7 +284,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                     profile={profile}
                     assignment
                     id="member-address"
-                    label="Entidad de dirección del integrante"
+                    label={t('Entidad de dirección del integrante')}
                     domains="sensor"
                     value={editing.geocodedLocationEntity}
                     onChange={(value) => update('geocodedLocationEntity', value)}
@@ -283,16 +294,19 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
             </div>
             <p className="settings-help">
               {profile.hasHomeAssistant
-                ? 'La ubicación asignada podrá consultarse desde este grupo cuando Home Assistant esté permitido. Usa person.* o device_tracker.* para ubicación y sensor.* para dirección.'
-                : 'Guarda primero una conexión en Home Assistant para asignar entidades.'}{' '}
-              Guarda los integrantes con su propio botón; el botón del perfil guarda sus permisos y
-              conexiones.
+                ? t(
+                    'La ubicación asignada podrá consultarse desde este grupo cuando Home Assistant esté permitido. Usa person.* o device_tracker.* para ubicación y sensor.* para dirección.',
+                  )
+                : t('Guarda primero una conexión en Home Assistant para asignar entidades.')}{' '}
+              {t(
+                'Guarda los integrantes con su propio botón; el botón del perfil guarda sus permisos y conexiones.',
+              )}
             </p>
             <div className="form-actions">
               <Button
                 type="button"
                 size="icon"
-                tooltip="Guardar integrante"
+                tooltip={t('Guardar integrante')}
                 disabled={busy || !valid}
                 onClick={requestSave}
               >
@@ -303,7 +317,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                   type="button"
                   size="icon"
                   variant="destructive"
-                  tooltip="Eliminar integrante"
+                  tooltip={t('Eliminar integrante')}
                   disabled={busy}
                   onClick={() => setConfirm('delete')}
                 >
@@ -324,17 +338,21 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirm === 'delete'
-                ? '¿Eliminar integrante?'
-                : '¿Asignar ubicación a este integrante?'}
+                ? t('¿Eliminar integrante?')
+                : t('¿Asignar ubicación a este integrante?')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm === 'delete'
-                ? 'Se eliminarán sus asignaciones en este grupo. Puede volver a aparecer cuando Telegram envíe un nuevo mensaje suyo.'
-                : 'Los integrantes del grupo podrán consultar esta ubicación mediante Zero si el grupo tiene permiso Home Assistant. Si no están expuestas a Assist, Zero las añadirá para toda la instancia de Home Assistant. Quitar esta asignación no las ocultará. Comprueba que pertenecen a la persona indicada.'}
+                ? t(
+                    'Se eliminarán sus asignaciones en este grupo. Puede volver a aparecer cuando Telegram envíe un nuevo mensaje suyo.',
+                  )
+                : t(
+                    'Los integrantes del grupo podrán consultar esta ubicación mediante Zero si el grupo tiene permiso Home Assistant. Si no están expuestas a Assist, Zero las añadirá para toda la instancia de Home Assistant. Quitar esta asignación no las ocultará. Comprueba que pertenecen a la persona indicada.',
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               variant={confirm === 'delete' ? 'destructive' : 'default'}
               onClick={() => {
@@ -351,7 +369,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                 });
               }}
             >
-              Confirmar
+              {t('Confirmar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

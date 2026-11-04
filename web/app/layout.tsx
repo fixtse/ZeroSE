@@ -1,20 +1,23 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { I18nProvider } from '../i18n/provider';
 import { Toaster } from '../components/ui/sonner';
 import { AdminQueryProvider } from '../components/query-provider';
 export const metadata: Metadata = {
-  title: 'Zero · Tu asistente, conectado',
-  description: 'Configura las conexiones y permisos de Zero.',
+  title: 'Zero · Your connected assistant',
+  description: 'Configure Zero connections and permissions.',
   icons: { icon: '/icon.png' },
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className="dark">
+    <html lang="en" className="dark">
       <body>
-        <AdminQueryProvider>{children}</AdminQueryProvider>
-        <Toaster />
+        <I18nProvider>
+          <AdminQueryProvider>{children}</AdminQueryProvider>
+          <Toaster />
+        </I18nProvider>
       </body>
     </html>
   );

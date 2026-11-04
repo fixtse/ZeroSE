@@ -1,4 +1,6 @@
 'use client';
+import { LanguageSelector } from '../components/language-selector';
+import { useTranslations } from '../i18n/provider';
 import { PairingProfilePicker, type PairingTarget } from '../components/pairing-profile-picker';
 import { notify as setNotice, notifyError, notifyWarning } from '../lib/notifications';
 import {
@@ -50,6 +52,7 @@ const navigation = [
   { id: 'security', label: 'Seguridad', Icon: ShieldCheck },
 ];
 export default function Home() {
+  const t = useTranslations();
   const queryClient = useQueryClient();
   const [authenticated, setAuthenticated] = useState(false),
     [checking, setChecking] = useState(true);
@@ -114,7 +117,7 @@ export default function Home() {
       await work();
     } catch (error) {
       if (error instanceof SessionExpired) lock();
-      notifyError(error instanceof Error ? error.message : 'No se pudo completar la operación.');
+      notifyError(error instanceof Error ? error.message : t('No se pudo completar la operación.'));
     } finally {
       running.current = false;
       setBusy(false);
@@ -153,7 +156,7 @@ export default function Home() {
         setPairingTarget(undefined);
         setPairing(await api(base + '/pairings/' + encodeURIComponent(id)));
       } catch (error) {
-        notifyError(error instanceof Error ? error.message : 'La solicitud ha caducado.');
+        notifyError(error instanceof Error ? error.message : t('La solicitud ha caducado.'));
       }
     }
   }
@@ -188,8 +191,8 @@ export default function Home() {
             zero<span className="brand-dot">.</span>
           </span>
         </a>
-        <div className="workspace-label">TU ESPACIO</div>
-        <nav aria-label="Administración">
+        <div className="workspace-label">{t('TU ESPACIO')}</div>
+        <nav aria-label={t('Administración')}>
           {navigation.map(({ id, label, Icon }) => (
             <Button
               key={id}
@@ -200,34 +203,35 @@ export default function Home() {
               }}
             >
               <Icon size={18} />
-              <span>{label}</span>
+              <span>{t(label)}</span>
             </Button>
           ))}
         </nav>
         <div className="aside-bottom">
-          <span className="live-dot" /> Zero, a tu manera
+          <span className="live-dot" /> {t('Zero, a tu manera')}
           <p>
-            Una identidad.
+            {t('Una identidad.')}
             <br />
-            Todas tus conversaciones.
+            {t('Todas tus conversaciones.')}
           </p>
-          <small>Configuración de tus asistentes y conexiones.</small>
+          <small>{t('Configuración de tus asistentes y conexiones.')}</small>
         </div>
       </aside>
       <main>
         <header>
           <span className="breadcrumb">
-            Tu espacio <span>/</span>{' '}
+            {t('Tu espacio')} <span>/</span>{' '}
             {tab === 'people'
-              ? 'Usuarios'
+              ? t('Usuarios')
               : tab === 'settings'
-                ? 'Asistentes'
+                ? t('Asistentes')
                 : tab === 'services'
-                  ? 'Ajustes'
+                  ? t('Ajustes')
                   : tab === 'ai'
-                    ? 'Proveedores IA'
-                    : 'Seguridad'}
+                    ? t('Proveedores IA')
+                    : t('Seguridad')}
           </span>
+          <LanguageSelector />
           {authenticated && !ingress && (
             <Button
               className="quiet"
@@ -239,7 +243,7 @@ export default function Home() {
                 })
               }
               size="icon"
-              tooltip="Cerrar sesión ↗"
+              tooltip={t('Cerrar sesión ↗')}
             >
               <LogOut />
             </Button>
@@ -247,15 +251,15 @@ export default function Home() {
         </header>
         <div className="content">
           {checking ? (
-            <p>Cargando tu espacio…</p>
+            <p>{t('Cargando tu espacio…')}</p>
           ) : setupRequired ? (
             <Card className="login panel">
-              <h1>Configura tu Zero.</h1>
-              <p>Crea la cuenta administradora de esta instalación para empezar.</p>
+              <h1>{t('Configura tu Zero.')}</h1>
+              <p>{t('Crea la cuenta administradora de esta instalación para empezar.')}</p>
               <form
                 onSubmit={submit(async (data) => {
                   if (data.get('password') !== data.get('confirmPassword'))
-                    throw new Error('Las contraseñas no coinciden.');
+                    throw new Error(t('Las contraseñas no coinciden.'));
                   const username = String(data.get('username')).toLowerCase();
                   const password = String(data.get('password'));
                   await api('/api/auth/setup', 'POST', { username, password });
@@ -267,11 +271,13 @@ export default function Home() {
                   });
                   await open(pairingId);
                   setTab('services');
-                  setNotice('Cuenta creada. Puedes configurar tus servicios ahora o más adelante.');
+                  setNotice(
+                    t('Cuenta creada. Puedes configurar tus servicios ahora o más adelante.'),
+                  );
                 })}
               >
                 <Label>
-                  Usuario administrador
+                  {t('Usuario administrador')}
                   <Input
                     name="username"
                     autoComplete="username"
@@ -282,7 +288,7 @@ export default function Home() {
                   />
                 </Label>
                 <Label>
-                  Contraseña
+                  {t('Contraseña')}
                   <Input
                     name="password"
                     type="password"
@@ -293,7 +299,7 @@ export default function Home() {
                   />
                 </Label>
                 <Label>
-                  Confirmar contraseña
+                  {t('Confirmar contraseña')}
                   <Input
                     name="confirmPassword"
                     type="password"
@@ -304,28 +310,29 @@ export default function Home() {
                   />
                 </Label>
                 <Button disabled={busy}>
-                  Crear cuenta y empezar <ArrowRight />
+                  {t('Crear cuenta y empezar')} <ArrowRight />
                 </Button>
               </form>
             </Card>
           ) : !authenticated && ingress ? (
             <Card className="login panel">
-              <h1>Accede desde Home Assistant.</h1>
+              <h1>{t('Accede desde Home Assistant.')}</h1>
               <p>
-                Abre Zero desde el panel de Home Assistant con una cuenta administradora. Las
-                cuentas sin permisos de administración no pueden gestionar Zero.
+                {t(
+                  'Abre Zero desde el panel de Home Assistant con una cuenta administradora. Las cuentas sin permisos de administración no pueden gestionar Zero.',
+                )}
               </p>
             </Card>
           ) : !authenticated ? (
             <Card className="login panel">
-              <div className="eyebrow">BIENVENIDO A ZERO</div>
+              <div className="eyebrow">{t('BIENVENIDO A ZERO')}</div>
               <h1>
-                Todo empieza <br />
-                con una conexión.
+                {t('Todo empieza')} <br />
+                {t('con una conexión.')}
               </h1>
               <p>
-                Inicia sesión para configurar tu asistente
-                {pairingId ? ' y aprobar la conexión desde Home Assistant' : ''}.
+                {t('Inicia sesión para configurar tu asistente')}
+                {pairingId ? t(' y aprobar la conexión desde Home Assistant') : ''}.
               </p>
               {!secondFactor && (
                 <form
@@ -347,11 +354,11 @@ export default function Home() {
                   })}
                 >
                   <Label>
-                    Usuario
+                    {t('Usuario')}
                     <Input name="username" autoComplete="username" required />
                   </Label>
                   <Label>
-                    Contraseña
+                    {t('Contraseña')}
                     <Input
                       name="password"
                       type="password"
@@ -360,7 +367,7 @@ export default function Home() {
                     />
                   </Label>
                   <Button disabled={busy} className="login-primary">
-                    Entrar en Zero <ArrowRight />
+                    {t('Entrar en Zero')} <ArrowRight />
                   </Button>
                 </form>
               )}
@@ -376,7 +383,7 @@ export default function Home() {
                   })}
                 >
                   <Label>
-                    {backupCode ? 'Código de recuperación de 2FA' : 'Código de la aplicación'}
+                    {backupCode ? t('Código de recuperación de 2FA') : t('Código de la aplicación')}
                     <Input
                       key={String(backupCode)}
                       name="code"
@@ -385,7 +392,7 @@ export default function Home() {
                     />
                   </Label>
                   <Button disabled={busy} className="login-primary">
-                    <LogIn /> Verificar y entrar
+                    <LogIn /> {t('Verificar y entrar')}
                   </Button>
                   <div className="login-actions">
                     <Button
@@ -395,7 +402,8 @@ export default function Home() {
                       className="login-alternative"
                       onClick={() => setBackupCode(!backupCode)}
                     >
-                      <KeyRound /> {backupCode ? 'Usar aplicación' : 'Usar código de recuperación'}
+                      <KeyRound />{' '}
+                      {backupCode ? t('Usar aplicación') : t('Usar código de recuperación')}
                     </Button>
                     <Button
                       type="button"
@@ -407,7 +415,7 @@ export default function Home() {
                       }}
                       className="login-alternative"
                     >
-                      <ArrowLeft /> Usar otro método
+                      <ArrowLeft /> {t('Usar otro método')}
                     </Button>
                   </div>
                 </form>
@@ -423,7 +431,7 @@ export default function Home() {
                   }
                   className="login-alternative"
                 >
-                  <LogIn /> Entrar con passkey
+                  <LogIn /> {t('Entrar con passkey')}
                 </Button>
               )}
               <Button
@@ -433,7 +441,7 @@ export default function Home() {
                 aria-expanded={recovery}
                 aria-controls="login-recovery"
               >
-                <KeyRound /> {recovery ? 'Cerrar recuperación' : 'He olvidado mi contraseña'}
+                <KeyRound /> {recovery ? t('Cerrar recuperación') : t('He olvidado mi contraseña')}
               </Button>
               {recovery && (
                 <form
@@ -450,11 +458,12 @@ export default function Home() {
                   })}
                 >
                   <p>
-                    Recibe un código en tu destino privado de Telegram o en el móvil verificado de
-                    Home Assistant.
+                    {t(
+                      'Recibe un código en tu destino privado de Telegram o en el móvil verificado de Home Assistant.',
+                    )}
                   </p>
                   <Label>
-                    Usuario administrador
+                    {t('Usuario administrador')}
                     <Input
                       autoComplete="username"
                       value={recoveryUsername}
@@ -478,14 +487,14 @@ export default function Home() {
                     }
                     className="login-alternative"
                   >
-                    <Check /> Solicitar código
+                    <Check /> {t('Solicitar código')}
                   </Button>
                   <Label>
-                    Código
+                    {t('Código')}
                     <Input name="code" inputMode="numeric" pattern="[0-9]{8}" required />
                   </Label>
                   <Label>
-                    Nueva contraseña
+                    {t('Nueva contraseña')}
                     <Input
                       name="password"
                       type="password"
@@ -496,7 +505,7 @@ export default function Home() {
                     />
                   </Label>
                   <Button disabled={busy} className="login-primary">
-                    <KeyRound /> Restablecer contraseña
+                    <KeyRound /> {t('Restablecer contraseña')}
                   </Button>
                 </form>
               )}
@@ -505,18 +514,18 @@ export default function Home() {
             <>
               {pairing && (
                 <Card className="pairing panel">
-                  <div className="eyebrow">SOLICITUD DESDE HOME ASSISTANT</div>
-                  <h2>Conecta tu casa con tu Zero.</h2>
-                  <p>Comprueba que reconoces esta instancia antes de aprobar.</p>
+                  <div className="eyebrow">{t('SOLICITUD DESDE HOME ASSISTANT')}</div>
+                  <h2>{t('Conecta tu casa con tu Zero.')}</h2>
+                  <p>{t('Comprueba que reconoces esta instancia antes de aprobar.')}</p>
                   <dl>
                     <dt>Home Assistant</dt>
                     <dd>{pairing.homeAssistantUrl}</dd>
-                    <dt>Usuario de Home Assistant</dt>
+                    <dt>{t('Usuario de Home Assistant')}</dt>
                     <dd>
                       <code>{pairing.userId}</code>
                     </dd>
-                    <dt>Solicitud válida hasta</dt>
-                    <dd>{new Date(pairing.expiresAt).toLocaleTimeString('es-ES')}</dd>
+                    <dt>{t('Solicitud válida hasta')}</dt>
+                    <dd>{new Date(pairing.expiresAt).toLocaleTimeString(t.locale)}</dd>
                   </dl>
                   <form
                     onSubmit={submit(async () => {
@@ -535,13 +544,17 @@ export default function Home() {
                     />
                     <p>
                       {pairingTarget?.kind === 'group'
-                        ? 'Al aprobar, la conexión Home Assistant de este grupo se actualizará con un token cifrado. Sus herramientas y avisos usarán este servidor. Los vínculos privados de voz se gestionan por separado. Se conservan sus permisos actuales.'
-                        : 'Al aprobar, Home Assistant creará un token de larga duración y Zero lo guardará cifrado en el perfil seleccionado, actualizando su conexión. Se generará un token de Zero para voz, ajustes y alertas. Se activará el permiso Home Assistant. Se conservan los demás permisos y la memoria del perfil.'}
+                        ? t(
+                            'Al aprobar, la conexión Home Assistant de este grupo se actualizará con un token cifrado. Sus herramientas y avisos usarán este servidor. Los vínculos privados de voz se gestionan por separado. Se conservan sus permisos actuales.',
+                          )
+                        : t(
+                            'Al aprobar, Home Assistant creará un token de larga duración y Zero lo guardará cifrado en el perfil seleccionado, actualizando su conexión. Se generará un token de Zero para voz, ajustes y alertas. Se activará el permiso Home Assistant. Se conservan los demás permisos y la memoria del perfil.',
+                          )}
                     </p>
                     <Button
                       disabled={busy || !pairingTarget || pairing.state !== 'pending'}
                       size="icon"
-                      tooltip="Aprobar y volver a Home Assistant →"
+                      tooltip={t('Aprobar y volver a Home Assistant →')}
                     >
                       <ArrowRight />
                     </Button>
@@ -554,14 +567,15 @@ export default function Home() {
                         history.replaceState(null, '', adminPath('/admin/'));
                       }}
                       size="icon"
-                      tooltip="Ahora no"
+                      tooltip={t('Ahora no')}
                     >
                       <X />
                     </Button>
                   </form>
                   <small>
-                    Solo aparecen usuarios y grupos activos de tus asistentes; puedes activarlos en
-                    Usuarios.
+                    {t(
+                      'Solo aparecen usuarios y grupos activos de tus asistentes; puedes activarlos en Usuarios.',
+                    )}
                   </small>
                 </Card>
               )}
@@ -585,17 +599,18 @@ export default function Home() {
                 <>
                   <div className="page-heading">
                     <div>
-                      <div className="eyebrow">PERMISOS Y MEMORIA</div>
-                      <h1>Usuarios y permisos.</h1>
+                      <div className="eyebrow">{t('PERMISOS Y MEMORIA')}</div>
+                      <h1>{t('Usuarios y permisos.')}</h1>
                       <p>
-                        Las vinculaciones de Home Assistant usan los mismos permisos y
-                        conversaciones de Zero.
+                        {t(
+                          'Las vinculaciones de Home Assistant usan los mismos permisos y conversaciones de Zero.',
+                        )}
                       </p>
                     </div>
                     <Button
                       onClick={() => setProfileRoute('new')}
                       size="icon"
-                      tooltip="Añadir usuario o grupo"
+                      tooltip={t('Añadir usuario o grupo')}
                     >
                       <Plus />
                     </Button>
@@ -610,17 +625,22 @@ export default function Home() {
                       })}
                     >
                       <Input
-                        aria-label="Buscar perfiles"
+                        aria-label={t('Buscar perfiles')}
                         name="search"
-                        placeholder="Buscar por nombre o chat ID"
+                        placeholder={t('Buscar por nombre o chat ID')}
                       />
-                      <Button disabled={busy} className="secondary" size="icon" tooltip="Buscar">
+                      <Button
+                        disabled={busy}
+                        className="secondary"
+                        size="icon"
+                        tooltip={t('Buscar')}
+                      >
                         <Search />
                       </Button>
                     </form>
                     <CheckField
                       id="people-pending"
-                      label="Solo pendientes"
+                      label={t('Solo pendientes')}
                       checked={pending}
                       disabled={busy}
                       onCheckedChange={(value) => {
@@ -647,13 +667,13 @@ export default function Home() {
                                 ) : (
                                   <AssistantConnectionName id={p.bot} />
                                 )}{' '}
-                                · {p.chatId} · {p.kind === 'user' ? 'Privado' : 'Grupo'}
+                                · {p.chatId} · {p.kind === 'user' ? t('Privado') : t('Grupo')}
                               </small>
                             </div>
                           </div>
                           <div className="person-actions">
                             <Badge variant="outline" className="pill">
-                              {p.enabled ? 'Activo' : 'Pendiente'}
+                              {p.enabled ? t('Activo') : t('Pendiente')}
                             </Badge>
                             <AssistantAssignment profile={p} onAssigned={() => loadProfiles()} />
                             <Button
@@ -661,9 +681,9 @@ export default function Home() {
                               onClick={() =>
                                 setProfileRoute(p.bot + '/' + encodeURIComponent(p.chatId))
                               }
-                              aria-label={'Editar perfil de ' + p.label}
+                              aria-label={t('Editar perfil de ') + p.label}
                               size="icon"
-                              tooltip="Editar perfil"
+                              tooltip={t('Editar perfil')}
                             >
                               <Pencil />
                             </Button>
@@ -671,7 +691,7 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
-                    {!profiles.length && <p>No hay perfiles con esta búsqueda.</p>}
+                    {!profiles.length && <p>{t('No hay perfiles con esta búsqueda.')}</p>}
                     <div className="pager">
                       <Button
                         className="quiet"
@@ -680,19 +700,19 @@ export default function Home() {
                           void run(() => loadProfiles(search, Math.max(0, offset - 20)))
                         }
                         size="icon"
-                        tooltip="← Anterior"
+                        tooltip={t('← Anterior')}
                       >
                         <ArrowLeft />
                       </Button>
                       <small>
-                        {offset + 1}–{Math.min(offset + 20, total)} de {total}
+                        {offset + 1}–{Math.min(offset + 20, total)} {t('de')} {total}
                       </small>
                       <Button
                         className="quiet"
                         disabled={busy || offset + 20 >= total}
                         onClick={() => void run(() => loadProfiles(search, offset + 20))}
                         size="icon"
-                        tooltip="Siguiente →"
+                        tooltip={t('Siguiente →')}
                       >
                         <ArrowRight />
                       </Button>
@@ -728,10 +748,11 @@ export default function Home() {
                 <>
                   {ingress ? (
                     <Card className="panel">
-                      <h2>Administración desde Home Assistant</h2>
+                      <h2>{t('Administración desde Home Assistant')}</h2>
                       <p>
-                        Tu acceso, contraseña y autenticación se gestionan en Home Assistant. Puedes
-                        configurar los servicios de Zero en Ajustes y los perfiles en Usuarios.
+                        {t(
+                          'Tu acceso, contraseña y autenticación se gestionan en Home Assistant. Puedes configurar los servicios de Zero en Ajustes y los perfiles en Usuarios.',
+                        )}
                       </p>
                     </Card>
                   ) : (
@@ -742,7 +763,7 @@ export default function Home() {
             </>
           )}
           <footer>
-            ZERO ASSISTANT <span>Hecho para tu día a día.</span>
+            ZERO ASSISTANT <span>{t('Hecho para tu día a día.')}</span>
           </footer>
         </div>
       </main>

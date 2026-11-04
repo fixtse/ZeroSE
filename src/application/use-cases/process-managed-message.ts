@@ -1,3 +1,4 @@
+import { replyText } from '../../domain/language.js';
 import type { Config } from '../../domain/config.js';
 import {
   membershipEvent,
@@ -52,7 +53,11 @@ export class ProcessManagedMessage {
       const message = job.payload.message;
       if (!message.text && !message.caption)
         return {
-          output: 'Los archivos multimedia no están habilitados para este chat.',
+          output: replyText(
+            scope.config.replyLanguage,
+            'Los archivos multimedia no están habilitados para este chat.',
+            'Media files are not enabled for this chat.',
+          ),
           voice: false,
         };
       job = {

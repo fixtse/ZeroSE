@@ -1,3 +1,4 @@
+import { replyText, type ReplyLanguage } from '../domain/language.js';
 import {
   isLocationCondition,
   type LocationCondition,
@@ -357,6 +358,7 @@ export class NotificationRules {
   async notification(
     job: Job,
     explainWeather?: (change?: WeatherChange) => Promise<string | JobResult>,
+    language?: ReplyLanguage,
   ): Promise<JobResult> {
     const rule = await this.repository.read(job.session, job.payload.ruleId);
     const permitted = rule && (await this.canNotify(rule));
@@ -378,7 +380,7 @@ export class NotificationRules {
         : { voice: false, ...result };
     }
     return {
-      output: `${rule.kind === 'timer' ? '⏲️ Temporizador' : rule.kind === 'alert' ? '🔔 Alerta' : '🔔 Recordatorio'}: ${rule.message}`,
+      output: `${rule.kind === 'timer' ? replyText(language, '⏲️ Temporizador', '⏲️ Timer') : rule.kind === 'alert' ? replyText(language, '🔔 Alerta', '🔔 Alert') : replyText(language, '🔔 Recordatorio', '🔔 Reminder')}: ${rule.message}`,
       voice: false,
     };
   }

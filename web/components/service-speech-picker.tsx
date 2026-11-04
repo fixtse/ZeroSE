@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useId, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, ChevronsUpDown } from 'lucide-react';
 import { api, type CatalogPage } from '../lib/api';
@@ -20,6 +21,7 @@ export function ServiceSpeechPicker({
   language?: string;
   onChange: (value: string) => void;
 }) {
+  const t = useTranslations();
   const id = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -71,15 +73,15 @@ export function ServiceSpeechPicker({
             aria-expanded={open}
             className="service-choice"
           >
-            <span>{value || 'Seleccionar…'}</span>
+            <span>{value || t('Seleccionar…')}</span>
             <ChevronsUpDown />
           </Button>
         </PopoverTrigger>
         <PopoverContent>
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder="Buscar…"
-              aria-label={'Buscar ' + label.toLowerCase()}
+              placeholder={t('Buscar…')}
+              aria-label={t('Buscar ') + label.toLowerCase()}
               value={search}
               onValueChange={(value) => {
                 setSearch(value);
@@ -107,10 +109,10 @@ export function ServiceSpeechPicker({
               )}
               {!page && !error && (
                 <p role="status" className="p-3 text-sm">
-                  Consultando Edge TTS…
+                  {t('Consultando Edge TTS…')}
                 </p>
               )}
-              {page?.total === 0 && <p className="p-3 text-sm">Sin resultados.</p>}
+              {page?.total === 0 && <p className="p-3 text-sm">{t('Sin resultados.')}</p>}
             </CommandList>
             {page && page.total > 20 && (
               <div className="action-group p-2">
@@ -118,20 +120,20 @@ export function ServiceSpeechPicker({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  tooltip="Anterior"
+                  tooltip={t('Anterior')}
                   disabled={!offset}
                   onClick={() => setOffset(Math.max(0, offset - 20))}
                 >
                   <ArrowLeft />
                 </Button>
                 <small>
-                  {offset + 1}–{offset + page.items.length} de {page.total}
+                  {offset + 1}–{offset + page.items.length} {t('de')} {page.total}
                 </small>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  tooltip="Siguiente"
+                  tooltip={t('Siguiente')}
                   disabled={page.next_offset === null}
                   onClick={() => setOffset(page.next_offset!)}
                 >

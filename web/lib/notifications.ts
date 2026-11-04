@@ -1,8 +1,9 @@
 'use client';
+import { translateNotice } from '../i18n/notice';
 import { toast } from 'sonner';
 
 export function notify(message: string) {
-  if (message) toast.success(message);
+  if (message) toast.success(translateNotice(message));
 }
 export function notifyError(
   error: unknown,
@@ -10,8 +11,8 @@ export function notifyError(
 ) {
   const message =
     error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
-  toast.error(message, { duration: 8000 });
+  toast.error(translateNotice(message), { duration: 8000 });
 }
 export function notifyWarning(message: string) {
-  if (message) toast.warning(message, { duration: 8000 });
+  if (message) toast.warning(translateNotice(message), { duration: 8000 });
 }

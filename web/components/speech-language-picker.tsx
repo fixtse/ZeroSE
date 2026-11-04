@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useState } from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from './ui/button';
@@ -6,8 +7,8 @@ import { Label } from './ui/label';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from './ui/command';
 const defaultLanguages = ['es-ES', 'en-US', 'en-GB', 'fr-FR', 'de-DE', 'it-IT', 'pt-BR', 'pt-PT'];
-const names = new Intl.DisplayNames(['es'], { type: 'language' });
-function languageName(code: string) {
+function languageName(code: string, locale: string) {
+  const names = new Intl.DisplayNames([locale], { type: 'language' });
   try {
     return names.of(code.replaceAll('_', '-')) || code;
   } catch {
@@ -31,6 +32,7 @@ export function SpeechLanguagePicker({
   disabled: boolean;
   onChange(value: string): void;
 }) {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   const choices = [
     ...new Set([value, ...(useDefaultLanguages ? defaultLanguages : languages)]),
@@ -53,7 +55,7 @@ export function SpeechLanguagePicker({
             className="w-full justify-between"
           >
             <span className="truncate">
-              {languageName(value)} · {value}
+              {languageName(value, t.locale)} · {value}
             </span>
             <ChevronsUpDown className="shrink-0" />
           </Button>
@@ -61,22 +63,22 @@ export function SpeechLanguagePicker({
         <PopoverContent>
           <Command>
             <CommandInput
-              placeholder="Buscar idioma…"
-              aria-label={'Buscar ' + label.toLowerCase()}
+              placeholder={t('Buscar idioma…')}
+              aria-label={t('Buscar ') + label.toLowerCase()}
             />
             <CommandList>
-              <CommandEmpty>Sin idiomas que coincidan.</CommandEmpty>
+              <CommandEmpty>{t('Sin idiomas que coincidan.')}</CommandEmpty>
               {choices.map((code) => (
                 <CommandItem
                   key={code}
-                  value={code + ' ' + languageName(code)}
+                  value={code + ' ' + languageName(code, t.locale)}
                   onSelect={() => {
                     onChange(code);
                     setOpen(false);
                   }}
                 >
                   <span className="min-w-0 flex-1">
-                    {languageName(code)} · {code}
+                    {languageName(code, t.locale)} · {code}
                   </span>
                   {code === value && <Check className="size-4 shrink-0" />}
                 </CommandItem>

@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { notify as setNotice, notifyError } from '../lib/notifications';
 import { useAdminApi } from '../hooks/use-admin-api';
 import { ArrowLeft, ArrowRight, Pencil, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
@@ -26,6 +27,7 @@ import {
 } from './ui/alert-dialog';
 const endpoint = '/v1/admin/setup/assistants';
 export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promise<void> }) {
+  const t = useTranslations();
   const api = useAdminApi();
   const [items, setItems] = useState<AssistantSummary[]>([]),
     [total, setTotal] = useState(0),
@@ -64,7 +66,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
     try {
       await work();
     } catch (error) {
-      notifyError(error instanceof Error ? error.message : 'No se pudo completar la operación.');
+      notifyError(error instanceof Error ? error.message : t('No se pudo completar la operación.'));
     } finally {
       running.current = false;
       setBusy(false);
@@ -108,23 +110,24 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
       setAssistantRoute(value.id);
       if (value.id === 'zero') await onZeroChanged();
       await list();
-      setNotice('Asistente guardado. Se aplicará a las próximas solicitudes.');
+      setNotice(t('Asistente guardado. Se aplicará a las próximas solicitudes.'));
     });
   }
   return (
     <div className="assistant-workspace">
       <div className="page-heading">
         <div>
-          <div className="eyebrow">TUS ASISTENTES</div>
-          <h1>Tus asistentes.</h1>
+          <div className="eyebrow">{t('TUS ASISTENTES')}</div>
+          <h1>{t('Tus asistentes.')}</h1>
           <p>
-            Crea asistentes con sus propias instrucciones y asígnalos a los usuarios que los
-            necesitan.
+            {t(
+              'Crea asistentes con sus propias instrucciones y asígnalos a los usuarios que los necesitan.',
+            )}
           </p>
         </div>
         <Button
           size="icon"
-          tooltip="Nuevo asistente"
+          tooltip={t('Nuevo asistente')}
           disabled={busy}
           onClick={() => {
             setAssistantRoute('new');
@@ -146,11 +149,11 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
           >
             <Input
               name="search"
-              aria-label="Buscar asistentes"
-              placeholder="Buscar asistentes…"
+              aria-label={t('Buscar asistentes')}
+              placeholder={t('Buscar asistentes…')}
               maxLength={100}
             />
-            <Button variant="outline" size="icon" tooltip="Buscar" disabled={busy}>
+            <Button variant="outline" size="icon" tooltip={t('Buscar')} disabled={busy}>
               <Search />
             </Button>
           </form>
@@ -167,12 +170,12 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
               </span>
               <span>
                 <strong>{item.name}</strong>
-                <small>{item.builtin ? 'Asistente integrado' : 'Personalizado'}</small>
+                <small>{item.builtin ? t('Asistente integrado') : t('Personalizado')}</small>
               </span>
               <Pencil size={14} />
             </Button>
           ))}
-          {!items.length && <p>No hay asistentes con esta búsqueda.</p>}
+          {!items.length && <p>{t('No hay asistentes con esta búsqueda.')}</p>}
           <div className="pager">
             <Button
               variant="ghost"
@@ -183,7 +186,9 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
             >
               <ArrowLeft />
             </Button>
-            <small>{total} asistentes</small>
+            <small>
+              {total} {t('asistentes')}
+            </small>
             <Button
               variant="ghost"
               disabled={busy || offset + 20 >= total}
@@ -195,27 +200,27 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
             </Button>
           </div>
           <small>
-            Los perfiles existentes mantienen su asistente hasta que cambies la asignación.
+            {t('Los perfiles existentes mantienen su asistente hasta que cambies la asignación.')}
           </small>
         </Card>
         <Card className="panel assistant-editor-panel">
           {editor === undefined ? (
-            <p>Cargando asistente…</p>
+            <p>{t('Cargando asistente…')}</p>
           ) : (
             <>
               <form onSubmit={save} key={editor ? editor.id + ':' + editor.revision : 'new'}>
                 <div className="assistant-editor-heading">
-                  <h2>{editor ? 'Editar asistente' : 'Un nuevo asistente'}</h2>
-                  {editor?.builtin && <Badge variant="outline">Integrado</Badge>}
+                  <h2>{editor ? t('Editar asistente') : t('Un nuevo asistente')}</h2>
+                  {editor?.builtin && <Badge variant="outline">{t('Integrado')}</Badge>}
                   <div
                     className="editor-heading-actions"
                     role="group"
-                    aria-label="Acciones del asistente"
+                    aria-label={t('Acciones del asistente')}
                   >
                     <Button
                       disabled={busy}
                       size="icon"
-                      tooltip={editor ? 'Guardar asistente' : 'Crear asistente'}
+                      tooltip={editor ? t('Guardar asistente') : t('Crear asistente')}
                     >
                       <Save />
                     </Button>
@@ -228,7 +233,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                           void run(async () => setEditor(await api(endpoint + '/' + editor.id)))
                         }
                         size="icon"
-                        tooltip="Recargar"
+                        tooltip={t('Recargar')}
                       >
                         <RefreshCw />
                       </Button>
@@ -251,26 +256,28 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                             className="danger"
                             disabled={busy}
                             size="icon"
-                            tooltip="Eliminar"
+                            tooltip={t('Eliminar')}
                           >
                             <Trash2 />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar {editor.name}?</AlertDialogTitle>
+                            <AlertDialogTitle>
+                              {t('¿Eliminar')} {editor.name}?
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                              Los perfiles que lo utilizan pasarán a Zero. Se conservan sus
-                              permisos, conexiones e historiales. Desconecta primero el bot de
-                              Telegram si tiene uno.
+                              {t(
+                                'Los perfiles que lo utilizan pasarán a Zero. Se conservan sus permisos, conexiones e historiales. Desconecta primero el bot de Telegram si tiene uno.',
+                              )}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           {usage ? (
                             <div>
                               <p>
                                 {usage.total
-                                  ? usage.total + ' perfiles utilizan este asistente:'
-                                  : 'Ningún perfil utiliza este asistente.'}
+                                  ? usage.total + t(' perfiles utilizan este asistente:')
+                                  : t('Ningún perfil utiliza este asistente.')}
                               </p>
                               <ul className="assistant-usage-list">
                                 {usage.items.map((profile) => (
@@ -288,19 +295,21 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                                     void run(() => loadUsage(editor.id, usage.items.length))
                                   }
                                 >
-                                  Ver más perfiles
+                                  {t('Ver más perfiles')}
                                 </Button>
                               )}
                             </div>
                           ) : (
                             <p role="status">
                               {busy
-                                ? 'Cargando perfiles…'
-                                : 'No se pudieron cargar los perfiles. Cierra y vuelve a intentarlo.'}
+                                ? t('Cargando perfiles…')
+                                : t(
+                                    'No se pudieron cargar los perfiles. Cierra y vuelve a intentarlo.',
+                                  )}
                             </p>
                           )}
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                             <AlertDialogAction
                               variant="destructive"
                               disabled={busy || !usage}
@@ -311,11 +320,11 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                                   });
                                   setAssistantRoute('zero');
                                   await list(query, 0);
-                                  setNotice('Asistente eliminado.');
+                                  setNotice(t('Asistente eliminado.'));
                                 })
                               }
                             >
-                              Eliminar asistente
+                              {t('Eliminar asistente')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -326,7 +335,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                 {editor && (
                   <AssistantImageSettings key={editor.id} id={editor.id} name={editor.name} />
                 )}
-                <Label htmlFor="assistant-name">Nombre</Label>
+                <Label htmlFor="assistant-name">{t('Nombre')}</Label>
                 <Input
                   id="assistant-name"
                   name="name"
@@ -335,7 +344,7 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                   maxLength={100}
                   readOnly={editor?.id === 'zero'}
                 />
-                <Label htmlFor="assistant-prompt">Prompt e instrucciones</Label>
+                <Label htmlFor="assistant-prompt">{t('Prompt e instrucciones')}</Label>
                 <Textarea
                   id="assistant-prompt"
                   name="prompt"
@@ -343,19 +352,21 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                   rows={16}
                   required
                   maxLength={100000}
-                  placeholder="Eres un asistente especializado en… Define su personalidad, su objetivo y cómo debe responder."
+                  placeholder={t(
+                    'Eres un asistente especializado en… Define su personalidad, su objetivo y cómo debe responder.',
+                  )}
                 />
                 <small>
-                  El nombre, la fecha y hora y la zona horaria se añaden automáticamente. El
-                  contexto del usuario o grupo también se añade cuando existe, aunque mem0 esté
-                  desactivado. No es necesario usar variables en el prompt. Cada usuario conserva
-                  sus permisos, memoria e historial.{' '}
+                  {t(
+                    'El nombre, la fecha y hora y la zona horaria se añaden automáticamente. El contexto del usuario o grupo también se añade cuando existe, aunque mem0 esté desactivado. No es necesario usar variables en el prompt. Cada usuario conserva sus permisos, memoria e historial.',
+                  )}{' '}
                   {editor?.id === 'zero' &&
-                    'Este es el mismo prompt de Zero que se edita desde Home Assistant.'}
+                    t('Este es el mismo prompt de Zero que se edita desde Home Assistant.')}
                 </small>
                 <p className="assistant-assignment-hint">
-                  Para asociarlo a un usuario, abre Usuarios → Asistente. Un asistente puede
-                  utilizarse en varios perfiles.
+                  {t(
+                    'Para asociarlo a un usuario, abre Usuarios → Asistente. Un asistente puede utilizarse en varios perfiles.',
+                  )}
                 </p>
               </form>
               {editor && <BotSettings key={editor.id} id={editor.id} name={editor.name} />}

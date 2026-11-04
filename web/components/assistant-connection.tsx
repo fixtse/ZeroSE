@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { Check } from 'lucide-react';
 import { useAdminApi } from '../hooks/use-admin-api';
 import { useEffect, useState } from 'react';
@@ -8,8 +9,9 @@ import { Button } from './ui/button';
 import { useAdminTask } from '../hooks/use-admin-task';
 
 export function AssistantConnectionName({ id }: { id: string }) {
+  const t = useTranslations();
   const api = useAdminApi();
-  const [name, setName] = useState(id === 'zero' ? 'Zero' : 'Asistente');
+  const [name, setName] = useState(id === 'zero' ? 'Zero' : t('Asistente'));
   useEffect(() => {
     let active = true;
     if (id !== 'zero')
@@ -31,6 +33,7 @@ export function AssistantConnectionField({
   profile?: Profile;
   disabled: boolean;
 }) {
+  const t = useTranslations();
   const api = useAdminApi();
   const [items, setItems] = useState<AssistantSummary[]>([]),
     [total, setTotal] = useState(0);
@@ -57,13 +60,13 @@ export function AssistantConnectionField({
       <SelectField
         id="profile-bot"
         name="bot"
-        label="Conexión del asistente"
+        label={t('Conexión del asistente')}
         value={profile?.bot}
         defaultValue={profile ? undefined : 'zero'}
         disabled={disabled || !!profile}
       >
         {profile && !choices.some((item) => item.id === profile.bot) && (
-          <option value={profile.bot}>Asistente actual</option>
+          <option value={profile.bot}>{t('Asistente actual')}</option>
         )}
         {choices.map((item) => (
           <option key={item.id} value={item.id}>
@@ -79,7 +82,7 @@ export function AssistantConnectionField({
             disabled={busy}
             onClick={() => void run(() => load(items.length))}
             size="icon"
-            tooltip="Ver más asistentes"
+            tooltip={t('Ver más asistentes')}
           >
             <Check />
           </Button>

@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { adminPath } from '../lib/admin-path';
 import { Bot, Download, ImagePlus, Save, Send, Sparkles, Upload, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -119,6 +120,7 @@ async function referenceImage(file: File) {
 }
 
 export function AssistantImageSettings({ id, name }: { id: string; name: string }) {
+  const t = useTranslations();
   const { busy, setNotice, run } = useAdminTask();
   const [value, setValue] = useState<ImageState>(),
     [preview, setPreview] = useState<string | null>(null),
@@ -150,7 +152,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
     setPreview(saved.image);
     setDirty(false);
     notify(id);
-    setNotice('Imagen guardada en Zero. Telegram no se ha modificado.');
+    setNotice(t('Imagen guardada en Zero. Telegram no se ha modificado.'));
   }
   useEffect(() => {
     const changed = (event: Event) => {
@@ -166,7 +168,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
     if (!file || busy || !value) return;
     void run(async () => {
       if (file.size > 5_000_000 || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
-        throw new Error('Usa PNG, JPEG o WebP de hasta 5 MB.');
+        throw new Error(t('Usa PNG, JPEG o WebP de hasta 5 MB.'));
       const url = URL.createObjectURL(file);
       try {
         setPreview(await thumbnail(url));
@@ -181,7 +183,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
     const selected = Array.from(files);
     void run(async () => {
       if (references.length + selected.length > 3)
-        throw new Error('Puedes añadir hasta 3 imágenes de referencia.');
+        throw new Error(t('Puedes añadir hasta 3 imágenes de referencia.'));
       const images = await Promise.all(selected.map(referenceImage));
       setReferences((previous) => [...previous, ...images]);
     });
@@ -190,7 +192,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
     if (busy || !value?.generation || !prompt.trim()) return;
     void run(async () => {
       setGenerationOpen(false);
-      const loading = toast.loading(`Generando avatar de ${name}…`);
+      const loading = toast.loading(t('Generando avatar de {name}…', { name }));
       try {
         const generated = await api<{ image: string }>(endpoint(id) + '/generate', 'POST', {
           prompt: prompt.trim(),
@@ -201,7 +203,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
           setPreview(image);
           setDirty(true);
         }
-        toast.success('Avatar generado. Guarda la imagen para usarla en Zero.', {
+        toast.success(t('Avatar generado. Guarda la imagen para usarla en Zero.'), {
           id: loading,
           duration: 6000,
         });
@@ -209,7 +211,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
         toast.error(
           error instanceof Error
             ? error.message
-            : 'No se pudo confirmar la generación. No se ha reintentado.',
+            : t('No se pudo confirmar la generación. No se ha reintentado.'),
           { id: loading, duration: 8000 },
         );
       }
@@ -221,7 +223,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
         <div className="avatar-visual">
           {preview ? (
             <div className="assistant-image-preview avatar-edit">
-              <img src={preview} alt={'Imagen de ' + name} />
+              <img src={preview} alt={t('Imagen de ') + name} />
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -229,7 +231,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                     variant="destructive"
                     size="icon-sm"
                     className="avatar-remove"
-                    tooltip="Quitar imagen"
+                    tooltip={t('Quitar imagen')}
                     disabled={busy}
                   >
                     <X />
@@ -237,15 +239,17 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Quitar la imagen de {name}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t('¿Quitar la imagen de')} {name}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Se eliminará el avatar de Zero. La foto de Telegram se conserva.
+                      {t('Se eliminará el avatar de Zero. La foto de Telegram se conserva.')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                     <AlertDialogAction onClick={() => void run(() => save(null))}>
-                      Quitar imagen
+                      {t('Quitar imagen')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -261,11 +265,11 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
               }}
             >
               <Upload aria-hidden="true" />
-              <strong>Arrastra una imagen o selecciona un archivo</strong>
-              <small>PNG, JPEG o WebP · hasta 5 MB</small>
+              <strong>{t('Arrastra una imagen o selecciona un archivo')}</strong>
+              <small>{t('PNG, JPEG o WebP · hasta 5 MB')}</small>
               <Input
                 className="sr-only"
-                aria-label="Subir imagen"
+                aria-label={t('Subir imagen')}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 disabled={busy || !value}
@@ -278,17 +282,17 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
           )}
         </div>
         <div className="avatar-controls">
-          <h3>Imagen del asistente</h3>
-          <p>PNG, JPEG o WebP. Se recorta al centro.</p>
+          <h3>{t('Imagen del asistente')}</h3>
+          <p>{t('PNG, JPEG o WebP. Se recorta al centro.')}</p>
           <div className="avatar-actions">
             {(value?.generation || dirty) && (
-              <div className="action-group" role="group" aria-label="Imagen de Zero">
+              <div className="action-group" role="group" aria-label={t('Imagen de Zero')}>
                 {value?.generation && (
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    tooltip="Generar avatar con IA"
+                    tooltip={t('Generar avatar con IA')}
                     ref={generationTrigger}
                     aria-disabled={busy}
                     className={busy ? 'opacity-50' : undefined}
@@ -305,7 +309,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                     disabled={busy || !value || !dirty}
                     onClick={() => void run(() => save(preview))}
                     size="icon"
-                    tooltip="Guardar imagen en Zero"
+                    tooltip={t('Guardar imagen en Zero')}
                   >
                     <Save />
                   </Button>
@@ -313,7 +317,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
               </div>
             )}
             {value?.telegram ? (
-              <div className="action-group" role="group" aria-label="Foto de Telegram">
+              <div className="action-group" role="group" aria-label={t('Foto de Telegram')}>
                 <Button
                   type="button"
                   variant="outline"
@@ -324,18 +328,20 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                         endpoint(id) + '/telegram',
                       );
                       if (!remote.image) {
-                        setNotice('El bot no tiene foto de perfil.');
+                        setNotice(t('El bot no tiene foto de perfil.'));
                         return;
                       }
                       setPreview(await thumbnail(remote.image));
                       setDirty(true);
                       setNotice(
-                        'Foto de Telegram importada como vista previa. Guarda para usarla en Zero.',
+                        t(
+                          'Foto de Telegram importada como vista previa. Guarda para usarla en Zero.',
+                        ),
                       );
                     })
                   }
                   size="icon"
-                  tooltip="Importar foto actual de Telegram"
+                  tooltip={t('Importar foto actual de Telegram')}
                 >
                   <Download />
                 </Button>
@@ -346,7 +352,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                       variant="outline"
                       disabled={busy || dirty || !value.image}
                       size="icon"
-                      tooltip="Actualizar foto de Telegram"
+                      tooltip={t('Actualizar foto de Telegram')}
                     >
                       <Send />
                     </Button>
@@ -354,15 +360,16 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
-                        ¿Actualizar la foto de {name} en Telegram?
+                        {t('¿Actualizar la foto de')} {name} {t('en Telegram?')}
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esto modifica la foto pública del bot conectado. Se publica la imagen
-                        guardada en Zero.
+                        {t(
+                          'Esto modifica la foto pública del bot conectado. Se publica la imagen guardada en Zero.',
+                        )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                       <AlertDialogAction
                         type="button"
                         onClick={() =>
@@ -371,11 +378,11 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                               image: value.image,
                               confirm: true,
                             });
-                            setNotice('Telegram ha confirmado la nueva foto del bot.');
+                            setNotice(t('Telegram ha confirmado la nueva foto del bot.'));
                           })
                         }
                       >
-                        Publicar foto
+                        {t('Publicar foto')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -394,9 +401,11 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
           }}
         >
           <DialogHeader>
-            <DialogTitle>Generar avatar de {name}</DialogTitle>
+            <DialogTitle>
+              {t('Generar avatar de')} {name}
+            </DialogTitle>
             <DialogDescription>
-              Describe cómo quieres que sea. Puedes añadir imágenes como referencia.
+              {t('Describe cómo quieres que sea. Puedes añadir imágenes como referencia.')}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -414,10 +423,10 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
             }}
           >
             <div className="avatar-generation-description">
-              <label htmlFor={descriptionId}>Descripción del avatar</label>
+              <label htmlFor={descriptionId}>{t('Descripción del avatar')}</label>
               <Textarea
                 id={descriptionId}
-                placeholder="Por ejemplo, un zorro naranja con gafas y fondo oscuro…"
+                placeholder={t('Por ejemplo, un zorro naranja con gafas y fondo oscuro…')}
                 rows={4}
                 maxLength={2000}
                 value={prompt}
@@ -436,14 +445,14 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
             >
               <div className="avatar-reference-heading">
                 <span>
-                  Imágenes de referencia <small>(opcional)</small>
+                  {t('Imágenes de referencia')} <small>{t('(opcional)')}</small>
                 </span>
                 {references.length > 0 && references.length < 3 && (
                   <Button
                     type="button"
                     variant="outline"
                     size="icon-sm"
-                    tooltip="Añadir referencia"
+                    tooltip={t('Añadir referencia')}
                     disabled={busy}
                     onClick={() => referenceInput.current?.click()}
                   >
@@ -456,7 +465,7 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 multiple
-                aria-label="Añadir imágenes de referencia"
+                aria-label={t('Añadir imágenes de referencia')}
                 className="sr-only"
                 tabIndex={-1}
                 disabled={busy}
@@ -469,13 +478,13 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                 <div className="avatar-reference-strip">
                   {references.map((image, index) => (
                     <div className="avatar-reference-preview" key={image + index}>
-                      <img src={image} alt={`Referencia ${index + 1}`} />
+                      <img src={image} alt={t('Referencia {number}', { number: index + 1 })} />
                       <Button
                         type="button"
                         variant="destructive"
                         size="icon-sm"
                         className="avatar-reference-remove"
-                        tooltip={`Quitar referencia ${index + 1}`}
+                        tooltip={t('Quitar referencia {number}', { number: index + 1 })}
                         disabled={busy}
                         onClick={() =>
                           setReferences((previous) => previous.filter((_, i) => i !== index))
@@ -494,18 +503,18 @@ export function AssistantImageSettings({ id, name }: { id: string; name: string 
                   onClick={() => referenceInput.current?.click()}
                 >
                   <ImagePlus aria-hidden="true" />
-                  <span>Añade, arrastra o pega imágenes</span>
+                  <span>{t('Añade, arrastra o pega imágenes')}</span>
                 </button>
               )}
               <small className="avatar-reference-hint">
-                Hasta 3 imágenes · PNG, JPEG o WebP · 5 MB por archivo
+                {t('Hasta 3 imágenes · PNG, JPEG o WebP · 5 MB por archivo')}
               </small>
             </div>
             <DialogFooter>
               <Button
                 type="submit"
                 size="icon"
-                tooltip="Generar avatar"
+                tooltip={t('Generar avatar')}
                 disabled={busy || !prompt.trim()}
               >
                 <Sparkles />

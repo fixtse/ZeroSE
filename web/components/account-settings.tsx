@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { Fingerprint, KeyRound, ShieldCheck } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { AccountFactors } from './account-factors';
@@ -11,6 +12,7 @@ import { Field } from './settings-fields';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 
 export function AccountSettings() {
+  const t = useTranslations();
   const { busy, setNotice, run } = useAdminTask();
   const [tab, setTab] = useUrlState('securityTab', 'password');
   function change(event: FormEvent<HTMLFormElement>) {
@@ -19,32 +21,32 @@ export function AccountSettings() {
       data = new FormData(form);
     void run(async () => {
       if (data.get('newPassword') !== data.get('confirmPassword'))
-        throw new Error('Las contraseñas no coinciden.');
+        throw new Error(t('Las contraseñas no coinciden.'));
       await api('/api/auth/change-password', 'POST', {
         currentPassword: data.get('currentPassword'),
         newPassword: data.get('newPassword'),
         revokeOtherSessions: true,
       });
       form.reset();
-      setNotice('Contraseña actualizada. Las demás sesiones se han cerrado.');
+      setNotice(t('Contraseña actualizada. Las demás sesiones se han cerrado.'));
     });
   }
   return (
     <section className="security-settings">
-      <h2>Seguridad</h2>
+      <h2>{t('Seguridad')}</h2>
       <Tabs
         value={['password', 'two-factor', 'passkeys'].includes(tab) ? tab : 'password'}
         onValueChange={setTab}
         className="provider-settings"
       >
-        <TabsList aria-label="Secciones de seguridad" className="provider-tabs-list">
+        <TabsList aria-label={t('Secciones de seguridad')} className="provider-tabs-list">
           <TabsTrigger value="password">
             <KeyRound aria-hidden="true" />
-            Contraseña
+            {t('Contraseña')}
           </TabsTrigger>
           <TabsTrigger value="two-factor">
             <ShieldCheck aria-hidden="true" />
-            Autenticación en dos pasos
+            {t('Autenticación en dos pasos')}
           </TabsTrigger>
           <TabsTrigger value="passkeys">
             <Fingerprint aria-hidden="true" />
@@ -54,12 +56,12 @@ export function AccountSettings() {
         <TabsContent value="password" forceMount>
           <Card className="security-panel">
             <div className="security-panel-heading">
-              <h3>Contraseña</h3>
+              <h3>{t('Contraseña')}</h3>
               <Button
                 form="account-password-form"
                 disabled={busy}
                 size="icon"
-                tooltip="Cambiar contraseña"
+                tooltip={t('Cambiar contraseña')}
               >
                 <KeyRound />
               </Button>
@@ -69,7 +71,7 @@ export function AccountSettings() {
                 <Field
                   id="account-current-password"
                   name="currentPassword"
-                  label="Contraseña actual"
+                  label={t('Contraseña actual')}
                   type="password"
                   autoComplete="current-password"
                   required
@@ -78,7 +80,7 @@ export function AccountSettings() {
                   <Field
                     id="account-new-password"
                     name="newPassword"
-                    label="Nueva contraseña"
+                    label={t('Nueva contraseña')}
                     type="password"
                     minLength={12}
                     maxLength={128}
@@ -88,7 +90,7 @@ export function AccountSettings() {
                   <Field
                     id="account-confirm-password"
                     name="confirmPassword"
-                    label="Confirmar nueva contraseña"
+                    label={t('Confirmar nueva contraseña')}
                     type="password"
                     minLength={12}
                     maxLength={128}

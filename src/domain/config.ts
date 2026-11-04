@@ -1,3 +1,4 @@
+import type { ReplyLanguage } from './language.js';
 import type { SpeechSettings } from './speech.js';
 import type { MemoryMode } from './memory.js';
 export interface GoogleCredential {
@@ -13,6 +14,7 @@ export interface Config {
   database: { url: string };
   connectionUrl?: string;
   timezone: string;
+  replyLanguage?: ReplyLanguage;
   concurrency: number;
   codex: {
     command: string;

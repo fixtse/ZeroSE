@@ -1,3 +1,4 @@
+import { replyText } from './domain/language.js';
 import { defaultZeroPrompt } from './application/prompts.js';
 import { PersonalLocation } from './application/personal-location.js';
 import { RuleRetention } from './application/rule-retention.js';
@@ -654,27 +655,38 @@ const codex = new AIAgent(
         }).execute(job.payload.turn, context),
       morning: notify,
       event_reminders: notify,
-      rule_notification: (job, context) =>
-        rules.notification(job, async (pending) => {
-          const change = weatherChangeSchema.safeParse(pending || job.payload.weather);
-          if (!change.success) return { output: '', deliver: false };
-          const scoped = await services(context);
-          return new WeatherNotification(codex).update(
-            change.data,
-            job.payload.firedAt,
-            scoped.config.timezone,
-            context,
-            scoped.profile?.capabilities.includes('calendar') ? scoped.google : undefined,
-            (reported) => rules.weatherDelivered(job, reported),
-          );
-        }),
+      rule_notification: async (job, context) =>
+        rules.notification(
+          job,
+          async (pending) => {
+            const change = weatherChangeSchema.safeParse(pending || job.payload.weather);
+            if (!change.success) return { output: '', deliver: false };
+            const scoped = await services(context);
+            return new WeatherNotification(codex, undefined, scoped.profile?.replyLanguage).update(
+              change.data,
+              job.payload.firedAt,
+              scoped.config.timezone,
+              context,
+              scoped.profile?.capabilities.includes('calendar') ? scoped.google : undefined,
+              (reported) => rules.weatherDelivered(job, reported),
+            );
+          },
+          (await access.forSession(job.session))?.replyLanguage,
+        ),
       reset: async (job) => {
         await store.reset(job.session);
         const profile = await access.forSession(job.session);
         return profile?.enabled &&
           profileNotifications(profile).reset.enabled &&
           (await canRespond(job))
-          ? { output: 'Zero: Nueva Sesión Iniciada', voice: false }
+          ? {
+              output: replyText(
+                profile?.replyLanguage,
+                'Zero: Nueva Sesión Iniciada',
+                'Zero: New Session Started',
+              ),
+              voice: false,
+            }
           : { output: '', deliver: false };
       },
     },

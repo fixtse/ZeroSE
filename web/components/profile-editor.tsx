@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { ProfileNotifications } from './profile-notifications';
 import { HAConnectionPicker, type HAConnectionChoice } from './ha-connection-picker';
 import { SecretEditor } from './secret-editor';
@@ -84,6 +85,7 @@ export function ProfileEditor({
   onChanged: (message?: string) => Promise<void>;
   onCreated: (profile: Profile) => void;
 }) {
+  const t = useTranslations();
   const confirmedNotifications = useRef(false);
   const confirmedLocations = useRef(false);
   const [confirmLocations, setConfirmLocations] = useState<string[]>();
@@ -182,6 +184,7 @@ export function ProfileEditor({
         ...(kind === 'group' ? { respondToReplies: data.has('respondToReplies') } : {}),
         timezone: String(data.get('timezone') || '').trim(),
         memoryMode: data.get('memoryMode'),
+        replyLanguage: data.get('replyLanguage') || current?.replyLanguage || 'es',
         speech,
         ...(current && (data.has('morningMode') || data.has('dailyResetTime'))
           ? {
@@ -274,7 +277,7 @@ export function ProfileEditor({
       setVersion((item) => item + 1);
       await onChanged();
       if (result.warning) notifyWarning(result.warning);
-      else setNotice('Perfil guardado.');
+      else setNotice(t('Perfil guardado.'));
       if (!current) onCreated(saved);
     });
   }
@@ -288,15 +291,16 @@ export function ProfileEditor({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Exponer esta ubicación a Assist?</AlertDialogTitle>
+            <AlertDialogTitle>{t('¿Exponer esta ubicación a Assist?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Para usar {confirmLocations?.join(', ')}, Zero la añadirá a las entidades expuestas a
-              Assist. Estará disponible para Assist y Zero en toda esta instancia de Home Assistant.
-              Quitar la asignación del perfil no la ocultará de Assist.
+              {t('Para usar')} {confirmLocations?.join(', ')}
+              {t(
+                ', Zero la añadirá a las entidades expuestas a Assist. Estará disponible para Assist y Zero en toda esta instancia de Home Assistant. Quitar la asignación del perfil no la ocultará de Assist.',
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 confirmedLocations.current = true;
@@ -306,7 +310,7 @@ export function ProfileEditor({
                 )?.requestSubmit();
               }}
             >
-              Exponer y guardar
+              {t('Exponer y guardar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -314,15 +318,15 @@ export function ProfileEditor({
       <AlertDialog open={confirmNotifications} onOpenChange={setConfirmNotifications}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Aplicar las notificaciones de este perfil?</AlertDialogTitle>
+            <AlertDialogTitle>{t('¿Aplicar las notificaciones de este perfil?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              El resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El
-              reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero
-              escuchará sus cambios en Home Assistant.
+              {t(
+                'El resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero escuchará sus cambios en Home Assistant.',
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 confirmedNotifications.current = true;
@@ -331,7 +335,7 @@ export function ProfileEditor({
                 )?.requestSubmit();
               }}
             >
-              Aplicar y guardar
+              {t('Aplicar y guardar')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -346,10 +350,10 @@ export function ProfileEditor({
           <DialogHeader>
             <div className="profile-title-row">
               <DialogTitle>
-                {current ? 'Perfil · ' + current.label : 'Añadir usuario o grupo'}
+                {current ? t('Perfil · ') + current.label : t('Añadir usuario o grupo')}
                 {current && (
                   <Badge variant="secondary" className="ml-2 align-middle">
-                    {current.kind === 'group' ? 'Grupo' : 'Usuario privado'}
+                    {current.kind === 'group' ? t('Grupo') : t('Usuario privado')}
                   </Badge>
                 )}
               </DialogTitle>
@@ -363,26 +367,29 @@ export function ProfileEditor({
                 />
               )}
             </div>
-            <DialogDescription>Permisos y conexiones de este perfil.</DialogDescription>
+            <DialogDescription>{t('Permisos y conexiones de este perfil.')}</DialogDescription>
           </DialogHeader>
           <form id="profile-settings-form" key={version} onSubmit={save} noValidate>
             <fieldset disabled={busy}>
               <Tabs value={provider} onValueChange={setProvider} className="provider-settings">
-                <TabsList aria-label="Proveedor de configuración" className="provider-tabs-list">
+                <TabsList
+                  aria-label={t('Proveedor de configuración')}
+                  className="provider-tabs-list"
+                >
                   <TabsTrigger value="profile">
                     <UserRound aria-hidden="true" />
-                    Perfil
+                    {t('Perfil')}
                   </TabsTrigger>
                   {current && (
                     <TabsTrigger value="context">
                       <NotebookText aria-hidden="true" />
-                      Contexto
+                      {t('Contexto')}
                     </TabsTrigger>
                   )}
                   {current && (
                     <TabsTrigger value="memory">
                       <Brain aria-hidden="true" />
-                      Memoria
+                      {t('Memoria')}
                     </TabsTrigger>
                   )}
                   <TabsTrigger value="google">
@@ -392,7 +399,7 @@ export function ProfileEditor({
                   {tasksEnabled && (
                     <TabsTrigger value="tasks">
                       <ListTodo aria-hidden="true" />
-                      Tareas
+                      {t('Tareas')}
                     </TabsTrigger>
                   )}
                   <TabsTrigger value="home-assistant">
@@ -402,17 +409,17 @@ export function ProfileEditor({
                   {current && (
                     <TabsTrigger value="notifications">
                       <BellRing aria-hidden="true" />
-                      Alertas y recordatorios
+                      {t('Alertas y recordatorios')}
                     </TabsTrigger>
                   )}
                   <TabsTrigger value="speech">
                     <AudioLines aria-hidden="true" />
-                    Voz
+                    {t('Voz')}
                   </TabsTrigger>
                   {membersAvailable && (
                     <TabsTrigger value="members">
                       <Users aria-hidden="true" />
-                      Integrantes
+                      {t('Integrantes')}
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -428,15 +435,15 @@ export function ProfileEditor({
                       <SelectField
                         id="profile-kind"
                         name="kind"
-                        label="Tipo de perfil"
+                        label={t('Tipo de perfil')}
                         defaultValue="user"
                         onChange={(event) => {
                           setKind(event.target.value as Profile['kind']);
                         }}
                         disabled={busy}
                       >
-                        <option value="user">Usuario privado</option>
-                        <option value="group">Grupo</option>
+                        <option value="user">{t('Usuario privado')}</option>
+                        <option value="group">{t('Grupo')}</option>
                       </SelectField>
                     </div>
                   )}
@@ -453,34 +460,52 @@ export function ProfileEditor({
                       inputMode="numeric"
                       required
                       pattern="-?[0-9]{1,16}"
-                      placeholder="123456789 o -1001234567890"
+                      placeholder={t('123456789 o -1001234567890')}
                     />
                   )}
                   <Field
                     id="profile-label"
                     name="label"
-                    label="Nombre"
+                    label={t('Nombre')}
                     defaultValue={current?.label || ''}
                     maxLength={100}
                     required
                   />
+                  <SelectField
+                    id="profile-reply-language"
+                    name="replyLanguage"
+                    label={t('Idioma de las respuestas')}
+                    defaultValue={current?.replyLanguage || 'es'}
+                  >
+                    <option value="en" lang="en">
+                      English
+                    </option>
+                    <option value="es" lang="es">
+                      Español
+                    </option>
+                  </SelectField>
+                  <p className="settings-help">
+                    {t(
+                      'Se aplica a las respuestas, resúmenes y avisos de este perfil. El idioma de la interfaz y los motores de voz se eligen por separado.',
+                    )}
+                  </p>
                   <CheckField
                     id="profile-enabled"
                     name="enabled"
-                    label="Permitir respuestas en este chat"
+                    label={t('Permitir respuestas en este chat')}
                     defaultChecked={!!current?.enabled}
                   />
                   <CheckField
                     id="profile-voice-replies"
                     name="voiceReplies"
-                    label="Respuestas de voz"
+                    label={t('Respuestas de voz')}
                     defaultChecked={current?.voiceReplies !== false}
                   />
                   {kind === 'group' && (
                     <CheckField
                       id="profile-respond-to-replies"
                       name="respondToReplies"
-                      label="Responder cuando contesten a un mensaje del asistente"
+                      label={t('Responder cuando contesten a un mensaje del asistente')}
                       defaultChecked={current?.respondToReplies !== false}
                     />
                   )}
@@ -488,7 +513,7 @@ export function ProfileEditor({
                     <Field
                       id="profile-timezone"
                       name="timezone"
-                      label="Zona horaria"
+                      label={t('Zona horaria')}
                       defaultValue={current?.timezone || timezone}
                       required
                       maxLength={100}
@@ -499,17 +524,17 @@ export function ProfileEditor({
                     <SelectField
                       id="profile-memory-mode"
                       name="memoryMode"
-                      label="Memoria a largo plazo"
+                      label={t('Memoria a largo plazo')}
                       defaultValue={current?.memoryMode || 'advanced'}
                     >
-                      <option value="advanced">Avanzada · búsqueda semántica</option>
-                      <option value="simple">Simple · búsqueda por palabras</option>
-                      <option value="none">Sin memoria a largo plazo</option>
+                      <option value="advanced">{t('Avanzada · búsqueda semántica')}</option>
+                      <option value="simple">{t('Simple · búsqueda por palabras')}</option>
+                      <option value="none">{t('Sin memoria a largo plazo')}</option>
                     </SelectField>
                   </div>
                   <TimezoneOptions id="timezone-options" />
                   <ProfileModels key={version} profile={current} />
-                  <h3 className="settings-heading">Herramientas permitidas</h3>
+                  <h3 className="settings-heading">{t('Herramientas permitidas')}</h3>
                   <div className="settings-grid">
                     {Object.entries(capabilities)
                       .filter(
@@ -523,7 +548,7 @@ export function ProfileEditor({
                           key={id}
                           id={'profile-cap-' + id}
                           name={'cap-' + id}
-                          label={label}
+                          label={t(label)}
                           {...(id === 'tasks'
                             ? {
                                 checked: tasksEnabled,
@@ -560,7 +585,7 @@ export function ProfileEditor({
                     <GoogleConnectionSettings profile={current} />
                     {enabledGoogleServices.length > 0 && (
                       <div className="settings-section">
-                        <h3>Destinos de Google</h3>
+                        <h3>{t('Destinos de Google')}</h3>
                         <div className="grid gap-4">
                           {enabledGoogleServices.map(([service]) => (
                             <GoogleDestinationPicker
@@ -576,18 +601,22 @@ export function ProfileEditor({
                 </TabsContent>
                 {tasksEnabled && (
                   <TabsContent value="tasks" forceMount data-settings-provider="tasks">
-                    <h3 className="settings-heading">Proveedor de tareas</h3>
-                    <p>Elige Google Tasks o una lista to-do de Home Assistant para este usuario.</p>
+                    <h3 className="settings-heading">{t('Proveedor de tareas')}</h3>
+                    <p>
+                      {t(
+                        'Elige Google Tasks o una lista to-do de Home Assistant para este usuario.',
+                      )}
+                    </p>
                     <SelectField
                       id="profile-task-provider"
                       name="ha-taskProvider"
-                      label="Proveedor de tareas"
+                      label={t('Proveedor de tareas')}
                       value={taskProvider}
                       onChange={(event) =>
                         setTaskProvider(event.target.value as typeof taskProvider)
                       }
                     >
-                      <option value="google">Google Tasks directo</option>
+                      <option value="google">{t('Google Tasks directo')}</option>
                       {(current?.hasHomeAssistant || taskProvider === 'home_assistant') && (
                         <option value="home_assistant">Home Assistant · to-do</option>
                       )}
@@ -604,7 +633,7 @@ export function ProfileEditor({
                 >
                   {
                     <section className="ha-connection-settings">
-                      <h3>Conexión de Home Assistant</h3>
+                      <h3>{t('Conexión de Home Assistant')}</h3>
                       <HAConnectionPicker
                         selected={haConnections}
                         active={activeHAConnection}
@@ -615,25 +644,27 @@ export function ProfileEditor({
                         }}
                       />
                       <a className="underline" href="?page=services&settingsTab=homeAssistant">
-                        Gestionar conexiones de Home Assistant
+                        {t('Gestionar conexiones de Home Assistant')}
                       </a>
                       {haConnections.length === 0 && (
                         <div className="ha-manual-connection">
                           <Field
                             id="profile-ha-url"
                             name="ha-url"
-                            label="URL de Home Assistant"
+                            label={t('URL de Home Assistant')}
                             type="url"
                             defaultValue={current?.homeAssistant?.url || ''}
                           />
                           <SecretEditor
                             id="profile-ha-token"
                             name="ha-token"
-                            label="Token de acceso"
+                            label={t('Token de acceso')}
                             configured={!clearHAConnection && !!current?.homeAssistant?.tokenHint}
                             hint={current?.homeAssistant?.tokenHint}
                             preview={
-                              clearHAConnection ? 'La conexión se eliminará al guardar' : undefined
+                              clearHAConnection
+                                ? t('La conexión se eliminará al guardar')
+                                : undefined
                             }
                             onChange={(value) => {
                               if (value) setClearHAConnection(false);
@@ -646,7 +677,7 @@ export function ProfileEditor({
                                       type="button"
                                       variant="destructive"
                                       size="icon-sm"
-                                      tooltip="Eliminar conexión del perfil"
+                                      tooltip={t('Eliminar conexión del perfil')}
                                       disabled={busy}
                                     >
                                       <Trash2 />
@@ -655,21 +686,21 @@ export function ProfileEditor({
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>
-                                        ¿Eliminar la conexión del perfil?
+                                        {t('¿Eliminar la conexión del perfil?')}
                                       </AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        La URL y el token guardados en este perfil se eliminarán al
-                                        guardar. Para eliminar el servidor de todos los perfiles,
-                                        usa Gestionar conexiones.
+                                        {t(
+                                          'La URL y el token guardados en este perfil se eliminarán al guardar. Para eliminar el servidor de todos los perfiles, usa Gestionar conexiones.',
+                                        )}
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                                       <AlertDialogAction
                                         variant="destructive"
                                         onClick={() => setClearHAConnection(true)}
                                       >
-                                        Eliminar al guardar
+                                        {t('Eliminar al guardar')}
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
@@ -684,7 +715,7 @@ export function ProfileEditor({
                                 value="true"
                                 disabled={busy}
                                 size="icon"
-                                tooltip="Guardar conexión de Home Assistant"
+                                tooltip={t('Guardar conexión de Home Assistant')}
                               >
                                 <Save />
                               </Button>
@@ -714,7 +745,7 @@ export function ProfileEditor({
                             profile={current}
                             id={'profile-ha-' + key}
                             name={'ha-' + key}
-                            label={haFields[key as keyof typeof haFields]}
+                            label={t(haFields[key as keyof typeof haFields])}
                             domains={
                               key === 'shoppingListEntity'
                                 ? 'todo'
@@ -733,21 +764,23 @@ export function ProfileEditor({
                         ))}
                       </div>
                       <p className="settings-help">
-                        La entidad de tiempo se usa para consultar el pronóstico y evaluar alertas
-                        meteorológicas.
+                        {t(
+                          'La entidad de tiempo se usa para consultar el pronóstico y evaluar alertas meteorológicas.',
+                        )}
                       </p>
                       <p className="settings-help">
-                        Las entidades disponibles y sus permisos se gestionan en Home Assistant →
-                        Ajustes → Asistentes de voz → Exponer, seleccionando Assist. Las entidades
-                        asignadas aquí deben estar expuestas a Assist; si falta exposición, Zero
-                        pedirá confirmación para añadirlas a Assist.
+                        {t(
+                          'Las entidades disponibles y sus permisos se gestionan en Home Assistant → Ajustes → Asistentes de voz → Exponer, seleccionando Assist. Las entidades asignadas aquí deben estar expuestas a Assist; si falta exposición, Zero pedirá confirmación para añadirlas a Assist.',
+                        )}
                       </p>
                     </>
                   ) : (
                     <p className="settings-help">
                       {kind === 'group'
-                        ? 'Guarda primero la conexión de Home Assistant.'
-                        : 'Las entidades estarán disponibles cuando este usuario tenga una conexión de Home Assistant.'}
+                        ? t('Guarda primero la conexión de Home Assistant.')
+                        : t(
+                            'Las entidades estarán disponibles cuando este usuario tenga una conexión de Home Assistant.',
+                          )}
                     </p>
                   )}
                 </TabsContent>
@@ -783,22 +816,26 @@ export function ProfileEditor({
                       className="danger"
                       disabled={busy}
                       size="icon"
-                      tooltip="Eliminar perfil"
+                      tooltip={t('Eliminar perfil')}
                     >
                       <Trash2 />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>¿Eliminar {current.label}?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {t('¿Eliminar')} {current.label}?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        Se quitarán el acceso y las credenciales de {current.bot} · {current.chatId}
-                        . Su historial se conserva. El menú de Telegram se actualizará si el perfil
-                        estaba activo.
+                        {t('Se quitarán el acceso y las credenciales de')} {current.bot} ·{' '}
+                        {current.chatId}
+                        {t(
+                          '. Su historial se conserva. El menú de Telegram se actualizará si el perfil estaba activo.',
+                        )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                       <AlertDialogAction
                         variant="destructive"
                         onClick={() =>
@@ -807,12 +844,12 @@ export function ProfileEditor({
                               path(current),
                               'DELETE',
                             );
-                            await onChanged(result.warning || 'Perfil eliminado.');
+                            await onChanged(result.warning || t('Perfil eliminado.'));
                             onClose();
                           })
                         }
                       >
-                        Eliminar perfil
+                        {t('Eliminar perfil')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -822,13 +859,13 @@ export function ProfileEditor({
             <div
               className="action-group profile-save-actions"
               role="group"
-              aria-label="Acciones del perfil"
+              aria-label={t('Acciones del perfil')}
             >
               <Button
                 form="profile-settings-form"
                 disabled={busy}
                 size="icon"
-                tooltip="Guardar perfil"
+                tooltip={t('Guardar perfil')}
               >
                 <Save />
               </Button>
@@ -839,7 +876,7 @@ export function ProfileEditor({
                   disabled={busy}
                   onClick={() => void run(refresh)}
                   size="icon"
-                  tooltip="Recargar perfil"
+                  tooltip={t('Recargar perfil')}
                 >
                   <RefreshCw />
                 </Button>

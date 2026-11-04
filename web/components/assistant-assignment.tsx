@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { notifyError } from '../lib/notifications';
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +22,7 @@ export function AssistantAssignment({
   profile: Profile;
   onAssigned: () => Promise<void>;
 }) {
+  const t = useTranslations();
   const endpoint = '/v1/admin/setup/profiles/' + profile.bot + '/' + profile.chatId + '/assistant';
   const [current, setCurrent] = useState<AssistantSummary>(),
     [open, setOpen] = useState(false),
@@ -37,7 +39,7 @@ export function AssistantAssignment({
     try {
       await work();
     } catch (error) {
-      notifyError(error instanceof Error ? error.message : 'No se pudo guardar la asignación.');
+      notifyError(error instanceof Error ? error.message : t('No se pudo guardar la asignación.'));
     } finally {
       running.current = false;
       setBusy(false);
@@ -75,23 +77,25 @@ export function AssistantAssignment({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" tooltip="Cambiar asistente" className="assistant-assignment">
+        <Button variant="outline" tooltip={t('Cambiar asistente')} className="assistant-assignment">
           <span className="assistant-avatar assignment-avatar">
             <AssistantAvatar
               key={current?.id || profile.assistantId || profile.bot}
               id={current?.id || profile.assistantId || profile.bot}
             />
           </span>
-          <span>{current?.name || 'Elegir asistente'}</span>
+          <span>{current?.name || t('Elegir asistente')}</span>
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Asistente de {profile.label}</DialogTitle>
+          <DialogTitle>
+            {t('Asistente de')} {profile.label}
+          </DialogTitle>
           <DialogDescription>
-            Elige qué personalidad e instrucciones usará este perfil. Sus permisos, memoria e
-            historial se conservan. También se aplica al usuario de Home Assistant vinculado a este
-            perfil.
+            {t(
+              'Elige qué personalidad e instrucciones usará este perfil. Sus permisos, memoria e historial se conservan. También se aplica al usuario de Home Assistant vinculado a este perfil.',
+            )}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -105,11 +109,11 @@ export function AssistantAssignment({
         >
           <Input
             name="search"
-            aria-label="Buscar asistente para asignar"
-            placeholder="Buscar asistentes…"
+            aria-label={t('Buscar asistente para asignar')}
+            placeholder={t('Buscar asistentes…')}
             maxLength={100}
           />
-          <Button size="icon" variant="outline" tooltip="Buscar" disabled={busy}>
+          <Button size="icon" variant="outline" tooltip={t('Buscar')} disabled={busy}>
             <Search />
           </Button>
         </form>
@@ -133,10 +137,10 @@ export function AssistantAssignment({
                 <AssistantAvatar key={item.id} id={item.id} />
               </span>
               <span>{item.name}</span>
-              {current?.id === item.id && <small>Actual</small>}
+              {current?.id === item.id && <small>{t('Actual')}</small>}
             </Button>
           ))}
-          {!items.length && <p>No hay asistentes con esta búsqueda.</p>}
+          {!items.length && <p>{t('No hay asistentes con esta búsqueda.')}</p>}
         </div>
         <div className="pager">
           <Button
@@ -144,17 +148,19 @@ export function AssistantAssignment({
             disabled={busy || !offset}
             onClick={() => void run(() => list(query, Math.max(0, offset - 20)))}
             size="icon"
-            tooltip="← Anterior"
+            tooltip={t('← Anterior')}
           >
             <ArrowLeft />
           </Button>
-          <small>{total} asistentes</small>
+          <small>
+            {total} {t('asistentes')}
+          </small>
           <Button
             variant="ghost"
             disabled={busy || offset + 20 >= total}
             onClick={() => void run(() => list(query, offset + 20))}
             size="icon"
-            tooltip="Siguiente →"
+            tooltip={t('Siguiente →')}
           >
             <ArrowRight />
           </Button>

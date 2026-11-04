@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, ChevronsUpDown } from 'lucide-react';
 import { api } from '../lib/api';
@@ -19,6 +20,7 @@ export function HAConnectionPicker({
   active: string;
   onChange(selected: HAConnectionChoice[], active: string): void;
 }) {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
@@ -45,7 +47,7 @@ export function HAConnectionPicker({
           if (!controller.signal.aborted) setPage(value);
         })
         .catch(() => {
-          if (!controller.signal.aborted) setError('No se pudieron cargar las conexiones.');
+          if (!controller.signal.aborted) setError(t('No se pudieron cargar las conexiones.'));
         });
     }, 200);
     return () => {
@@ -63,18 +65,18 @@ export function HAConnectionPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label="Conexión de Home Assistant"
+          aria-label={t('Conexión de Home Assistant')}
           className="ha-connection-trigger"
         >
-          <span>{chosen ? chosen.name + ' · ' + chosen.url : 'Conexión manual'}</span>
+          <span>{chosen ? chosen.name + ' · ' + chosen.url : t('Conexión manual')}</span>
           <ChevronsUpDown aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>
         <Command shouldFilter={false}>
           <CommandInput
-            aria-label="Buscar conexión"
-            placeholder="Buscar conexión…"
+            aria-label={t('Buscar conexión')}
+            placeholder={t('Buscar conexión…')}
             value={search}
             onValueChange={(value) => {
               setSearch(value);
@@ -104,11 +106,11 @@ export function HAConnectionPicker({
             )}
             {!page && !error && (
               <p className="p-3 text-sm" role="status">
-                Cargando conexiones…
+                {t('Cargando conexiones…')}
               </p>
             )}
             {page?.total === 0 && (
-              <p className="p-3 text-sm">No hay conexiones con esta búsqueda.</p>
+              <p className="p-3 text-sm">{t('No hay conexiones con esta búsqueda.')}</p>
             )}
             {page && page.total > 20 && (
               <div className="action-group p-2">
@@ -116,20 +118,20 @@ export function HAConnectionPicker({
                   type="button"
                   size="icon-xs"
                   variant="ghost"
-                  tooltip="Conexiones anteriores"
+                  tooltip={t('Conexiones anteriores')}
                   disabled={!offset}
                   onClick={() => setOffset(Math.max(0, offset - 20))}
                 >
                   <ArrowLeft />
                 </Button>
                 <small>
-                  {offset + 1}–{Math.min(offset + 20, page.total)} de {page.total}
+                  {offset + 1}–{Math.min(offset + 20, page.total)} {t('de')} {page.total}
                 </small>
                 <Button
                   type="button"
                   size="icon-xs"
                   variant="ghost"
-                  tooltip="Conexiones siguientes"
+                  tooltip={t('Conexiones siguientes')}
                   disabled={page.next_offset === null}
                   onClick={() => setOffset(page.next_offset!)}
                 >
@@ -145,7 +147,7 @@ export function HAConnectionPicker({
                 setOpen(false);
               }}
             >
-              <span className="flex-1">Conexión manual</span>
+              <span className="flex-1">{t('Conexión manual')}</span>
               {!chosen && <Check aria-hidden="true" />}
             </CommandItem>
           </CommandList>

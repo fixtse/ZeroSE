@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from '../i18n/provider';
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Pencil, RotateCw, Save, Trash2, X } from 'lucide-react';
@@ -34,6 +35,7 @@ interface Page {
 const endpoint = '/v1/admin/home-assistant/connections';
 
 export function HomeAssistantAccess() {
+  const t = useTranslations();
   const [page, setPage] = useState<Page>();
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
@@ -56,13 +58,14 @@ export function HomeAssistantAccess() {
   return (
     <div className="space-y-4">
       <p>
-        Servidores que puedes seleccionar en los perfiles. Cambiar el nombre o el token actualiza
-        los perfiles que usan esa conexión.
+        {t(
+          'Servidores que puedes seleccionar en los perfiles. Cambiar el nombre o el token actualiza los perfiles que usan esa conexión.',
+        )}
       </p>
       <div className="service-settings-heading">
         <Field
           id="ha-connections-search"
-          label="Buscar servidor"
+          label={t('Buscar servidor')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -70,18 +73,19 @@ export function HomeAssistantAccess() {
           type="button"
           variant="outline"
           size="icon"
-          tooltip="Buscar y recargar conexiones"
+          tooltip={t('Buscar y recargar conexiones')}
           disabled={busy}
           onClick={() => void run(() => load(0))}
         >
           <RotateCw />
         </Button>
       </div>
-      {!page && <p>Cargando conexiones…</p>}
+      {!page && <p>{t('Cargando conexiones…')}</p>}
       {page?.items.length === 0 && (
         <p>
-          No hay conexiones. Vincula la integración Zero desde Home Assistant o guarda una conexión
-          manual desde un perfil.
+          {t(
+            'No hay conexiones. Vincula la integración Zero desde Home Assistant o guarda una conexión manual desde un perfil.',
+          )}
         </p>
       )}
       <div className="people-list">
@@ -92,7 +96,7 @@ export function HomeAssistantAccess() {
                 <>
                   <Field
                     id={'ha-name-' + connection.id}
-                    label="Nombre de Home Assistant"
+                    label={t('Nombre de Home Assistant')}
                     value={name}
                     maxLength={100}
                     onChange={(event) => setName(event.target.value)}
@@ -100,20 +104,22 @@ export function HomeAssistantAccess() {
                   <p>{connection.url}</p>
                   <SecretEditor
                     id={'ha-token-' + connection.id}
-                    label="Token de larga duración"
+                    label={t('Token de larga duración')}
                     value={token}
                     configured={!!connection.tokenHint}
                     hint={connection.tokenHint}
                     onChange={setToken}
                     disabled={busy}
                   />
-                  <p>Deja el token vacío para conservar el guardado.</p>
+                  <p>{t('Deja el token vacío para conservar el guardado.')}</p>
                 </>
               ) : (
                 <>
                   <strong>{connection.name}</strong>
                   <p>{connection.url}</p>
-                  <p>Token de larga duración: {connection.tokenHint || 'Sin configurar'}</p>
+                  <p>
+                    {t('Token de larga duración:')} {connection.tokenHint || t('Sin configurar')}
+                  </p>
                 </>
               )}
             </div>
@@ -123,7 +129,7 @@ export function HomeAssistantAccess() {
                   <Button
                     type="button"
                     size="icon"
-                    tooltip="Guardar conexión"
+                    tooltip={t('Guardar conexión')}
                     disabled={busy || !name.trim()}
                     onClick={() =>
                       void run(async () => {
@@ -134,7 +140,7 @@ export function HomeAssistantAccess() {
                           token,
                         });
                         await load();
-                        setNotice('Conexión actualizada.');
+                        setNotice(t('Conexión actualizada.'));
                       })
                     }
                   >
@@ -144,7 +150,7 @@ export function HomeAssistantAccess() {
                     type="button"
                     variant="outline"
                     size="icon"
-                    tooltip="Cancelar edición"
+                    tooltip={t('Cancelar edición')}
                     disabled={busy}
                     onClick={() => {
                       setEditing(undefined);
@@ -159,7 +165,7 @@ export function HomeAssistantAccess() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  tooltip={'Editar ' + connection.name}
+                  tooltip={t('Editar ') + connection.name}
                   disabled={busy}
                   onClick={() => {
                     setEditing(connection.id);
@@ -176,7 +182,7 @@ export function HomeAssistantAccess() {
                     type="button"
                     variant="destructive"
                     size="icon"
-                    tooltip={'Eliminar ' + connection.name}
+                    tooltip={t('Eliminar ') + connection.name}
                     disabled={busy}
                   >
                     <Trash2 />
@@ -184,16 +190,17 @@ export function HomeAssistantAccess() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar {connection.name}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t('¿Eliminar')} {connection.name}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Se eliminarán esta conexión y su token guardado de Zero y de los perfiles que
-                      la usan. Si un perfil tiene otro servidor seleccionado, pasará a usarlo. Los
-                      perfiles, su memoria y las reglas se conservan. Esto no revoca el token en
-                      Home Assistant.
+                      {t(
+                        'Se eliminarán esta conexión y su token guardado de Zero y de los perfiles que la usan. Si un perfil tiene otro servidor seleccionado, pasará a usarlo. Los perfiles, su memoria y las reglas se conservan. Esto no revoca el token en Home Assistant.',
+                      )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
                     <AlertDialogAction
                       variant="destructive"
                       onClick={() =>
@@ -205,11 +212,11 @@ export function HomeAssistantAccess() {
                           await load(
                             Math.max(0, offset - (page.items.length === 1 && offset > 0 ? 20 : 0)),
                           );
-                          setNotice('Conexión eliminada.');
+                          setNotice(t('Conexión eliminada.'));
                         })
                       }
                     >
-                      Eliminar conexión
+                      {t('Eliminar conexión')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -224,20 +231,20 @@ export function HomeAssistantAccess() {
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Conexiones anteriores"
+            tooltip={t('Conexiones anteriores')}
             disabled={busy || offset === 0}
             onClick={() => void run(() => load(Math.max(0, offset - 20)))}
           >
             <ArrowLeft />
           </Button>
           <span>
-            {offset + 1}–{Math.min(offset + 20, page.total)} de {page.total}
+            {offset + 1}–{Math.min(offset + 20, page.total)} {t('de')} {page.total}
           </span>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            tooltip="Siguientes conexiones"
+            tooltip={t('Siguientes conexiones')}
             disabled={busy || page.next_offset === null}
             onClick={() => void run(() => load(offset + 20))}
           >

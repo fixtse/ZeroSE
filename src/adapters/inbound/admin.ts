@@ -1,3 +1,4 @@
+import { replyLanguages } from '../../domain/language.js';
 import { profileNotifications } from '../../application/profile-notifications.js';
 import type { HomeAssistantConnections } from '../../application/home-assistant-connections.js';
 import type { GoogleDestinations } from '../../application/google-destinations.js';
@@ -78,6 +79,7 @@ const profileSchema = z.object({
     })
     .optional(),
   speech: speechSchema.optional(),
+  replyLanguage: z.enum(replyLanguages).optional(),
   memoryPolicy: z.enum(['automatic', 'explicit']).optional(),
   capabilities: z.array(z.enum(capabilities)).max(capabilities.length),
   memoryMode: z.enum(memoryModes).optional(),
@@ -125,6 +127,7 @@ function publicProfile(
     kind: p.kind,
     label: p.label,
     enabled: p.enabled,
+    replyLanguage: p.replyLanguage || 'es',
     voiceReplies: p.voiceReplies !== false,
     respondToReplies: p.respondToReplies !== false,
     speech: p.speech || {
@@ -877,6 +880,7 @@ export class Admin {
           morningCallbackDefault: previous?.morningCallbackDefault,
           morningCallbackTrigger: previous?.morningCallbackTrigger,
           speech: input.speech ?? previous?.speech,
+          replyLanguage: input.replyLanguage ?? previous?.replyLanguage ?? 'es',
           memoryPolicy: input.memoryPolicy ?? previous?.memoryPolicy,
           assistantId: previous?.assistantId,
           capabilities: [...new Set(input.capabilities)],
