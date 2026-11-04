@@ -41,7 +41,8 @@ export function ProfileSpeech({
     [voiceOffset, setVoiceOffset] = useState(0),
     [voiceTotal, setVoiceTotal] = useState(0),
     [audio, setAudio] = useState(''),
-    [text, setText] = useState('Hola, soy tu asistente. Esta es una prueba de voz en español.');
+    [customText, setCustomText] = useState<string>();
+  const text = customText ?? t('Hola, soy tu asistente. Esta es una prueba de voz en español.');
   const audioRef = useRef('');
   const alive = useRef(true);
   function clearAudio() {
@@ -305,7 +306,7 @@ export function ProfileSpeech({
           disabled={busy}
           maxLength={1000}
           onChange={(event) => {
-            setText(event.target.value);
+            setCustomText(event.target.value);
             clearAudio();
           }}
         />

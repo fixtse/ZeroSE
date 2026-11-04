@@ -1315,7 +1315,7 @@ local scheduler; existing HA rules and additional HA conditions remain supported
 
 The admin interface supports English and Spanish, following ScribeSE's shared
 message dictionary and React provider approach. It detects the browser language
-on first use (English fallback). The header language selector saves a browser
+on first use (English fallback). The header EN/ES selector saves a browser
 preference and updates `?lang=en` or `?lang=es`, preserving the current page,
 editor, tabs and Home Assistant ingress path. Shared URLs and browser back/forward
 restore the language. Selection also works when browser storage is unavailable.
@@ -1333,3 +1333,9 @@ keys, with English translations and named `{placeholder}` interpolation. Use
 and API payload values out of translation lookups. Unknown server errors retain
 their original text. Add further locales in `web/i18n/config.ts`, their message
 catalog and the header selector.
+
+On first launch, account setup sends the selected interface language to initialize
+Zero's default personality prompt in English or Spanish. Account creation and
+this initialization share a transaction. Imported or edited prompts are retained;
+subsequent language switches never rewrite the saved prompt. The default voice
+test sentence follows the interface language until the user edits that sentence.

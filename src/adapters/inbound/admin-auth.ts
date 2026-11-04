@@ -1,3 +1,4 @@
+import { replyLanguages, type ReplyLanguage } from '../../domain/language.js';
 import { and, eq, getTableColumns, sql } from 'drizzle-orm';
 import {
   admin_auth_user as users,
@@ -5,7 +6,7 @@ import {
   admin_auth_session as sessions,
   passwordRecovery as recovery,
 } from '../outbound/auth-schema.js';
-import { execute, type Database } from '../outbound/database.js';
+import { execute, type Database, type SqlExecutor } from '../outbound/database.js';
 import type { MobileRecoveryPort } from '../../application/mobile-recovery.js';
 import { MobileRecoveryAdmin } from './mobile-recovery-admin.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -90,6 +91,10 @@ export class AdminAuth {
     },
     private ingress?: { enabled: boolean; isAdministrator: (id: string) => Promise<boolean> },
     mobile?: MobileRecoveryPort,
+    private initializeDefaults?: (
+      language: ReplyLanguage,
+      transaction: SqlExecutor,
+    ) => Promise<void>,
   ) {
     const target = new URL(url);
     if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password)
@@ -103,7 +108,13 @@ export class AdminAuth {
     await this.db.insert(recovery).values({ id: 1 }).onConflictDoNothing();
     await this.mobile?.initialize();
   }
-  async provision(password: string, reset = false, username: string, initial = false) {
+  async provision(
+    password: string,
+    reset = false,
+    username: string,
+    initial = false,
+    language: ReplyLanguage = 'es',
+  ) {
     if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{2,31}$/.test(username))
       throw new Error(
         'Usa un usuario de 3–32 caracteres: letras, números, punto, guion o guion bajo.',
@@ -147,6 +158,7 @@ export class AdminAuth {
         updatedAt: sql`now()`,
       });
       await client.update(recovery).set({ digest: null }).where(eq(recovery.id, 1));
+      if (initial) await this.initializeDefaults?.(language, client);
     });
   }
   async handle(req: IncomingMessage, res: ServerResponse) {
@@ -239,10 +251,12 @@ export class AdminAuth {
     } catch {
       return send(400, { error: 'Introduce un usuario y una contraseña.' });
     }
+    if (input.language !== undefined && !replyLanguages.includes(input.language))
+      return send(400, { error: 'Unsupported setup language.' });
     if ((await this.db.select({ id: users.id }).from(users).limit(1)).length)
       return send(409, { error: 'La configuración inicial ya se ha completado. Inicia sesión.' });
     try {
-      await this.provision(input.password, false, input.username, true);
+      await this.provision(input.password, false, input.username, true, input.language ?? 'es');
     } catch (error) {
       return send(400, {
         error: error instanceof Error ? error.message : 'No se pudo crear la cuenta.',

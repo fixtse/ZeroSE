@@ -262,7 +262,7 @@ export default function Home() {
                     throw new Error(t('Las contraseñas no coinciden.'));
                   const username = String(data.get('username')).toLowerCase();
                   const password = String(data.get('password'));
-                  await api('/api/auth/setup', 'POST', { username, password });
+                  await api('/api/auth/setup', 'POST', { username, password, language: t.locale });
                   setSetupRequired(false);
                   await api('/api/auth/sign-in/username', 'POST', {
                     username,

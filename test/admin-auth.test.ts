@@ -1,3 +1,5 @@
+import { PostgresZeroSettings } from '../src/adapters/outbound/postgres-zero-settings.js';
+import { defaultZeroPrompt, initialZeroPrompt } from '../src/application/prompts.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
@@ -16,7 +18,10 @@ const cookie = (response: Response) =>
     .getSetCookie()
     .map((value) => value.split(';')[0])
     .join('; ');
-async function setup(provision = true) {
+async function setup(
+  provision = true,
+  initializeDefaults?: ConstructorParameters<typeof AdminAuth>[6],
+) {
   const f = await fixture();
   f.config.telegram.allowedUsers = ['1'];
   const repository = new PostgresAccess(f.store.db, f.config.apiKey);
@@ -29,7 +34,15 @@ async function setup(provision = true) {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
-  const auth = new AdminAuth(f.store.db, base, f.config.apiKey);
+  const auth = new AdminAuth(
+    f.store.db,
+    base,
+    f.config.apiKey,
+    undefined,
+    undefined,
+    undefined,
+    initializeDefaults,
+  );
   await auth.initialize();
   if (provision) await auth.provision(password, false, 'fixt');
   management.auth = auth;
@@ -781,6 +794,76 @@ test('HA recovery resolves all current devices on demand, binds the account and 
     assert.equal((await reset(deliveries[2].code)).status, 400);
     assert.equal((await request()).status, 429);
     assert.equal(deliveries.length, 3, 'Never replay an uncertain send');
+  } finally {
+    await s.close();
+  }
+});
+
+test('first-run language selects the initial prompt once and rejects unsupported languages', async () => {
+  for (const language of ['en', 'es'] as const) {
+    let settings: PostgresZeroSettings;
+    const s = await setup(false, (selected, transaction) =>
+      settings.initializeLanguage(selected, transaction),
+    );
+    settings = new PostgresZeroSettings(s.f.store.db);
+    try {
+      await settings.initialize(defaultZeroPrompt);
+      assert.equal(
+        (await s.post('/api/auth/setup', { username: 'alice', password, language: 'fr' })).status,
+        400,
+      );
+      assert.equal((await settings.read()).prompt, defaultZeroPrompt);
+      assert.equal(
+        (await s.post('/api/auth/setup', { username: 'alice', password, language })).status,
+        201,
+      );
+      assert.equal((await settings.read()).prompt, initialZeroPrompt(language));
+      assert.equal(
+        (
+          await s.post('/api/auth/setup', {
+            username: 'bob',
+            password,
+            language: language === 'en' ? 'es' : 'en',
+          })
+        ).status,
+        409,
+      );
+      await settings.initialize(defaultZeroPrompt);
+      await s.auth.provision(nextPassword, true, 'alice');
+      assert.equal((await settings.read()).prompt, initialZeroPrompt(language));
+    } finally {
+      await s.close();
+    }
+  }
+});
+
+test('first-run localization preserves imported and edited prompts', async () => {
+  const f = await fixture();
+  const settings = new PostgresZeroSettings(f.store.db);
+  try {
+    await settings.initialize('Imported custom personality');
+    await f.store.db.transaction((client) => settings.initializeLanguage('en', client));
+    assert.equal((await settings.read()).prompt, 'Imported custom personality');
+    const previous = await settings.read();
+    await settings.update({ ...previous, prompt: defaultZeroPrompt });
+    await f.store.db.transaction((client) => settings.initializeLanguage('en', client));
+    assert.equal((await settings.read()).prompt, defaultZeroPrompt);
+  } finally {
+    await f.close();
+  }
+});
+
+test('a failure initializing defaults rolls back the first administrator account', async () => {
+  const s = await setup(false, async () => {
+    throw new Error('Default initialization failed');
+  });
+  try {
+    assert.equal(
+      (await s.post('/api/auth/setup', { username: 'alice', password, language: 'en' })).status,
+      400,
+    );
+    assert.equal((await s.f.store.pool.query('SELECT id FROM admin_auth_user')).rowCount, 0);
+    assert.equal((await (await fetch(s.base + '/api/auth/setup')).json()).setupRequired, true);
   } finally {
     await s.close();
   }

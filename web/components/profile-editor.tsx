@@ -471,24 +471,26 @@ export function ProfileEditor({
                     maxLength={100}
                     required
                   />
-                  <SelectField
-                    id="profile-reply-language"
-                    name="replyLanguage"
-                    label={t('Idioma de las respuestas')}
-                    defaultValue={current?.replyLanguage || 'es'}
-                  >
-                    <option value="en" lang="en">
-                      English
-                    </option>
-                    <option value="es" lang="es">
-                      Español
-                    </option>
-                  </SelectField>
-                  <p className="settings-help">
-                    {t(
-                      'Se aplica a las respuestas, resúmenes y avisos de este perfil. El idioma de la interfaz y los motores de voz se eligen por separado.',
-                    )}
-                  </p>
+                  <div className="profile-reply-language">
+                    <SelectField
+                      id="profile-reply-language"
+                      name="replyLanguage"
+                      label={t('Idioma de las respuestas')}
+                      defaultValue={current?.replyLanguage || 'es'}
+                    >
+                      <option value="en" lang="en">
+                        English
+                      </option>
+                      <option value="es" lang="es">
+                        Español
+                      </option>
+                    </SelectField>
+                    <p className="settings-help">
+                      {t(
+                        'Se aplica a las respuestas, resúmenes y avisos de este perfil. El idioma de la interfaz y los motores de voz se eligen por separado.',
+                      )}
+                    </p>
+                  </div>
                   <CheckField
                     id="profile-enabled"
                     name="enabled"

@@ -305,6 +305,7 @@ const adminAuth = new AdminAuth(
       : Object.entries(bindings).find(([, chat]) => chat === chatId)?.[0];
     return userId ? { userId, config: profile.homeAssistant } : undefined;
   }),
+  (language, transaction) => zeroSettings.initializeLanguage(language, transaction),
 );
 await adminAuth.initialize();
 const integrationRepository = new PostgresIntegrationAccess(store.db);

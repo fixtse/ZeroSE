@@ -1,3 +1,5 @@
+import { defaultZeroPrompt, initialZeroPrompt } from '../../application/prompts.js';
+import type { ReplyLanguage } from '../../domain/language.js';
 import { and, eq, sql } from 'drizzle-orm';
 import { zeroSettings as settingsTable, accessProfiles as profiles } from './database-schema.js';
 import { type Database, type SqlExecutor } from './database.js';
@@ -33,6 +35,23 @@ export class PostgresZeroSettings implements ZeroSettingsPort {
         },
       })
       .onConflictDoNothing();
+  }
+  /** Called only in the first administrator's account-creation transaction. */
+  async initializeLanguage(language: ReplyLanguage, database: SqlExecutor) {
+    if (language === 'es') return;
+    await database
+      .update(settingsTable)
+      .set({
+        revision: sql`${settingsTable.revision} + 1`,
+        value: sql`jsonb_set(${settingsTable.value}, '{prompt}', to_jsonb(${initialZeroPrompt(language)}::text))`,
+      })
+      .where(
+        and(
+          eq(settingsTable.id, 1),
+          eq(settingsTable.revision, 1),
+          sql`${settingsTable.value}->>'prompt' = ${defaultZeroPrompt}`,
+        ),
+      );
   }
   async read(database: SqlExecutor = this.db): Promise<ZeroSettings> {
     const [row] = await database

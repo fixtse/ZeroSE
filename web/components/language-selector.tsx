@@ -1,28 +1,38 @@
 'use client';
-import { Languages } from 'lucide-react';
 import { useI18n } from '../i18n/provider';
-import { isLocale } from '../i18n/config';
+import { locales } from '../i18n/config';
+import { Button } from './ui/button';
+import { cn } from '../lib/utils';
+
+/** Same two-state button selector as ScribeSE's LocaleSwitcher. */
 export function LanguageSelector() {
   const { locale, setLocale } = useI18n();
   return (
-    <label className="language-selector">
-      <Languages size={16} aria-hidden="true" />
-      <span className="sr-only">
-        {locale === 'en' ? 'Interface language' : 'Idioma de la interfaz'}
-      </span>
-      <select
-        value={locale}
-        onChange={(event) => {
-          if (isLocale(event.target.value)) setLocale(event.target.value);
-        }}
-      >
-        <option value="en" lang="en">
-          English
-        </option>
-        <option value="es" lang="es">
-          Español
-        </option>
-      </select>
-    </label>
+    <div
+      className="language-selector inline-flex rounded-md border border-border p-0.5"
+      role="group"
+      aria-label={locale === 'en' ? 'Interface language' : 'Idioma de la interfaz'}
+    >
+      {locales.map((language) => (
+        <Button
+          key={language}
+          type="button"
+          className={cn(
+            'h-7 min-w-10 px-2 text-xs uppercase',
+            language === locale && 'pointer-events-none',
+          )}
+          onClick={() => {
+            if (language !== locale) setLocale(language);
+          }}
+          size="sm"
+          title={language === 'en' ? 'English' : 'Español'}
+          aria-pressed={language === locale}
+          variant={language === locale ? 'default' : 'ghost'}
+          lang={language}
+        >
+          {language}
+        </Button>
+      ))}
+    </div>
   );
 }
