@@ -92,17 +92,16 @@ export class WeatherNotification {
     timezone: string,
     context: ToolContext,
     calendar?: GooglePort,
+    onDelivered?: (change: WeatherChange) => Promise<void>,
   ): Promise<JobResult> {
-    if (change.forecast_type !== 'hourly')
-      return { output: await this.explain(change, firedAt, timezone, context), voice: false };
     const now = new Date();
     const scopedChange = {
       ...change,
       changes: change.changes.filter((period) => {
         const at = Date.parse(period.datetime);
         return (
-          at + 3600_000 > now.getTime() &&
-          at < now.getTime() + 24 * 3600_000 &&
+          at + (change.forecast_type === 'hourly' ? 3600_000 : 86400_000) > now.getTime() &&
+          at < now.getTime() + (change.forecast_type === 'hourly' ? 24 : 168) * 3600_000 &&
           relevantWeatherChange(period, change.units)
         );
       }),
@@ -118,7 +117,7 @@ export class WeatherNotification {
       return { output: '', deliver: false };
     }
     let impacts: ReturnType<typeof eventWeatherImpacts> = [];
-    if (calendar?.enabled) {
+    if (change.forecast_type === 'hourly' && calendar?.enabled) {
       try {
         const events = await calendar.events(
           now.toISOString(),
@@ -144,6 +143,7 @@ export class WeatherNotification {
     return {
       output: await this.explain(scopedChange, firedAt, timezone, context, impacts),
       voice: false,
+      afterDelivery: onDelivered ? () => onDelivered(scopedChange) : undefined,
       ...(impacts.length ? { requiredCapabilities: ['calendar' as const] } : {}),
     };
   }

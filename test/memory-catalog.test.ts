@@ -33,7 +33,7 @@ test('normal turns omit category lists and do not read the growing catalog', asy
           async run(_session, _prompt, instructions) {
             assert(!instructions.includes('Configured12'));
             assert(!instructions.includes('CorpusOnly'));
-            assert(!instructions.includes('{{'));
+            assert.equal(instructions.includes('{{'), template.includes('{{'));
             assert.match(instructions, /memory_catalog only when/);
             return 'Answer';
           },

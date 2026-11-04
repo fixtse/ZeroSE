@@ -157,11 +157,11 @@ export function relevantWeatherChange(
     return true;
   if (
     ['°C', '°F'].includes(units.temperature || '') &&
-    ['temperature', 'apparent_temperature'].some((key) =>
+    ['temperature', 'templow', 'apparent_temperature'].some((key) =>
       changed(
         key,
         (v) => (units.temperature === '°F' ? ((v - 32) * 5) / 9 : v),
-        (a, b) => crosses(a, b, 30) || crosses(a, b, 8) || Math.abs(a - b) >= 5,
+        (a, b) => Math.abs(a - b) > 1 + 1e-9,
       ),
     )
   )

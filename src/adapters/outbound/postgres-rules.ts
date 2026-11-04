@@ -1,3 +1,5 @@
+import { accumulateWeather, reportedWeather } from '../../domain/weather-baseline.js';
+import type { WeatherChange } from '../../domain/weather-change.js';
 import { and, count, desc, eq, getTableColumns, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { notificationRules as rules, ruleEvents, jobs } from './database-schema.js';
 import { type Database } from './database.js';
@@ -281,6 +283,25 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
         })
         .onConflictDoNothing({ target: jobs.dedupe });
       return true;
+    });
+  }
+  async weatherEvidence(id: string, generation: number, change: WeatherChange, delivered = false) {
+    return this.db.transaction(async (client) => {
+      const [row] = await client.select().from(rules).where(eq(rules.id, id)).for('update');
+      if (!row || row.value.generation !== generation) return undefined;
+      const rule = this.decode(row);
+      const kind = change.forecast_type || 'daily';
+      const pending = rule.weather_pending?.[kind];
+      const next = delivered
+        ? pending && reportedWeather(pending, change)
+        : accumulateWeather(pending, change, this.now().getTime());
+      if (!next) return undefined;
+      rule.weather_pending = { ...rule.weather_pending, [kind]: next };
+      await client
+        .update(rules)
+        .set({ value: rule, version: sql`${rules.version} + 1` })
+        .where(eq(rules.id, id));
+      return next;
     });
   }
   async pruneFinished(now: Date, limit: number) {

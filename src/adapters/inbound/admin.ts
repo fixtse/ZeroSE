@@ -528,7 +528,7 @@ export class Admin {
             .enum(['alert', 'reminder', 'timer'])
             .optional()
             .parse(params.get('kind') || undefined);
-          const result = await this.rules.list(
+          const result = await (this.notificationRules || this.rules).list(
             telegramSession(profile.bot, profile.chatId),
             kind,
             query.offset,

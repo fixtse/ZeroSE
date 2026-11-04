@@ -115,7 +115,7 @@ export function registerNotificationTools(
     'List this chat’s reminders and timers, including finished ones retained for 48 hours. Use reminder_get for full details. offset/limit; result_offset pages JSON fragments.',
     z.object({ kind: z.enum(['reminder', 'timer']).optional(), ...page }),
     async (a, c) => {
-      const result = await rules.repository.list(c.session, a.kind, a.offset, a.limit);
+      const result = await rules.list(c.session, a.kind, a.offset, a.limit);
       return jsonPage(
         {
           ...result,
@@ -298,7 +298,7 @@ export function registerNotificationTools(
     'List this chat’s conditional alerts. Use reminder_get for full details. offset/limit; result_offset pages JSON fragments.',
     z.object(page),
     async (a, c) => {
-      const result = await rules.repository.list(c.session, 'alert', a.offset, a.limit);
+      const result = await rules.list(c.session, 'alert', a.offset, a.limit);
       return jsonPage(
         {
           ...result,

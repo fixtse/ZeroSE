@@ -55,6 +55,12 @@ export interface RuleRepository {
   apply(rule: NotificationRule): Promise<boolean>;
   installation(id: string, generation: number, state: 'installed' | 'uncertain'): Promise<void>;
   accept(event: RuleEvent): Promise<boolean>;
+  weatherEvidence(
+    id: string,
+    generation: number,
+    change: WeatherChange,
+    delivered?: boolean,
+  ): Promise<WeatherChange | undefined>;
 }
 export interface RuleScope {
   enabled: boolean;
@@ -139,7 +145,11 @@ export class NotificationRules {
     if (rule.condition?.source === 'weather' && rule.condition.sleep_entity) {
       try {
         const observed = await scope.scheduler?.inspect(rule.id);
-        return observed?.muted === false && observed.generation === rule.generation;
+        return (
+          observed?.muted === false &&
+          observed.generation === rule.generation &&
+          (observed.status === 'active' || (!rule.recurring && observed.status === 'completed'))
+        );
       } catch {
         return false;
       }
@@ -199,8 +209,9 @@ export class NotificationRules {
     now = new Date(),
     signal?: AbortSignal,
   ) {
-    const rule = await this.repository.read(session, id);
+    let rule = await this.repository.read(session, id);
     if (!rule) throw new Error('Notification rule not found in this chat');
+    rule = (await this.observe(rule, signal)).rule;
     const scope = await this.scope(session, rule.kind, rule.scheduler_key);
     if (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key)
       scope.scheduler = undefined;
@@ -257,21 +268,59 @@ export class NotificationRules {
     if (!(await this.canNotify(rule))) return false;
     return this.repository.accept(event);
   }
-  async inspect(session: string, id: string, signal?: AbortSignal) {
-    const rule = await this.repository.read(session, id);
-    if (!rule) throw new Error('Notification rule not found in this chat');
-    const scope = await this.scope(session, rule.kind, rule.scheduler_key);
-    let home_assistant: unknown;
-    if (scope.scheduler && !rule.wake_date) {
-      try {
-        home_assistant = await scope.scheduler.inspect(id, signal);
-      } catch {
-        home_assistant = { available: false };
-      }
+  /** Read the scheduler before displaying or changing state; never reinstall on a read. */
+  async observe(rule: NotificationRule, signal?: AbortSignal) {
+    if (rule.wake_date) return { rule, observed: undefined };
+    const scope = await this.scope(rule.session, rule.kind, rule.scheduler_key);
+    let observed: Awaited<ReturnType<RuleSchedulerPort['inspect']>> | { available: false };
+    try {
+      if (
+        !scope.scheduler ||
+        (rule.scheduler_key && scope.scheduler.identity !== rule.scheduler_key)
+      )
+        throw new Error('Scheduler unavailable');
+      observed = await scope.scheduler.inspect(rule.id, signal);
+    } catch {
+      observed = { available: false };
     }
+    const updated = { ...rule };
+    const awaitingCallback =
+      'last_event' in observed &&
+      observed.status === 'completed' &&
+      ['pending', 'uncertain'].includes(observed.last_event?.outcome || '');
+    if ('generation' in observed && observed.generation === rule.generation && !awaitingCallback) {
+      updated.status = observed.status;
+      updated.next_at = observed.next_at;
+      updated.scheduler_state = 'installed';
+    } else updated.scheduler_state = 'uncertain';
+    if (
+      updated.status !== rule.status ||
+      updated.next_at !== rule.next_at ||
+      updated.scheduler_state !== rule.scheduler_state
+    ) {
+      if (await this.repository.apply(updated))
+        rule = (await this.repository.read(rule.session, rule.id))!;
+      else rule = (await this.repository.read(rule.session, rule.id)) || rule;
+    }
+    return { rule, observed };
+  }
+  async list(...args: Parameters<RuleRepository['list']>) {
+    const page = await this.repository.list(...args);
+    const items = [];
+    const signal = AbortSignal.timeout(10000);
+    for (const rule of page.items) items.push((await this.observe(rule, signal)).rule);
+    return { ...page, items };
+  }
+  async inspect(session: string, id: string, signal?: AbortSignal) {
+    const saved = await this.repository.read(session, id);
+    if (!saved) throw new Error('Notification rule not found in this chat');
+    const { rule, observed } = await this.observe(saved, signal);
     return rule.scheduler_key === localSchedulerIdentity
-      ? { ...rule, scheduler: home_assistant, home_assistant: undefined }
-      : { ...rule, home_assistant, scheduler: home_assistant };
+      ? { ...rule, scheduler: observed, home_assistant: undefined }
+      : { ...rule, home_assistant: observed, scheduler: observed };
+  }
+  async weatherDelivered(job: Job, change: WeatherChange) {
+    await this.repository.weatherEvidence(job.payload.ruleId, job.payload.generation, change, true);
   }
   /** One-time upgrade only. Claim before the remote write; interrupted installs are never replayed. */
   async migrateLegacy() {
@@ -307,7 +356,7 @@ export class NotificationRules {
   }
   async notification(
     job: Job,
-    explainWeather?: () => Promise<string | JobResult>,
+    explainWeather?: (change?: WeatherChange) => Promise<string | JobResult>,
   ): Promise<JobResult> {
     const rule = await this.repository.read(job.session, job.payload.ruleId);
     const permitted = rule && (await this.canNotify(rule));
@@ -320,7 +369,10 @@ export class NotificationRules {
     )
       return { output: '', deliver: false };
     if (rule.condition?.source === 'weather' && explainWeather) {
-      const result = await explainWeather();
+      const pending = job.payload.weather
+        ? await this.repository.weatherEvidence(rule.id, rule.generation, job.payload.weather)
+        : undefined;
+      const result = await explainWeather(pending);
       return typeof result === 'string'
         ? { output: result, voice: false }
         : { voice: false, ...result };

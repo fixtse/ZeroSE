@@ -1,3 +1,5 @@
+import type { WeatherChange } from './weather-change.js';
+
 export interface AlertCondition {
   source?: 'sensor';
   entity_id: string;
@@ -31,6 +33,7 @@ export interface WeatherCondition {
   minimum_probability: number;
 }
 export interface NotificationRule {
+  weather_pending?: Partial<Record<'daily' | 'hourly', WeatherChange>>;
   managed?: 'owner_weather';
   wake_date?: string;
   id: string;

@@ -655,10 +655,9 @@ const codex = new AIAgent(
       morning: notify,
       event_reminders: notify,
       rule_notification: (job, context) =>
-        rules.notification(job, async () => {
-          const change = weatherChangeSchema.safeParse(job.payload.weather);
-          if (!change.success)
-            return '🌦️ Se actualizó la previsión, pero esta notificación no incluye los valores anteriores y nuevos; no puedo precisar el cambio.';
+        rules.notification(job, async (pending) => {
+          const change = weatherChangeSchema.safeParse(pending || job.payload.weather);
+          if (!change.success) return { output: '', deliver: false };
           const scoped = await services(context);
           return new WeatherNotification(codex).update(
             change.data,
@@ -666,6 +665,7 @@ const codex = new AIAgent(
             scoped.config.timezone,
             context,
             scoped.profile?.capabilities.includes('calendar') ? scoped.google : undefined,
+            (reported) => rules.weatherDelivered(job, reported),
           );
         }),
       reset: async (job) => {

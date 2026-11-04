@@ -1060,3 +1060,104 @@ test('tracker alerts require the integration capability and older integrations s
     await f.close();
   }
 });
+
+test('inspection and lists reconcile HA pauses without reinstalling; resume keeps the identity', async () => {
+  const f = await setup();
+  try {
+    const rule = await f.rules.ensureOwnerWeather('telegram:1');
+    assert(rule);
+    f.scheduler.inspect = async () => ({
+      generation: rule.generation,
+      status: 'paused',
+      next_at: null,
+    });
+    const list = await f.rules.list('telegram:1', 'alert', 0, 20);
+    assert.equal(list.items[0]?.status, 'paused');
+    assert.equal((await f.repository.byId(rule.id))?.status, 'paused');
+    assert.equal(f.configurations.length, 1);
+    const resumed = await f.rules.change('telegram:1', rule.id, 'resume');
+    assert.equal(resumed.status, 'active');
+    assert.equal(resumed.id, rule.id);
+    assert.equal(f.configurations.at(-1)?.generation, rule.generation + 1);
+  } finally {
+    await f.close();
+  }
+});
+
+test('unavailable and mismatched schedulers show uncertain state and never overwrite status from another generation', async () => {
+  const f = await setup();
+  try {
+    const rule = await f.rules.create(value());
+    f.scheduler.inspect = async () => ({
+      generation: rule.generation + 1,
+      status: 'cancelled',
+      next_at: null,
+    });
+    const observed = await f.rules.inspect('telegram:1', rule.id);
+    assert.equal(observed.scheduler_state, 'uncertain');
+    assert.equal(observed.status, 'active');
+    f.scheduler.inspect = async () => {
+      throw new Error('offline');
+    };
+    assert.equal((await f.rules.inspect('telegram:1', rule.id)).scheduler_state, 'uncertain');
+    assert.equal(f.configurations.length, 1);
+  } finally {
+    await f.close();
+  }
+});
+
+test('weather references survive repository recreation and advance only after confirmed delivery in the same generation', async () => {
+  const f = await setup();
+  try {
+    const rule = (await f.rules.ensureOwnerWeather('telegram:1'))!;
+    const at = new Date(Date.now() + 3600_000).toISOString();
+    const change = (before: number, after: number) => ({
+      entity_id: 'weather.home',
+      units: { temperature: '°C' },
+      forecast_type: 'hourly' as const,
+      changes: [{ datetime: at, before: { temperature: before }, after: { temperature: after } }],
+      truncated: false,
+    });
+    await f.repository.weatherEvidence(rule.id, rule.generation, change(15, 15.2));
+    const restarted = new PostgresRules(f.store.db);
+    const pending = await restarted.weatherEvidence(rule.id, rule.generation, change(15.2, 16.1));
+    assert.equal(pending?.changes[0]?.before?.temperature, 15);
+    assert.equal(
+      await restarted.weatherEvidence(rule.id, rule.generation + 1, change(15, 18), true),
+      undefined,
+    );
+    await restarted.weatherEvidence(rule.id, rule.generation, pending!, true);
+    const next = await restarted.weatherEvidence(rule.id, rule.generation, change(16.1, 17.1));
+    assert.equal(next?.changes[0]?.before?.temperature, 16.1);
+  } finally {
+    await f.close();
+  }
+});
+
+test('inspection cannot consume a completed deadline before its in-flight callback queues the notification', async () => {
+  const f = await setup();
+  try {
+    const rule = await f.rules.create(value({ next_at: new Date().toISOString() }));
+    f.scheduler.inspect = async () => ({
+      generation: rule.generation,
+      status: 'completed',
+      next_at: null,
+      last_event: { outcome: 'pending' },
+    });
+    const observed = await f.rules.inspect('telegram:1', rule.id);
+    assert.equal(observed.status, 'active');
+    assert.equal(observed.scheduler_state, 'uncertain');
+    assert.equal(
+      await f.rules.receive({
+        id: rule.id,
+        generation: rule.generation,
+        event_id: randomUUID(),
+        fired_at: new Date().toISOString(),
+      }),
+      true,
+    );
+    assert.equal((await f.store.claim([]))?.payload.ruleId, rule.id);
+  } finally {
+    await f.close();
+  }
+});
