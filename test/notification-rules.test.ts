@@ -6,6 +6,7 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import {
   NotificationRules,
+  SchedulerRuleNotFound,
   type RuleSchedulerPort,
 } from '../src/application/notification-rules.js';
 import { PostgresRules } from '../src/adapters/outbound/postgres-rules.js';
@@ -1157,6 +1158,184 @@ test('inspection cannot consume a completed deadline before its in-flight callba
       true,
     );
     assert.equal((await f.store.claim([]))?.payload.ruleId, rule.id);
+  } finally {
+    await f.close();
+  }
+});
+
+test('explicit HA confirmation recovers a changed connection identity without reinstalling an alert', async () => {
+  const f = await setup();
+  try {
+    const oldKey = 'a'.repeat(64);
+    const newKey = 'b'.repeat(64);
+    Object.assign(f.scheduler, { identity: oldKey });
+    const rule = await f.rules.create(value({ kind: 'alert' }));
+    const scheduler = { ...f.scheduler, identity: newKey };
+    let mismatch = true;
+    scheduler.inspect = async () => ({
+      generation: rule.generation + (mismatch ? 1 : 0),
+      status: 'active',
+      next_at: null,
+    });
+    const recovered = new NotificationRules(f.repository, async (_session, _kind, key) => ({
+      enabled: true,
+      scheduler: key ? undefined : scheduler,
+    }));
+    await assert.rejects(recovered.confirmScheduler(rule.session, rule.id), /does not match/);
+    assert.equal((await f.repository.read(rule.session, rule.id))?.scheduler_key, oldKey);
+    mismatch = false;
+    const confirmed = await recovered.confirmScheduler(rule.session, rule.id);
+    assert('scheduler_key' in confirmed);
+    assert.equal(confirmed.scheduler_key, newKey);
+    assert.equal(confirmed.scheduler_state, 'installed');
+    assert.equal(confirmed.generation, rule.generation);
+    assert.equal(f.configurations.length, 1);
+    const retired = await f.rules.create(value({ kind: 'alert' }));
+    const retiredSaved = (await f.repository.read(retired.session, retired.id))!;
+    retiredSaved.scheduler_key = 'retired-backend';
+    assert(await f.repository.apply(retiredSaved));
+    await assert.rejects(
+      recovered.confirmScheduler(retired.session, retired.id),
+      /original scheduler/,
+    );
+    assert.equal(f.configurations.length, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test('missing HA alerts require a fresh absence check, preserve identity and claim recreation only once', async () => {
+  const f = await setup();
+  try {
+    Object.assign(f.scheduler, { identity: 'a'.repeat(64) });
+    const rule = await f.rules.create(value({ kind: 'alert', status: 'paused' }));
+    let state: 'missing' | 'offline' | 'exists' = 'missing';
+    let failWrite = false;
+    const scheduler = {
+      ...f.scheduler,
+      identity: 'b'.repeat(64),
+      async inspect() {
+        if (state === 'offline') throw new Error('offline');
+        if (state === 'missing') throw new SchedulerRuleNotFound();
+        return { generation: rule.generation, status: rule.status, next_at: rule.next_at };
+      },
+      async configure(value: NotificationRule) {
+        await f.scheduler.configure(value);
+        if (failWrite) throw new Error('uncertain write');
+      },
+    };
+    const recovery = new NotificationRules(f.repository, async (_s, _k, key) => ({
+      enabled: true,
+      scheduler: key ? undefined : scheduler,
+    }));
+    const confirmation = await recovery.confirmScheduler(rule.session, rule.id);
+    assert('missing' in confirmation && confirmation.missing);
+    state = 'offline';
+    await assert.rejects(
+      recovery.recreateAlert(rule.session, rule.id, confirmation.version),
+      /offline/,
+    );
+    state = 'exists';
+    await assert.rejects(
+      recovery.recreateAlert(rule.session, rule.id, confirmation.version),
+      /already exists/,
+    );
+    assert.equal(f.configurations.length, 1);
+    state = 'missing';
+    failWrite = true;
+    await assert.rejects(
+      recovery.recreateAlert(rule.session, rule.id, confirmation.version),
+      /uncertain/,
+    );
+    const saved = (await f.repository.read(rule.session, rule.id))!;
+    assert.equal(saved.id, rule.id);
+    assert.equal(saved.status, 'paused');
+    assert.equal(saved.message, rule.message);
+    assert.equal(saved.generation, rule.generation + 1);
+    assert.equal(saved.scheduler_state, 'uncertain');
+    assert.equal(f.configurations.length, 2);
+    await assert.rejects(
+      recovery.recreateAlert(rule.session, rule.id, confirmation.version),
+      /changed/,
+    );
+    assert.equal(f.configurations.length, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test('HA absence requires a reachable ready integration; errors never offer recreation', async () => {
+  let readiness = 200;
+  const server = createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.url === '/api/assistant_rules') {
+      res.statusCode = readiness;
+      res.end(JSON.stringify({ protocol: 2, ready: true }));
+    } else {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: 'Rule not found' }));
+    }
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const f = await setup();
+  try {
+    const scheduler = new HomeAssistantRuleScheduler({
+      ...f.config.homeAssistant,
+      url: `http://127.0.0.1:${(server.address() as any).port}`,
+      token: 'test',
+    });
+    await assert.rejects(scheduler.inspect(randomUUID()), SchedulerRuleNotFound);
+    readiness = 404;
+    await assert.rejects(
+      scheduler.inspect(randomUUID()),
+      (error: unknown) => !(error instanceof SchedulerRuleNotFound),
+    );
+    readiness = 503;
+    await assert.rejects(
+      scheduler.inspect(randomUUID()),
+      (error: unknown) => !(error instanceof SchedulerRuleNotFound),
+    );
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await f.close();
+  }
+});
+
+test('concurrent confirmed recreation installs the active alert once with the original condition', async () => {
+  const f = await setup();
+  try {
+    Object.assign(f.scheduler, { identity: 'a'.repeat(64) });
+    const rule = await f.rules.create(
+      value({
+        kind: 'alert',
+        condition: {
+          source: 'sensor',
+          entity_id: 'sensor.test',
+          operator: 'above',
+          value: 10,
+          hold_seconds: 0,
+        },
+      }),
+    );
+    f.scheduler.inspect = async () => {
+      throw new SchedulerRuleNotFound();
+    };
+    const confirmation = await f.rules.confirmScheduler(rule.session, rule.id);
+    assert('missing' in confirmation);
+    const results = await Promise.allSettled([
+      f.rules.recreateAlert(rule.session, rule.id, confirmation.version),
+      f.rules.recreateAlert(rule.session, rule.id, confirmation.version),
+    ]);
+    assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+    assert.equal(f.configurations.length, 2);
+    const saved = (await f.repository.read(rule.session, rule.id))!;
+    assert.equal(saved.scheduler_state, 'installed');
+    assert.equal(saved.status, 'active');
+    assert.deepEqual(saved.condition, rule.condition);
+    assert.equal(saved.id, rule.id);
+    assert.equal(saved.generation, rule.generation + 1);
   } finally {
     await f.close();
   }

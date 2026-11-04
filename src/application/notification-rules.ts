@@ -17,6 +17,8 @@ export interface RuleEvent {
   next_at?: string | null;
   weather?: WeatherChange;
 }
+export class SchedulerRuleNotFound extends Error {}
+
 export interface RuleSchedulerPort {
   supportsLocationAlerts?(signal?: AbortSignal): Promise<boolean>;
   permitsLocationCondition?(condition: LocationCondition): boolean | Promise<boolean>;
@@ -319,6 +321,66 @@ export class NotificationRules {
     return rule.scheduler_key === localSchedulerIdentity
       ? { ...rule, scheduler: observed, home_assistant: undefined }
       : { ...rule, home_assistant: observed, scheduler: observed };
+  }
+  /** Explicit recovery reads an existing HA alert; it never installs or replays it. */
+  async confirmScheduler(session: string, id: string, signal?: AbortSignal) {
+    let rule = await this.repository.read(session, id);
+    if (!rule) throw new Error('Notification rule not found in this chat');
+    rule = (await this.observe(rule, signal)).rule;
+    if (rule.scheduler_state === 'installed') return rule;
+    if (rule.kind !== 'alert' || !/^[a-f0-9]{64}$/.test(rule.scheduler_key || ''))
+      throw new Error('The original scheduler could not be confirmed');
+    const scope = await this.scope(session, rule.kind);
+    if (!scope.enabled || !scope.scheduler?.identity)
+      throw new Error('Rule scheduler is unavailable');
+    let observed;
+    try {
+      observed = await scope.scheduler.inspect(rule.id, signal);
+    } catch (error) {
+      if (error instanceof SchedulerRuleNotFound && ['active', 'paused'].includes(rule.status))
+        return { missing: true as const, version: rule.version };
+      throw error;
+    }
+    if (observed.generation !== rule.generation || observed.status !== rule.status)
+      throw new Error('The existing alert does not match the saved generation and status');
+    const updated = {
+      ...rule,
+      scheduler_key: scope.scheduler.identity,
+      scheduler_state: 'installed' as const,
+      next_at: observed.next_at,
+    };
+    if (!(await this.repository.apply(updated)))
+      throw new Error('Rule changed concurrently; read it before trying again');
+    return (await this.repository.read(session, id))!;
+  }
+  /** A fresh, explicit absence check and optimistic claim precede the single remote write. */
+  async recreateAlert(session: string, id: string, version: number, signal?: AbortSignal) {
+    const rule = await this.repository.read(session, id);
+    if (!rule || rule.version !== version)
+      throw new Error('Rule changed; confirm its absence again before recreating it');
+    if (
+      rule.kind !== 'alert' ||
+      !['active', 'paused'].includes(rule.status) ||
+      !/^[a-f0-9]{64}$/.test(rule.scheduler_key || '')
+    )
+      throw new Error('Only existing Home Assistant alert identities can be recovered');
+    const scope = await this.scope(session, 'alert');
+    if (!scope.enabled || !scope.scheduler?.identity)
+      throw new Error('Rule scheduler is unavailable');
+    await scope.scheduler.ready(signal);
+    try {
+      await scope.scheduler.inspect(rule.id, signal);
+      throw new Error('The alert already exists; confirm its state instead');
+    } catch (error) {
+      if (!(error instanceof SchedulerRuleNotFound)) throw error;
+    }
+    rule.generation++;
+    rule.scheduler_key = scope.scheduler.identity;
+    rule.scheduler_state = 'installing';
+    if (!(await this.repository.apply(rule)))
+      throw new Error('Rule changed concurrently; confirm its absence again');
+    await this.install(rule, scope.scheduler, signal);
+    return { id: rule.id, status: rule.status, scheduler_state: 'installed' };
   }
   async weatherDelivered(job: Job, change: WeatherChange) {
     await this.repository.weatherEvidence(job.payload.ruleId, job.payload.generation, change, true);

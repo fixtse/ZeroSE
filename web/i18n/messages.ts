@@ -310,9 +310,16 @@ export const english: Record<string, string> = {
     'This connection is saved independently and does not appear in Conversation. Other compatible features can also reuse it.',
   'Esta credencial dejará de permitir el acceso a Zero. Conserva otro método de acceso a tu cuenta.':
     'This credential will no longer allow access to Zero. Keep another way to access your account.',
+  'Comprobar estado del planificador': 'Check scheduler status',
+  'Recrear alerta': 'Recreate alert',
+  '¿Recrear esta alerta?': 'Recreate this alert?',
+  'Home Assistant no encuentra esta alerta. Puedes recrearla con confirmación.':
+    'Home Assistant cannot find this alert. You can recreate it with confirmation.',
+  'Home Assistant no encuentra esta alerta. Se conservarán su identificador, configuración y estado activo o desactivado. No se repetirán avisos anteriores.':
+    'Home Assistant cannot find this alert. Its identifier, settings and enabled or disabled state will be preserved. Previous notifications will not be replayed.',
   'Estado actualizado.': 'Status updated.',
-  'Estado pendiente de confirmación en el planificador. No se reintentará el cambio automáticamente. Puedes eliminar el elemento.':
-    'Status awaiting scheduler confirmation. The change will not be retried automatically. You can delete the item.',
+  'Estado pendiente de confirmación en el planificador. No se reintentará el cambio automáticamente. Comprueba su estado para recuperar los controles.':
+    'Status awaiting scheduler confirmation. The change will not be retried automatically. Check its status to restore the controls.',
   'Estado que activa el resumen': 'State that triggers the briefing',
   'Este es el mismo prompt de Zero que se edita desde Home Assistant.':
     'This is the same Zero prompt edited from Home Assistant.',

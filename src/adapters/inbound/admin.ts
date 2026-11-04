@@ -461,10 +461,57 @@ export class Admin {
         send(404, { error: 'Alerta o recordatorio no encontrado.' });
         return true;
       }
-      const operation =
+      const input =
         req.method === 'DELETE'
-          ? 'cancel'
-          : z.object({ operation: z.enum(['pause', 'resume']) }).parse(await read()).operation;
+          ? { operation: 'cancel' as const, version: undefined }
+          : z
+              .object({
+                operation: z.enum(['pause', 'resume', 'confirm', 'recreate']),
+                version: z.number().int().nonnegative().optional(),
+              })
+              .parse(await read());
+      const operation = input.operation;
+      if (operation === 'recreate') {
+        if (input.version === undefined) {
+          send(400, { error: 'Comprueba primero que la alerta no existe.' });
+          return true;
+        }
+        try {
+          send(
+            200,
+            await this.notificationRules.recreateAlert(
+              session,
+              rule.id,
+              input.version,
+              AbortSignal.timeout(15000),
+            ),
+          );
+        } catch {
+          send(409, {
+            error:
+              'No se pudo confirmar la recreación. Comprueba de nuevo el estado; no se ha reintentado.',
+          });
+        }
+        return true;
+      }
+      if (operation === 'confirm') {
+        try {
+          send(
+            200,
+            await this.notificationRules.confirmScheduler(
+              session,
+              rule.id,
+              AbortSignal.timeout(15000),
+            ),
+          );
+        } catch {
+          send(409, {
+            error:
+              'No se pudo confirmar la alerta existente. Comprueba la conexión con Home Assistant; no se ha recreado ni reintentado el cambio.',
+          });
+        }
+        return true;
+      }
       if (
         operation !== 'cancel' &&
         (rule.scheduler_state === 'uncertain' || rule.scheduler_state === 'installing')

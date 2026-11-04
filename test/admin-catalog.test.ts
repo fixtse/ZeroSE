@@ -560,6 +560,15 @@ test('uncertain scheduler permits explicit deletion but blocks other changes', a
         return rule;
       },
     },
+    async confirmScheduler() {
+      return { missing: true, version: 7 };
+    },
+    async recreateAlert(_session: string, ruleId: string, version: number) {
+      assert.equal(ruleId, id);
+      assert.equal(version, 7);
+      calls.push('recreate');
+      return { id, status: 'active', scheduler_state: 'installed' };
+    },
     async change(_session: string, _id: string, operation: string) {
       calls.push(operation);
       return {
@@ -598,6 +607,15 @@ test('uncertain scheduler permits explicit deletion but blocks other changes', a
     assert.match(cancelled.value.warning, /Cambio guardado/);
   }
   assert.deepEqual(calls, ['cancel', 'cancel']);
+  const confirmed = await request(admin, path, 'PATCH', { operation: 'confirm' });
+  assert.equal(confirmed.status, 200);
+  assert.deepEqual(confirmed.value, { missing: true, version: 7 });
+  assert.equal((await request(admin, path, 'PATCH', { operation: 'recreate' })).status, 400);
+  assert.equal(
+    (await request(admin, path, 'PATCH', { operation: 'recreate', version: 7 })).status,
+    200,
+  );
+  assert.deepEqual(calls, ['cancel', 'cancel', 'recreate']);
 });
 
 test('profile location assignment waits for explicit global Assist exposure confirmation', async () => {

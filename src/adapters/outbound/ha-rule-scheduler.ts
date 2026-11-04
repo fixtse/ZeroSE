@@ -4,8 +4,11 @@ import { isLocationCondition, type LocationCondition } from '../../domain/notifi
 import { createHash } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
 import type { NotificationRule } from '../../domain/notification-rule.js';
-import type { RuleSchedulerPort } from '../../application/notification-rules.js';
-import { jsonRequest, jsonBody } from './http.js';
+import {
+  SchedulerRuleNotFound,
+  type RuleSchedulerPort,
+} from '../../application/notification-rules.js';
+import { jsonRequest, jsonBody, RemoteError } from './http.js';
 
 export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
   readonly identity: string;
@@ -123,6 +126,13 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
       );
   }
   async inspect(id: string, signal?: AbortSignal) {
-    return this.request('/' + encodeURIComponent(id), 'GET', undefined, signal);
+    try {
+      return await this.request('/' + encodeURIComponent(id), 'GET', undefined, signal);
+    } catch (error) {
+      if (!(error instanceof RemoteError) || error.status !== 404) throw error;
+      // An absent integration/route must never be mistaken for an absent alert.
+      await this.ready(signal);
+      throw new SchedulerRuleNotFound('Home Assistant did not find this rule');
+    }
   }
 }

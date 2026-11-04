@@ -1,6 +1,6 @@
 'use client';
 import { useTranslations } from '../i18n/provider';
-import { ArrowLeft, ArrowRight, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Pause, Play, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type Profile, type CatalogPage } from '../lib/api';
 import { useAdminTask } from '../hooks/use-admin-task';
@@ -42,6 +42,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
   const [kind, setKind] = useState('');
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<CatalogPage<Item>>();
+  const [missing, setMissing] = useState<Record<string, number>>({});
   const [uncertain, setUncertain] = useState<string[]>([]);
   const path =
     '/v1/admin/profiles/' + profile.bot + '/' + encodeURIComponent(profile.chatId) + '/rules';
@@ -55,20 +56,31 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
           limit: '20',
         }),
     );
+    setMissing({});
     setPage(result);
+    setUncertain([]);
     setOffset(start);
   }
   useEffect(() => {
     if (active) void run(() => load());
   }, [active, kind, path]);
-  async function change(item: Item, operation: 'pause' | 'resume' | 'cancel') {
+  async function change(
+    item: Item,
+    operation: 'pause' | 'resume' | 'cancel' | 'confirm' | 'recreate',
+  ) {
+    let absentVersion: number | undefined;
+    const version = missing[item.id];
+    setMissing({});
     try {
-      const result = await api<{ warning?: string }>(
+      const result = await api<{ warning?: string; missing?: boolean; version?: number }>(
         path + '/' + encodeURIComponent(item.id),
         operation === 'cancel' ? 'DELETE' : 'PATCH',
-        operation === 'cancel' ? undefined : { operation },
+        operation === 'cancel'
+          ? undefined
+          : { operation, ...(operation === 'recreate' ? { version } : {}) },
       );
-      if (result.warning) {
+      if (result.missing) absentVersion = result.version;
+      else if (result.warning) {
         setUncertain((ids) => [...ids, item.id]);
         notifyWarning(result.warning);
       } else
@@ -79,6 +91,7 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
     } finally {
       // Read the saved state; never replay a mutation with an uncertain result.
       await load(offset);
+      if (absentVersion !== undefined) setMissing({ [item.id]: absentVersion });
     }
   }
   return (
@@ -142,12 +155,60 @@ export function ProfileCatalogs({ profile, active }: { profile: Profile; active:
                     {locked && (
                       <p role="status" className="settings-help">
                         {t(
-                          'Estado pendiente de confirmación en el planificador. No se reintentará el cambio automáticamente. Puedes eliminar el elemento.',
+                          missing[item.id] !== undefined
+                            ? 'Home Assistant no encuentra esta alerta. Puedes recrearla con confirmación.'
+                            : 'Estado pendiente de confirmación en el planificador. No se reintentará el cambio automáticamente. Comprueba su estado para recuperar los controles.',
                         )}
                       </p>
                     )}
                   </div>
                   <div className="action-group">
+                    {missing[item.id] !== undefined && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={busy}
+                            tooltip={t('Recrear alerta')}
+                          >
+                            <RotateCcw />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>{t('¿Recrear esta alerta?')}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {item.message}{' '}
+                              {t(
+                                'Home Assistant no encuentra esta alerta. Se conservarán su identificador, configuración y estado activo o desactivado. No se repetirán avisos anteriores.',
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => void run(() => change(item, 'recreate'))}
+                            >
+                              {t('Recrear alerta')}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                    {locked && missing[item.id] === undefined && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        tooltip={t('Comprobar estado del planificador')}
+                        disabled={busy}
+                        onClick={() => void run(() => change(item, 'confirm'))}
+                      >
+                        <RefreshCw />
+                      </Button>
+                    )}
                     {['active', 'paused'].includes(item.status) && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
