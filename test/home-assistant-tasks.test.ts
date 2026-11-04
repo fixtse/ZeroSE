@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HomeAssistantTasks } from '../src/adapters/outbound/home-assistant-tasks.js';
@@ -42,7 +43,10 @@ test('HA tasks use the selected list, preserve UIDs, and never replay a failed m
       },
     });
     const direct = new Google(config.google, config.timezone);
-    const selected = withTaskProvider(direct, new HomeAssistantTasks(config.homeAssistant));
+    const selected = withTaskProvider(
+      direct,
+      new HomeAssistantTasks(config.homeAssistant, assistExposureFixture()),
+    );
     assert.equal(direct.enabled, false);
     assert.equal(selected.enabled, true);
     assert.deepEqual(

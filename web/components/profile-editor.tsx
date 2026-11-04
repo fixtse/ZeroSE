@@ -4,7 +4,6 @@ import { HAConnectionPicker, type HAConnectionChoice } from './ha-connection-pic
 import { SecretEditor } from './secret-editor';
 import { Badge } from './ui/badge';
 import { HAEntityPicker } from './ha-entity-picker';
-import { HAEntityMultiPicker } from './ha-entity-multi-picker';
 import { TimezoneOptions } from './timezone-options';
 import { notifyWarning } from '../lib/notifications';
 import {
@@ -86,6 +85,8 @@ export function ProfileEditor({
   onCreated: (profile: Profile) => void;
 }) {
   const confirmedNotifications = useRef(false);
+  const confirmedLocations = useRef(false);
+  const [confirmLocations, setConfirmLocations] = useState<string[]>();
   const [confirmNotifications, setConfirmNotifications] = useState(false);
   const { busy, setNotice, run } = useAdminTask();
   const [current, setCurrent] = useState(profile),
@@ -242,12 +243,6 @@ export function ProfileEditor({
       ).trim();
       homeAssistant.taskProvider =
         data.get('ha-taskProvider') || current?.homeAssistant?.taskProvider || 'google';
-      homeAssistant.sensorEntities = String(
-        data.get('ha-sensorEntities') ?? current?.homeAssistant?.sensorEntities?.join(',') ?? '',
-      )
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
       if (
         current?.hasHomeAssistant ||
         homeAssistant.url ||
@@ -255,11 +250,18 @@ export function ProfileEditor({
         haConnections.length > 0
       )
         value.homeAssistant = homeAssistant;
-      const result = await api<{ saved: boolean; warning?: string }>(
-        path({ bot, chatId }),
-        'PUT',
-        value,
-      );
+      value.confirmLocationExposure = confirmedLocations.current;
+      confirmedLocations.current = false;
+      const result = await api<{
+        saved: boolean;
+        warning?: string;
+        confirmationRequired?: string[];
+      }>(path({ bot, chatId }), 'PUT', value);
+      if (result.confirmationRequired?.length) {
+        confirmedNotifications.current = true;
+        setConfirmLocations(result.confirmationRequired);
+        return;
+      }
       const saved = await api<Profile>(path({ bot, chatId }));
       setCurrent(saved);
       setClearHAConnection(false);
@@ -278,6 +280,37 @@ export function ProfileEditor({
   }
   return (
     <>
+      <AlertDialog
+        open={!!confirmLocations}
+        onOpenChange={(open) => {
+          if (!open) setConfirmLocations(undefined);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Exponer esta ubicación a Assist?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Para usar {confirmLocations?.join(', ')}, Zero la añadirá a las entidades expuestas a
+              Assist. Estará disponible para Assist y Zero en toda esta instancia de Home Assistant.
+              Quitar la asignación del perfil no la ocultará de Assist.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirmedLocations.current = true;
+                setConfirmLocations(undefined);
+                (
+                  document.getElementById('profile-settings-form') as HTMLFormElement
+                )?.requestSubmit();
+              }}
+            >
+              Exponer y guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={confirmNotifications} onOpenChange={setConfirmNotifications}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -675,6 +708,9 @@ export function ProfileEditor({
                         ).map((key) => (
                           <HAEntityPicker
                             key={key}
+                            assignment={
+                              key === 'locationEntity' || key === 'geocodedLocationEntity'
+                            }
                             profile={current}
                             id={'profile-ha-' + key}
                             name={'ha-' + key}
@@ -700,14 +736,12 @@ export function ProfileEditor({
                         La entidad de tiempo se usa para consultar el pronóstico y evaluar alertas
                         meteorológicas.
                       </p>
-                      <HAEntityMultiPicker
-                        profile={current}
-                        id="profile-ha-sensors"
-                        name="ha-sensorEntities"
-                        label="Sensores y ubicaciones permitidos"
-                        domains="sensor,binary_sensor,person,device_tracker,zone"
-                        defaultValues={current.homeAssistant?.sensorEntities || []}
-                      />
+                      <p className="settings-help">
+                        Las entidades disponibles y sus permisos se gestionan en Home Assistant →
+                        Ajustes → Asistentes de voz → Exponer, seleccionando Assist. Las entidades
+                        asignadas aquí deben estar expuestas a Assist; si falta exposición, Zero
+                        pedirá confirmación para añadirlas a Assist.
+                      </p>
                     </>
                   ) : (
                     <p className="settings-help">

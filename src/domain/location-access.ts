@@ -1,16 +1,3 @@
-/** Location monitoring uses the profile's explicit entity scope, never group membership alone. */
-export function permitsLocationEntity(
-  config: { sensorEntities: string[]; locationEntity: string },
-  entity: string,
-): boolean {
-  return (
-    /^(person|device_tracker|zone)\.[a-z0-9_]+$/.test(entity) &&
-    (config.sensorEntities.length === 0 ||
-      config.sensorEntities.includes(entity) ||
-      config.locationEntity === entity)
-  );
-}
-
 /** "self" is resolved only from the private profile's saved location, never from a guessed identity. */
 export function resolvePersonReference(entity: string, ownEntity?: string) {
   if (entity !== 'self') return entity;

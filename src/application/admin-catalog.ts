@@ -3,6 +3,7 @@ import type { Config } from '../domain/config.js';
 export interface AdminCatalogQuery {
   search: string;
   domains?: string;
+  purpose?: 'location-assignment';
   offset: number;
   limit: number;
 }

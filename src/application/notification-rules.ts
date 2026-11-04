@@ -18,7 +18,8 @@ export interface RuleEvent {
 }
 export interface RuleSchedulerPort {
   supportsLocationAlerts?(signal?: AbortSignal): Promise<boolean>;
-  permitsLocationCondition?(condition: LocationCondition): boolean;
+  permitsLocationCondition?(condition: LocationCondition): boolean | Promise<boolean>;
+  permitsCondition?(condition: NotificationRule['condition']): Promise<boolean>;
   supportsHourlyUpdates?(): Promise<boolean>;
   readonly identity?: string;
   ready(signal?: AbortSignal): Promise<void>;
@@ -125,8 +126,14 @@ export class NotificationRules {
     if (!scope.enabled || (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key))
       return false;
     if (
+      rule.condition &&
+      scope.scheduler?.permitsCondition &&
+      !(await scope.scheduler.permitsCondition(rule.condition))
+    )
+      return false;
+    if (
       isLocationCondition(rule.condition) &&
-      !scope.scheduler?.permitsLocationCondition?.(rule.condition)
+      !(await scope.scheduler?.permitsLocationCondition?.(rule.condition))
     )
       return false;
     if (rule.condition?.source === 'weather' && rule.condition.sleep_entity) {
@@ -155,7 +162,7 @@ export class NotificationRules {
     if (
       isLocationCondition(value.condition) &&
       (!(await scope.scheduler.supportsLocationAlerts?.(signal)) ||
-        !scope.scheduler.permitsLocationCondition?.(value.condition))
+        !(await scope.scheduler.permitsLocationCondition?.(value.condition)))
     )
       throw new Error(
         'Location alerts require an upgraded Zero HA integration and permitted people/zones',

@@ -57,12 +57,6 @@ export class MorningTriggers {
         !config.homeAssistant.token
       )
         continue;
-      if (
-        /^(sensor|binary_sensor)\./.test(morning.entity) &&
-        config.homeAssistant.sensorEntities.length &&
-        !config.homeAssistant.sensorEntities.includes(morning.entity)
-      )
-        continue;
       const session = telegramSession(profile.bot, profile.chatId);
       keys.add(session);
       this.triggers.watch(session, config.homeAssistant, morning, async () => {

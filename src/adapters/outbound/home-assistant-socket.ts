@@ -33,8 +33,20 @@ export function homeAssistantCommand(
         else if (message.type === 'auth_invalid')
           finish(new Error('Home Assistant authentication failed'));
         else if (message.type === 'result' && message.id === 1) {
-          if (!message.success) finish(new Error('Home Assistant command is unavailable'));
-          else finish(undefined, message.result);
+          if (!message.success) {
+            const errors: Record<string, string> = {
+              admin_required:
+                'Un administrador de Home Assistant debe exponer estas entidades a Assist.',
+              location_unavailable:
+                'La ubicación no existe o el usuario de Home Assistant no tiene permiso para leerla.',
+            };
+            finish(
+              new Error(
+                errors[message.error?.code] ||
+                  'Home Assistant command is unavailable; inspect before retrying',
+              ),
+            );
+          } else finish(undefined, message.result);
         }
       } catch {
         finish(new Error('Home Assistant returned an invalid response'));

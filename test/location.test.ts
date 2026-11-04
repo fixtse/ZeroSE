@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -47,7 +48,7 @@ test('location tool reports presence, zones and independent GPS/address observat
       geocodedLocationEntity: 'sensor.galaxy_s26_geocoded_location',
     },
   }).homeAssistant;
-  const ha = new HomeAssistant(config);
+  const ha = new HomeAssistant(config, assistExposureFixture());
   const tools = new Tools({ audit: async () => {} });
   registerHomeAssistantTools(tools, ha, config);
   const read = () =>
@@ -98,7 +99,10 @@ test('location tool reports presence, zones and independent GPS/address observat
     assert.equal(partial.presence, 'unknown');
     assert.equal(partial.tracker?.available, false);
     assert.equal(partial.geocoded?.available, true);
-    await assert.rejects(() => ha.sensor('sensor.galaxy_s26_geocoded_location'), /not permitted/);
+    assert.equal(
+      (await ha.sensor('sensor.galaxy_s26_geocoded_location')).state,
+      'Example Street, Madrid',
+    );
     await assert.rejects(() => ha.sensor('device_tracker.galaxy_s26'), /not permitted/);
     assert(
       requests.every((path) =>
@@ -156,7 +160,7 @@ test('location discovery is scoped, bounded and excludes private attributes', as
       sensorEntities: ['person.a', 'zone.office'],
     },
   }).homeAssistant;
-  const ha = new HomeAssistant(config);
+  const ha = new HomeAssistant(config, assistExposureFixture(['person.a', 'zone.office']));
   try {
     const page = await ha.locationEntities('', 0, 1);
     assert.equal(page.total, 2);
@@ -216,7 +220,7 @@ test('direct distance tool computes metres, qualifies old observations and rejec
       sensorEntities: Object.keys(states),
     },
   }).homeAssistant;
-  const ha = new HomeAssistant(config);
+  const ha = new HomeAssistant(config, assistExposureFixture(Object.keys(states)));
   const tools = new Tools({ audit: async () => {} });
   registerHomeAssistantTools(tools, ha, config);
   const ctx = { session: 'telegram:-42', jobId: 'distance', signal: AbortSignal.timeout(10000) };
@@ -315,7 +319,7 @@ test('group distance uses assigned member locations without requiring person all
   }).homeAssistant;
   const tools = new Tools({ audit: async () => {} });
   const calls: string[] = [];
-  registerHomeAssistantTools(tools, new HomeAssistant(config), config, {
+  registerHomeAssistantTools(tools, new HomeAssistant(config, assistExposureFixture()), config, {
     async list() {
       return {
         items: [
@@ -397,7 +401,10 @@ test('GPS queries accept person/tracker pairs and resolve self from a configured
       sensorEntities: ['person.edson', 'device_tracker.edson'],
     },
   }).homeAssistant;
-  const ha = new HomeAssistant(config);
+  const ha = new HomeAssistant(
+    config,
+    assistExposureFixture(['person.edson', 'device_tracker.edson', 'device_tracker.sergio']),
+  );
   try {
     assert.equal((await ha.locationEntities('', 0, 20)).total, 3);
     for (const pair of [

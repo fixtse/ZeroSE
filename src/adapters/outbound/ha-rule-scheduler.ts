@@ -1,15 +1,18 @@
-import { permitsLocationEntity } from '../../domain/location-access.js';
+import { HomeAssistant } from './home-assistant.js';
+import { homeAssistantCommand } from './home-assistant-socket.js';
 import { isLocationCondition, type LocationCondition } from '../../domain/notification-rule.js';
 import { createHash } from 'node:crypto';
 import type { Config } from '../../domain/config.js';
 import type { NotificationRule } from '../../domain/notification-rule.js';
 import type { RuleSchedulerPort } from '../../application/notification-rules.js';
 import { jsonRequest, jsonBody } from './http.js';
-import { dailyWeatherEntity } from './weather-entity.js';
 
 export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
   readonly identity: string;
-  constructor(private config: Config['homeAssistant']) {
+  constructor(
+    private config: Config['homeAssistant'],
+    private command = homeAssistantCommand,
+  ) {
     this.identity = createHash('sha256')
       .update(
         JSON.stringify([config.url, config.token, config.weatherEntity, config.sensorEntities]),
@@ -43,11 +46,30 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
   async supportsLocationAlerts(signal?: AbortSignal) {
     return (await this.request('', 'GET', undefined, signal))?.location_alerts === true;
   }
-  permitsLocationCondition(condition: LocationCondition) {
-    return (
-      permitsLocationEntity(this.config, condition.entity_id) &&
-      permitsLocationEntity(this.config, condition.target_entity_id)
-    );
+  async permitsLocationCondition(condition: LocationCondition) {
+    return this.permitsCondition(condition);
+  }
+  async permitsCondition(condition: NotificationRule['condition'], signal?: AbortSignal) {
+    try {
+      await this.assertCondition(condition, signal);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  private async assertCondition(condition: NotificationRule['condition'], signal?: AbortSignal) {
+    if (!condition) return;
+    const ha = new HomeAssistant(this.config, this.command);
+    const entities =
+      condition.source === 'weather'
+        ? [
+            await ha.weatherSource(signal),
+            ...(condition.sleep_entity ? [condition.sleep_entity] : []),
+          ]
+        : isLocationCondition(condition)
+          ? [condition.entity_id, condition.target_entity_id]
+          : [condition.entity_id];
+    await ha.assertExposed(entities, signal);
   }
   async supportsHourlyUpdates() {
     return (await this.request('', 'GET'))?.hourly_updates === true;
@@ -64,44 +86,18 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
       throw new Error(
         'Actualiza la integración Zero de Home Assistant a 1.8.0 o posterior para usar alertas con device_tracker.',
       );
-    let weatherEntity = this.config.weatherEntity;
-    if (rule.condition?.source === 'weather' && !weatherEntity) {
-      const states = await jsonRequest(
-        this.config.url.replace(/\/$/, '') + '/api/states',
-        {
-          headers: { Authorization: `Bearer ${this.config.token}` },
-          signal: signal
-            ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
-            : AbortSignal.timeout(10000),
-        },
-        'Home Assistant weather discovery',
-      );
-      weatherEntity = dailyWeatherEntity(states);
-    }
+    const weatherEntity =
+      rule.condition?.source === 'weather'
+        ? await new HomeAssistant(this.config, this.command).weatherSource(signal)
+        : this.config.weatherEntity;
     const condition =
       rule.condition?.source === 'weather'
         ? { ...rule.condition, entity_id: weatherEntity }
         : rule.condition;
     if (condition?.source === 'weather' && !/^weather\.[a-z0-9_]+$/.test(condition.entity_id))
       throw new Error('Home Assistant weather entity is not configured');
-    if (
-      rule.status === 'active' &&
-      rule.kind === 'alert' &&
-      condition &&
-      condition.source !== 'weather' &&
-      !isLocationCondition(condition) &&
-      (!/^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(condition.entity_id) ||
-        (this.config.sensorEntities.length > 0 &&
-          !this.config.sensorEntities.includes(condition.entity_id)))
-    ) {
-      throw new Error('Alert sensor is no longer permitted in this profile');
-    }
-    if (
-      rule.status === 'active' &&
-      isLocationCondition(condition) &&
-      !this.permitsLocationCondition(condition)
-    )
-      throw new Error('Alert people or zone are no longer permitted in this profile');
+    if (rule.status === 'active' && rule.kind === 'alert')
+      await this.assertCondition(rule.condition, signal);
     const response = await this.request(
       '/' + encodeURIComponent(rule.id),
       'PUT',

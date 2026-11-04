@@ -53,12 +53,35 @@ async def verify_exposure(hass):
         expose("light.zero_exposed", True)
         expose("light.zero_hidden", False)
         expose("script.zero_test", True)
+        checked = await command(exposure._check, entity_ids=["light.zero_exposed", "light.zero_hidden"], control=False)
+        assert checked == ["light.zero_exposed"], checked
         items = await command(exposure._entities, search="zero_", offset=0, limit=1)
         assert items["total"] == 2 and items["next_offset"] == 1, items
         assert items["items"][0]["entity_id"] == "light.zero_exposed", items
         state = await command(exposure._entity, entity_id="light.zero_exposed")
         assert state["state"] == "off", state
         assert await command(exposure._entity, entity_id="light.zero_hidden") is None and errors
+        # Location assignment can discover a hidden readable entity, but only an explicit
+        # administrator confirmation may change Assist's global exposure setting.
+        hass.states.async_set("person.zero_assign", "home")
+        expose("person.zero_assign", False)
+        result = await command(exposure._check, entity_ids=["person.zero_assign"], control=False, assignment=True)
+        assert result == ["person.zero_assign"], result
+        result = await command(exposure._expose_locations, entity_ids=["person.zero_assign"], confirmed=False)
+        assert result == {"confirmationRequired": ["person.zero_assign"]}, result
+        assert not exposure.permitted(hass, user, "person.zero_assign")
+        result = await command(exposure._expose_locations, entity_ids=["person.zero_assign"], confirmed=True)
+        assert result == {"exposed": ["person.zero_assign"]}, result
+        assert exposure.permitted(hass, user, "person.zero_assign")
+        # Idempotent observation: an already exposed assignment performs no second update.
+        assert await command(exposure._expose_locations, entity_ids=["person.zero_assign"], confirmed=True) == {"exposed": []}
+        ordinary = await hass.auth.async_create_user("Location ordinary user")
+        connection.user = ordinary
+        expose("person.zero_assign", False)
+        assert await command(exposure._expose_locations, entity_ids=["person.zero_assign"], confirmed=True) is None and errors
+        assert not exposure.permitted(hass, user, "person.zero_assign")
+        connection.user = user
+        await hass.auth.async_remove_user(ordinary)
         # Temporary services use the real HA descriptions registry and actual dispatch.
         hass.services.async_register("light", "zero_check", turn_on)
         async_set_service_schema(hass, "light", "zero_check", {"target": {"entity": [{"domain": "light"}]}})
@@ -90,6 +113,7 @@ async def verify_exposure(hass):
         assert await command(exposure._entity, entity_id="light.zero_exposed") is None and errors
         assert await command(exposure._call, service="light.zero_check", data={"entity_id": "light.zero_exposed"}) is None and errors
         assert len(received) == 2
+        assert await command(exposure._check, entity_ids=["light.zero_exposed"], control=True) == []
         expose("script.zero_test", False)
         rejected("script.zero_test", {})
         # Exposure grants no permissions that the HA user lacks.
@@ -109,7 +133,7 @@ async def verify_exposure(hass):
         policy.async_set_expose_new_entities("conversation", prior_default)
         hass.services.async_remove("light", "zero_check")
         hass.services.async_remove("script", "zero_test")
-        for entity in ("light.zero_exposed", "light.zero_hidden", "sensor.zero_custom", "script.zero_test", "light.zero_default_off"):
+        for entity in ("light.zero_exposed", "light.zero_hidden", "sensor.zero_custom", "script.zero_test", "light.zero_default_off", "person.zero_assign"):
             hass.states.async_remove(entity)
         if not user.is_owner:
             await hass.auth.async_remove_user(user)

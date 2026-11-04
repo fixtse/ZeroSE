@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -380,7 +381,7 @@ test('only the original owner inherits legacy credentials and memory; each new c
     registerGoogleTools(tools, new Google(f.config.google, f.config.timezone));
     registerHomeAssistantTools(
       tools,
-      new HomeAssistant(f.config.homeAssistant),
+      new HomeAssistant(f.config.homeAssistant, assistExposureFixture()),
       f.config.homeAssistant,
     );
     registerMemoryTools(tools, memoryA);

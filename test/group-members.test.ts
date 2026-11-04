@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { registerPlacesTools } from '../src/adapters/inbound/places-tools.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -162,7 +163,7 @@ test('group location tool defaults to authenticated sender and requires a member
   const config = { ...ConfigSchema.parse({}).homeAssistant, token: 'test-only' };
   const tools = new Tools({ async audit() {} });
   const calls: string[] = [];
-  registerHomeAssistantTools(tools, new HomeAssistant(config), config, {
+  registerHomeAssistantTools(tools, new HomeAssistant(config, assistExposureFixture()), config, {
     async list() {
       return { items: [{ userId: '12', name: 'Ana' }], total: 1 };
     },
@@ -195,7 +196,7 @@ test('named group locations resolve the requested member rather than the sender 
   const tools = new Tools({ async audit() {} });
   const reads: string[] = [];
   let ambiguous = false;
-  registerHomeAssistantTools(tools, new HomeAssistant(config), config, {
+  registerHomeAssistantTools(tools, new HomeAssistant(config, assistExposureFixture()), config, {
     async list(search) {
       assert.equal(search, 'Ken');
       return {

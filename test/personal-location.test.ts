@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -49,7 +50,11 @@ test('private declaration saves own person without tracker verification and enab
       homeAssistant,
     });
     const runtime = structuredClone(homeAssistant);
-    const ha = new HomeAssistant(runtime);
+    const exposed = ['person.edson'];
+    const ha = new HomeAssistant(
+      runtime,
+      assistExposureFixture(() => exposed),
+    );
     await assert.rejects(ha.locationEntity('person.sergio'), /not permitted/);
     const tools = new Tools({ audit: async () => {} });
     const location = new PersonalLocation(profiles, f.config.homeAssistant);
@@ -64,6 +69,8 @@ test('private declaration saves own person without tracker verification and enab
     assert.equal(reads, 0);
     assert(!JSON.stringify(result).includes(homeAssistant.token));
     assert.equal(runtime.locationEntity, 'person.sergio');
+    await assert.rejects(ha.locationEntity('person.sergio'), /not permitted/);
+    exposed.push('person.sergio');
     assert.equal((await ha.locationEntity('person.sergio')).entity_id, 'person.sergio');
     const stored = (await new PostgresAccess(f.store.db, f.config.apiKey).profile('zero', '1'))!
       .homeAssistant!;
@@ -71,9 +78,12 @@ test('private declaration saves own person without tracker verification and enab
     assert.equal(stored.geocodedLocationEntity, homeAssistant.geocodedLocationEntity);
     assert.deepEqual(stored.sensorEntities, ['person.edson']);
     assert.equal(stored.token, homeAssistant.token);
-    const scheduler = new HomeAssistantRuleScheduler(stored);
+    const scheduler = new HomeAssistantRuleScheduler(
+      stored,
+      assistExposureFixture(() => exposed),
+    );
     assert.equal(
-      scheduler.permitsLocationCondition({
+      await scheduler.permitsLocationCondition({
         source: 'distance',
         entity_id: 'person.edson',
         target_entity_id: 'person.sergio',
@@ -87,7 +97,10 @@ test('private declaration saves own person without tracker verification and enab
       true,
     );
     await assert.rejects(
-      new HomeAssistant(stored).locationEntity('person.someone_else'),
+      new HomeAssistant(
+        stored,
+        assistExposureFixture(() => exposed),
+      ).locationEntity('person.someone_else'),
       /not permitted/,
     );
     assert.equal(toolCapability('location_set_person'), 'homeAssistant');
@@ -181,4 +194,52 @@ test('private distance tools use the already configured profile person without c
   assert(JSON.stringify(location).includes('person.sergio'));
   assert.equal(declarations, 0);
   assert.equal(config.locationEntity, 'person.sergio');
+});
+
+test('automatic location exposure requires explicit global-exposure confirmation before saving', async () => {
+  const f = await fixture();
+  const profiles = new PostgresAccess(f.store.db, f.config.apiKey);
+  await profiles.initialize(f.config);
+  const connection = { ...f.config.homeAssistant, url: 'https://ha.example', token: 'test-only' };
+  await profiles.saveProfile({
+    bot: 'zero',
+    chatId: '99',
+    kind: 'user',
+    enabled: true,
+    label: 'Location',
+    owner: false,
+    capabilities: ['homeAssistant'],
+    homeAssistant: connection,
+  });
+  const attempts: boolean[] = [];
+  const location = new PersonalLocation(
+    profiles,
+    connection,
+    async (_config, entities, confirmed) => {
+      attempts.push(confirmed);
+      return confirmed ? { exposed: entities } : { confirmationRequired: entities };
+    },
+  );
+  try {
+    const pending = await location.assign('telegram:99', 'person.ana');
+    assert.equal(pending.saved, false);
+    assert.equal((await profiles.profile('zero', '99'))?.homeAssistant?.locationEntity, '');
+    const saved = await location.assign('telegram:99', 'person.ana', true);
+    assert.equal(saved.saved, true);
+    assert.deepEqual(attempts, [false, true]);
+    assert.equal(
+      (await profiles.profile('zero', '99'))?.homeAssistant?.locationEntity,
+      'person.ana',
+    );
+    const unavailable = new PersonalLocation(profiles, connection, async () => {
+      throw new Error('Uncertain exposure; inspect before retrying');
+    });
+    await assert.rejects(unavailable.assign('telegram:99', 'person.other', true), /Uncertain/);
+    assert.equal(
+      (await profiles.profile('zero', '99'))?.homeAssistant?.locationEntity,
+      'person.ana',
+    );
+  } finally {
+    await f.close();
+  }
 });

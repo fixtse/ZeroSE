@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -100,7 +101,7 @@ test('wake-up briefing discovers daily weather, matches outings, honors explicit
       context: async () => '',
       cleanTasks: async () => ({ deleted: 0 }),
     },
-    new HomeAssistant(config.homeAssistant),
+    new HomeAssistant(config.homeAssistant, assistExposureFixture()),
     {},
   );
   const run = () =>

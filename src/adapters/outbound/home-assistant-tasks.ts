@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { HomeAssistantExposure } from './home-assistant-exposure.js';
+import { homeAssistantCommand } from './home-assistant-socket.js';
 import type { Config } from '../../domain/config.js';
 import type { TaskProviderPort } from '../../application/task-provider.js';
 import { jsonRequest, jsonBody } from './http.js';
@@ -18,11 +20,19 @@ const inputSchema = z.object({
 });
 
 export class HomeAssistantTasks implements TaskProviderPort {
-  constructor(private config: Config['homeAssistant']) {}
+  constructor(
+    private config: Config['homeAssistant'],
+    private command = homeAssistantCommand,
+  ) {}
   private async request(action: string, data: Record<string, unknown>, signal?: AbortSignal) {
     const entity = this.config.taskListEntity;
     if (!this.config.token || !entity || !/^todo\.[a-z0-9_]+$/.test(entity))
       throw new Error('Configure the selected Home Assistant task list and connection');
+    await new HomeAssistantExposure(this.config, this.command).assert(
+      [entity],
+      signal,
+      !action.startsWith('get_items'),
+    );
     return jsonRequest(
       this.config.url.replace(/\/$/, '') + '/api/services/todo/' + action,
       {

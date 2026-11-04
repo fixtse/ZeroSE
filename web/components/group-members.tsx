@@ -84,18 +84,23 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
     !!editing.name.trim() &&
     /^(?:(?:person|device_tracker)\.[a-z0-9_]+)?$/.test(editing.locationEntity) &&
     /^(?:sensor\.[a-z0-9_]+)?$/.test(editing.geocodedLocationEntity);
-  async function save() {
+  async function save(confirmLocationExposure = false) {
     if (!editing || !valid) return;
-    await api(
+    const result = await api<{ confirmationRequired?: string[] }>(
       selected === 'new' ? base : base + '/' + editing.userId,
       selected === 'new' ? 'POST' : 'PUT',
       {
         ...(selected === 'new' ? { userId: editing.userId } : {}),
         name: editing.name.trim(),
+        confirmLocationExposure,
         locationEntity: editing.locationEntity.trim(),
         geocodedLocationEntity: editing.geocodedLocationEntity.trim(),
       },
     );
+    if (result.confirmationRequired?.length) {
+      setConfirm('save');
+      return;
+    }
     const saved = await api<Member>(base + '/' + editing.userId);
     setEditing(saved);
     setOriginal(saved);
@@ -112,7 +117,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
         editing.geocodedLocationEntity !== original?.geocodedLocationEntity)
     )
       setConfirm('save');
-    else void run(save);
+    else void run(() => save());
   }
   const update = (key: keyof Member, value: string) =>
     setEditing((current) => (current ? { ...current, [key]: value } : current));
@@ -257,6 +262,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                 <>
                   <HAEntityPicker
                     profile={profile}
+                    assignment
                     id="member-location"
                     label="Entidad de ubicación del integrante"
                     domains="person,device_tracker"
@@ -265,6 +271,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                   />
                   <HAEntityPicker
                     profile={profile}
+                    assignment
                     id="member-address"
                     label="Entidad de dirección del integrante"
                     domains="sensor"
@@ -323,7 +330,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
             <AlertDialogDescription>
               {confirm === 'delete'
                 ? 'Se eliminarán sus asignaciones en este grupo. Puede volver a aparecer cuando Telegram envíe un nuevo mensaje suyo.'
-                : 'Los integrantes del grupo podrán consultar esta ubicación mediante Zero si el grupo tiene permiso Home Assistant. Comprueba que estas entidades pertenecen a la persona indicada.'}
+                : 'Los integrantes del grupo podrán consultar esta ubicación mediante Zero si el grupo tiene permiso Home Assistant. Si no están expuestas a Assist, Zero las añadirá para toda la instancia de Home Assistant. Quitar esta asignación no las ocultará. Comprueba que pertenecen a la persona indicada.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -334,7 +341,7 @@ export function GroupMembers({ profile, active }: { profile: Profile; active: bo
                 const action = confirm;
                 setConfirm(undefined);
                 void run(async () => {
-                  if (action === 'save') await save();
+                  if (action === 'save') await save(true);
                   else if (editing) {
                     await api(base + '/' + editing.userId, 'DELETE');
                     setSelected('');

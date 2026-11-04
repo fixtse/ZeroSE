@@ -1,3 +1,6 @@
+import type { LocationExposure } from '../../application/location-exposure.js';
+import type { Config } from '../../domain/config.js';
+import type { AccessProfile } from '../../domain/access.js';
 import type { IncomingMessage } from 'node:http';
 import { z } from 'zod';
 import { assistantIdPattern } from '../../domain/access.js';
@@ -9,6 +12,7 @@ const fields = ConfigSchema.shape.homeAssistant.unwrap().shape;
 const member = z
   .object({
     name: z.string().trim().min(1).max(100),
+    confirmLocationExposure: z.boolean().default(false),
     locationEntity: fields.locationEntity,
     geocodedLocationEntity: fields.geocodedLocationEntity,
   })
@@ -17,7 +21,26 @@ export class GroupMembersAdmin {
   constructor(
     private profiles: Pick<AccessRepository, 'profile'>,
     private members: GroupMembersRepository,
+    private expose?: LocationExposure,
+    private connection?: (profile: AccessProfile) => Config['homeAssistant'],
   ) {}
+  private async prepare(
+    profile: AccessProfile,
+    fields: { locationEntity: string; geocodedLocationEntity: string },
+    confirmed: boolean,
+    send: (status: number, value: unknown) => void,
+  ) {
+    const ids = [fields.locationEntity, fields.geocodedLocationEntity].filter(Boolean);
+    if (!ids.length || !this.expose) return true;
+    const connection = this.connection?.(profile) || profile.homeAssistant;
+    if (!connection?.token) throw new Error('Configura la conexión Home Assistant del grupo.');
+    const result = await this.expose(connection, ids, confirmed);
+    if (result.confirmationRequired?.length) {
+      send(200, { saved: false, confirmationRequired: result.confirmationRequired });
+      return false;
+    }
+    return true;
+  }
   async handle(
     req: IncomingMessage,
     path: string,
@@ -61,10 +84,16 @@ export class GroupMembersAdmin {
             .refine((value) => Number.isSafeInteger(Number(value))),
         })
         .parse(await read());
+      if (await this.members.get(bot, chatId, input.userId)) {
+        send(409, { error: 'Este integrante ya existe. Selecciónalo en la lista para editarlo.' });
+        return true;
+      }
+      const { confirmLocationExposure, ...fields } = input;
+      if (!(await this.prepare(profile, fields, confirmLocationExposure, send))) return true;
       const saved = await this.members.save(
         bot,
         chatId,
-        { ...input, username: '', present: true, observed: false },
+        { ...fields, username: '', present: true, observed: false },
         true,
       );
       send(
@@ -74,7 +103,8 @@ export class GroupMembersAdmin {
           : { error: 'Este integrante ya existe. Selecciónalo en la lista para editarlo.' },
       );
     } else if (req.method === 'PUT' && userId) {
-      const input = member.parse(await read());
+      const { confirmLocationExposure, ...input } = member.parse(await read());
+      if (!(await this.prepare(profile, input, confirmLocationExposure, send))) return true;
       await this.members.save(bot, chatId, {
         userId,
         ...input,

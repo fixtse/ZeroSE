@@ -48,6 +48,7 @@ export interface Config {
     url: string;
     token: string;
     shoppingListEntity: string;
+    /** Retired scope, retained privately only to preserve existing scheduler identities. */
     sensorEntities: string[];
     weatherEntity: string;
     locationEntity: string;

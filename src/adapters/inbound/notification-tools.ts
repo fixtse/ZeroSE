@@ -249,7 +249,7 @@ export function registerNotificationTools(
   );
   tools.add(
     'alert_create',
-    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person/device_tracker and zone; distance above/below watches two GPS entities (person or device_tracker) in metres (straight-line). In private chats use "self" for the user: it automatically uses the person or device_tracker GPS location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing; stale/missing/inaccurate GPS breaks holds. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
+    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person/device_tracker and zone; distance above/below watches two GPS entities (person or device_tracker) in metres (straight-line). In private chats use "self" for the user: it automatically uses the person or device_tracker GPS location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing. Distance alerts use last known GPS even when old (stationary trackers may not update); missing/unavailable/inaccurate GPS breaks holds. Zone alerts also require recent reports. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
     z.object({
       message,
       condition: z.union([

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { HomeAssistant } from './home-assistant.js';
 import type { Config } from '../../domain/config.js';
 import type { ProfileNotifications } from '../../domain/access.js';
 import type { MorningTriggerPort } from '../../application/morning-triggers.js';
@@ -10,7 +11,11 @@ export class HomeAssistantMorningTriggers implements MorningTriggerPort {
     string,
     { signature: string; socket: WebSocket; wake: () => Promise<void>; close: () => void }
   >();
-  constructor(private socket: (url: URL) => WebSocket = (url) => new WebSocket(url)) {}
+  constructor(
+    private socket: (url: URL) => WebSocket = (url) => new WebSocket(url),
+    private authorize = (config: Config['homeAssistant'], entity: string) =>
+      new HomeAssistant(config).assertExposed([entity]),
+  ) {}
   async discover(config: Config['homeAssistant'], automationId: string) {
     if (!config.url || !config.token) return;
     try {
@@ -99,8 +104,8 @@ export class HomeAssistantMorningTriggers implements MorningTriggerPort {
         after !== trigger.state
       )
         return;
-      void watch
-        .wake()
+      void this.authorize(config, trigger.entity)
+        .then(() => watch.wake())
         .catch(() =>
           console.error(JSON.stringify({ event: 'morning_trigger_enqueue_failed', session: key })),
         );

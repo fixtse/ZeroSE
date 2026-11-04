@@ -1,13 +1,32 @@
 import { homeAssistantCommand } from './home-assistant-socket.js';
 import { personDistance } from '../../domain/location-distance.js';
-import { permitsLocationEntity } from '../../domain/location-access.js';
+import { HomeAssistantExposure } from './home-assistant-exposure.js';
 import { jsonRequest, jsonBody } from './http.js';
 import type { AdminCatalogQuery } from '../../application/admin-catalog.js';
 import { dailyWeatherEntity } from './weather-entity.js';
 import type { Config } from '../../domain/config.js';
 
 export class HomeAssistant {
-  constructor(private config: Config['homeAssistant']) {}
+  private exposure: HomeAssistantExposure;
+  constructor(
+    private config: Config['homeAssistant'],
+    command = homeAssistantCommand,
+  ) {
+    this.exposure = new HomeAssistantExposure(config, command);
+  }
+  async assertExposed(entities: string[], signal?: AbortSignal, control = false) {
+    await this.exposure.assert(entities, signal, control);
+  }
+  private async exposedStates(signal?: AbortSignal, assignment = false) {
+    const states = await this.request('states', undefined, signal);
+    const allowed = await this.exposure.filter(
+      states.map((state: any) => state.entity_id),
+      signal,
+      false,
+      assignment,
+    );
+    return states.filter((state: any) => allowed.has(state.entity_id));
+  }
   async assistCommand(command: Record<string, unknown>, signal?: AbortSignal) {
     if (!this.config.token) throw new Error('Home Assistant token is not configured');
     return homeAssistantCommand(this.config, command, signal ?? AbortSignal.timeout(15000));
@@ -18,13 +37,23 @@ export class HomeAssistant {
     return this.request('services', undefined, signal);
   }
   async entityCatalog(query: AdminCatalogQuery, signal: AbortSignal) {
-    const states = await this.request('states', undefined, signal);
+    const assignment = query.purpose === 'location-assignment';
+    if (
+      assignment &&
+      (!query.domains ||
+        query.domains
+          .split(',')
+          .some((domain) => !['person', 'device_tracker', 'sensor'].includes(domain)))
+    )
+      throw new Error('Location assignment discovery requires scoped location domains');
+    const states = await this.exposedStates(signal, assignment);
     const items = states
       .map((state: any) => {
         const id = String(state.entity_id);
         const access: string[] = [];
-        if (this.permitted(id)) access.push('sensor');
-        if (permitsLocationEntity(this.config, id)) access.push('location alerts');
+        if (/^(sensor|binary_sensor)\./.test(id)) access.push('sensor');
+        if (/^(person|device_tracker|zone)\./.test(id)) access.push('location alerts');
+        if (!assignment) access.push('Assist');
         for (const [key, label] of [
           ['shoppingListEntity', 'shopping'],
           ['weatherEntity', 'weather'],
@@ -72,6 +101,7 @@ export class HomeAssistant {
   async location(signal?: AbortSignal) {
     const entities = [this.config.locationEntity, this.config.geocodedLocationEntity];
     if (!entities.some(Boolean)) throw new Error('Location entities are not configured');
+    await this.assertExposed(entities.filter(Boolean), signal);
     const results = await Promise.allSettled(
       entities.map((entity) =>
         entity ? this.request('states/' + encodeURIComponent(entity), undefined, signal) : null,
@@ -166,16 +196,10 @@ export class HomeAssistant {
       'Home Assistant',
     );
   }
-  private permitted(entity: string) {
-    return (
-      /^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(entity) &&
-      (!this.config.sensorEntities.length || this.config.sensorEntities.includes(entity))
-    );
-  }
   async locationEntities(search: string, offset: number, limit: number, signal?: AbortSignal) {
-    const states = await this.request('states', undefined, signal);
+    const states = await this.exposedStates(signal);
     const items = states
-      .filter((s: any) => permitsLocationEntity(this.config, s.entity_id))
+      .filter((s: any) => /^(person|device_tracker|zone)\.[a-z0-9_]+$/.test(s.entity_id))
       .map((s: any) => ({
         entity_id: s.entity_id,
         name: String(s.attributes?.friendly_name || s.entity_id).slice(0, 200),
@@ -189,8 +213,9 @@ export class HomeAssistant {
     };
   }
   async locationEntity(entity: string, signal?: AbortSignal) {
-    if (!permitsLocationEntity(this.config, entity))
+    if (!/^(person|device_tracker|zone)\.[a-z0-9_]+$/.test(entity))
       throw new Error('Location entity is not permitted');
+    await this.assertExposed([entity], signal);
     const state = await this.request('states/' + encodeURIComponent(entity), undefined, signal);
     return {
       entity_id: state.entity_id,
@@ -206,13 +231,10 @@ export class HomeAssistant {
   }
   async distance(first: string, second: string, signal?: AbortSignal) {
     if (first === second) throw new Error('Choose two different people');
-    // Check both scopes before fetching either location.
     for (const entity of [first, second])
-      if (
-        !/^(person|device_tracker)\.[a-z0-9_]+$/.test(entity) ||
-        !permitsLocationEntity(this.config, entity)
-      )
+      if (!/^(person|device_tracker)\.[a-z0-9_]+$/.test(entity))
         throw new Error('Person entity is not permitted');
+    await this.assertExposed([first, second], signal);
     const [a, b] = await Promise.all([
       this.locationEntity(first, signal),
       this.locationEntity(second, signal),
@@ -220,21 +242,25 @@ export class HomeAssistant {
     return personDistance(a, b);
   }
   async sensors(search = '', signal?: AbortSignal) {
-    const states = await this.request('states', undefined, signal);
+    const states = await this.exposedStates(signal);
     return states.filter(
       (s: any) =>
-        this.permitted(s.entity_id) &&
+        /^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(s.entity_id) &&
         `${s.entity_id} ${s.attributes?.friendly_name || ''}`
           .toLowerCase()
           .includes(search.toLowerCase()),
     );
   }
   async sensor(entity: string, signal?: AbortSignal) {
-    if (!this.permitted(entity)) throw new Error('Sensor entity is not permitted');
+    if (!/^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(entity))
+      throw new Error('Sensor entity is not permitted');
+    await this.assertExposed([entity], signal);
     return this.request('states/' + encodeURIComponent(entity), undefined, signal);
   }
   async history(entity: string, start: string, end: string, signal?: AbortSignal) {
-    if (!this.permitted(entity)) throw new Error('Sensor entity is not permitted');
+    if (!/^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(entity))
+      throw new Error('Sensor entity is not permitted');
+    await this.assertExposed([entity], signal);
     const a = Date.parse(start),
       b = Date.parse(end);
     if (!Number.isFinite(a) || !Number.isFinite(b) || b < a || b - a > 7 * 86400_000)
@@ -253,6 +279,7 @@ export class HomeAssistant {
   }
   async shopping(signal?: AbortSignal) {
     const entity = this.config.shoppingListEntity;
+    await this.assertExposed([entity], signal);
     const result = await this.request(
       'services/todo/get_items?return_response',
       { entity_id: entity },
@@ -268,8 +295,10 @@ export class HomeAssistant {
     item: string,
     signal?: AbortSignal,
   ) {
+    await this.assertExposed([this.config.shoppingListEntity], signal, true);
     const before = await this.shopping(signal);
     if (operation === 'add') {
+      await this.assertExposed([this.config.shoppingListEntity], signal, true);
       await this.request(
         'services/todo/add_item',
         { entity_id: this.config.shoppingListEntity, item },
@@ -288,6 +317,7 @@ export class HomeAssistant {
     const uid = matches[0].uid;
     const service = operation === 'remove' ? 'remove_item' : 'update_item';
     const status = operation === 'complete' ? 'completed' : 'needs_action';
+    await this.assertExposed([this.config.shoppingListEntity], signal, true);
     await this.request(
       `services/todo/${service}`,
       {
@@ -303,10 +333,12 @@ export class HomeAssistant {
       throw new Error('Shopping-list update could not be verified; inspect before retrying');
     return after;
   }
+  async weatherSource(signal?: AbortSignal) {
+    return this.config.weatherEntity || dailyWeatherEntity(await this.exposedStates(signal));
+  }
   async forecast(signal?: AbortSignal, type: 'daily' | 'hourly' = 'daily') {
-    const entity =
-      this.config.weatherEntity ||
-      dailyWeatherEntity(await this.request('states', undefined, signal));
+    const entity = await this.weatherSource(signal);
+    await this.assertExposed([entity], signal);
     const result = await this.request(
       'services/weather/get_forecasts?return_response',
       { entity_id: entity, type },

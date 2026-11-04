@@ -133,19 +133,22 @@ test('existing wake-up entity moves to active profile preferences and shares dai
 
 test('native HA triggers authenticate, subscribe to the selected state and never replay startup or unavailable states', async () => {
   const sockets: any[] = [];
-  const adapter = new HomeAssistantMorningTriggers(() => {
-    const socket: any = {
-      sent: [] as string[],
-      close() {
-        this.closed = true;
-      },
-      send(data: string) {
-        this.sent.push(JSON.parse(data));
-      },
-    };
-    sockets.push(socket);
-    return socket;
-  });
+  const adapter = new HomeAssistantMorningTriggers(
+    () => {
+      const socket: any = {
+        sent: [] as string[],
+        close() {
+          this.closed = true;
+        },
+        send(data: string) {
+          this.sent.push(JSON.parse(data));
+        },
+      };
+      sockets.push(socket);
+      return socket;
+    },
+    async () => {},
+  );
   const f = await fixture();
   try {
     let wakes = 0;
@@ -189,6 +192,7 @@ test('native HA triggers authenticate, subscribe to the selected state and never
     send(event('on', 'input_boolean.other'));
     assert.equal(wakes, 0);
     send(event('on'));
+    await Promise.resolve();
     assert.equal(wakes, 1);
     socket.onclose();
     adapter.watch(
@@ -211,16 +215,19 @@ test('native HA triggers authenticate, subscribe to the selected state and never
 
 test('non-admin HA profiles use a single-entity subscription and ignore its initial snapshot', async () => {
   let socket: any;
-  const adapter = new HomeAssistantMorningTriggers(() => {
-    socket = {
-      sent: [] as any[],
-      send(data: string) {
-        this.sent.push(JSON.parse(data));
-      },
-      close() {},
-    };
-    return socket;
-  });
+  const adapter = new HomeAssistantMorningTriggers(
+    () => {
+      socket = {
+        sent: [] as any[],
+        send(data: string) {
+          this.sent.push(JSON.parse(data));
+        },
+        close() {},
+      };
+      return socket;
+    },
+    async () => {},
+  );
   const f = await fixture();
   try {
     let wakes = 0;
@@ -247,12 +254,15 @@ test('non-admin HA profiles use a single-entity subscription and ignore its init
       send({ type: 'event', id: 2, event: { c: { 'input_boolean.sleep': { '+': { s } } } } });
     state('on');
     state('off');
+    await Promise.resolve();
     assert.equal(wakes, 1);
     state('unavailable');
     state('off');
+    await Promise.resolve();
     assert.equal(wakes, 1);
     state('on');
     state('off');
+    await Promise.resolve();
     assert.equal(wakes, 2);
   } finally {
     adapter.close();

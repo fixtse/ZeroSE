@@ -89,7 +89,6 @@ export interface Profile {
     weatherEntity: string;
     locationEntity: string;
     geocodedLocationEntity: string;
-    sensorEntities: string[];
   };
 }
 export interface Credential {

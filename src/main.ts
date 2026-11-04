@@ -69,6 +69,7 @@ import { Store } from './adapters/outbound/postgres-store.js';
 import { Tools } from './application/tool-registry.js';
 import { Codex } from './adapters/outbound/codex-app-server.js';
 import { Google } from './adapters/outbound/google.js';
+import { HomeAssistantExposure } from './adapters/outbound/home-assistant-exposure.js';
 import { HomeAssistant } from './adapters/outbound/home-assistant.js';
 import { Memory } from './application/memory.js';
 import { HomeAssistantSpeech } from './adapters/outbound/home-assistant-speech.js';
@@ -136,6 +137,11 @@ function taskServices(value: Config) {
 
 process.umask(0o077);
 const databaseRuntime = await startDatabaseRuntime();
+const exposeLocationEntities = (
+  connection: Config['homeAssistant'],
+  entities: string[],
+  confirmed: boolean,
+) => new HomeAssistantExposure(connection).locations(entities, confirmed);
 const config = await loadRuntimeConfig();
 mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
 const store = await Store.open(
@@ -556,11 +562,12 @@ async function services(context: ToolContext) {
         }
       : undefined,
     profile?.kind === 'user'
-      ? (entity) =>
-          new PersonalLocation(accessRepository, config.homeAssistant).assign(
-            context.session,
-            entity,
-          )
+      ? (entity, confirmed) =>
+          new PersonalLocation(
+            accessRepository,
+            config.homeAssistant,
+            exposeLocationEntities,
+          ).assign(context.session, entity, confirmed)
       : undefined,
   );
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
@@ -847,9 +854,15 @@ const codex = new AIAgent(
         };
       }),
     ),
-    new GroupMembersAdmin(accessRepository, groupMembers),
+    new GroupMembersAdmin(
+      accessRepository,
+      groupMembers,
+      exposeLocationEntities,
+      (profile) => scopedConfig(config, profile).homeAssistant,
+    ),
     rules,
   )
+    .withLocationExposure(exposeLocationEntities)
     .withHomeAssistantConnection(homeAssistantConnection)
     .withHomeAssistantConnections(
       new HomeAssistantConnections(

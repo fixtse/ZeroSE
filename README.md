@@ -1043,7 +1043,7 @@ Connection and security settings use provider tabs. Profile settings are grouped
 
 Home Assistant is optional. Shared Home Assistant permissions are managed only in the Home Assistant integration; direct Google and Telegram connections remain available in the admin. Each profile may explicitly select Home Assistant to-do as its task provider and choose one `todo.*` entity (local lists, Google Tasks exposed by HA, or another to-do integration). The setup discovers lists on demand and requires confirmation before switching providers. Existing task tools keep their names, credentials are retained, and selecting a provider does not migrate tasks or silently fail over. HA voice requests do not require a Telegram bot token.
 
-Configure the shared Home Assistant access switch in **Zero Assistant → Configure**. Manage entity access in **Settings → Voice assistants → Expose**, selecting **Assist**. Zero uses Assist’s effective exposure settings directly, including default exposure and individual overrides; there is no separate service allowlist or Assist/Frigate service switch. Owner tools `ha_entities` and `ha_entity` discover and read exposed entities on demand. `ha_services` discovers entity actions, and `ha_service_call` checks current exposure and the connected HA user’s permissions immediately before dispatch. Use explicit entity IDs or an exposed named script; area/device/all targets and untargeted administrative services are rejected. Existing specialized profile tools retain their own configured scope. Upgrade the `assistant_zero` integration alongside the server; generic control fails closed if the exposure commands are unavailable.
+Configure the shared Home Assistant access switch in **Zero Assistant → Configure**. Manage entity access in **Settings → Voice assistants → Expose**, selecting **Assist**. Zero uses Assist’s effective exposure settings directly, including default exposure and individual overrides; there is no separate service allowlist or Assist/Frigate service switch. Owner tools `ha_entities` and `ha_entity` discover and read exposed entities on demand. `ha_services` discovers entity actions, and `ha_service_call` checks current exposure and the connected HA user’s permissions immediately before dispatch. Use explicit entity IDs or an exposed named script; area/device/all targets and untargeted administrative services are rejected. Sensor, history, location, distance, shopping, weather and HA to-do tools use this same Assist exposure policy. Profiles no longer have separate sensor/location permission lists; saved entity assignments identify a preferred source. When assigning a location or address not yet exposed, Zero asks for confirmation to add it to Assist for the whole HA instance; this requires an HA administrator. Existing exposed locations need no exposure change. Clearing an assignment never unexposes it globally. Retired list values remain private only to preserve scheduler identities. Alerts check exposure at installation and before delivery, and morning state triggers check before enqueueing a briefing. Upgrade the `assistant_zero` integration alongside the server; generic control fails closed if the exposure commands are unavailable.
 
 Telegram connection settings now live under **Asistentes**. Each assistant can have its own saved avatar; uploading/importing and saving an avatar does not modify Telegram. For assistants with a Telegram connection, the editor can explicitly fetch the configured bot’s current photo and separately publish the saved avatar after confirmation. Custom assistants without a bot connection keep a local avatar.
 
@@ -1225,9 +1225,12 @@ Creation, resume and restart establish a baseline; an alert requires a subsequen
 crossing. Pausing/cancelling/completing removes the listeners. Existing alert
 listing, holds, cooldowns and one-shot delivery rules apply. Recurring distance
 alerts default to a 100 m reset margin; zone alerts default to zero. Unknown or
-invalid locations break holds without rearming. Defaults reject HA location
-reports older than one hour and reported GPS accuracy worse than 200 m; callers
-can set `max_age_seconds`, `max_accuracy_m`, `hold_seconds` and `reset_margin_m`.
+invalid locations break holds without rearming. Distance alerts use last known
+coordinates regardless of report age, since stationary trackers may not update.
+Zone alerts default to rejecting reports older than one hour (`max_age_seconds`);
+this age setting is retained for compatibility but ignored for distance alerts.
+Both default to rejecting reported GPS accuracy worse than 200 m; callers can set
+`max_accuracy_m`, `hold_seconds` and `reset_margin_m`.
 HA report age cannot guarantee the underlying phone GPS fix is fresh. Phone
 background location updates determine detection latency and battery use.
 

@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { localClock } from '../src/domain/time.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -89,7 +90,7 @@ test('Home Assistant verifies shopping writes and rejects other domains and ambi
   f.config.homeAssistant.shoppingListEntity = 'todo.shopping_list';
   f.config.homeAssistant.url = `http://127.0.0.1:${(server.address() as any).port}`;
   try {
-    const ha = new HomeAssistant(f.config.homeAssistant);
+    const ha = new HomeAssistant(f.config.homeAssistant, assistExposureFixture());
     await assert.rejects(() => ha.changeShopping('complete', 'milk'), /unique item UID/);
     const after = await ha.changeShopping('complete', 'one');
     assert.equal(after[0].status, 'completed');

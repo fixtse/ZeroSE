@@ -5,6 +5,7 @@ import { AIAdmin, modelPermissionsSchema } from './ai-admin.js';
 import type { ProfileMemoryAdmin } from './profile-memory-admin.js';
 import type { UserContext } from '../../application/user-context.js';
 import { secretHint } from '../../application/secret-hint.js';
+import type { LocationExposure } from '../../application/location-exposure.js';
 import type { IncomingMessage } from 'node:http';
 import type { GroupMembersAdmin } from './group-members-admin.js';
 import { z } from 'zod';
@@ -84,7 +85,7 @@ const profileSchema = z.object({
   google: ConfigSchema.shape.google.unwrap().optional(),
   homeAssistant: ConfigSchema.shape.homeAssistant
     .unwrap()
-    .omit({ connections: true, activeConnectionId: true })
+    .omit({ connections: true, activeConnectionId: true, sensorEntities: true })
     .extend({
       voiceSatellite: ConfigSchema.shape.homeAssistant
         .unwrap()
@@ -101,6 +102,7 @@ const profileSchema = z.object({
     })
     .optional(),
   confirmTaskProviderChange: z.boolean().default(false),
+  confirmLocationExposure: z.boolean().default(false),
   clearGoogle: z.boolean().default(false),
   clearHomeAssistant: z.boolean().default(false),
   useConfiguredHomeAssistant: z.boolean().default(false),
@@ -172,11 +174,22 @@ function publicProfile(
         }
       : undefined,
     homeAssistant: homeAssistant
-      ? { ...homeAssistant, token: undefined, tokenHint: secretHint(homeAssistant.token) }
+      ? {
+          ...homeAssistant,
+          sensorEntities: undefined,
+          token: undefined,
+          tokenHint: secretHint(homeAssistant.token),
+        }
       : undefined,
   };
 }
 export class Admin {
+  private exposeLocations?: LocationExposure;
+  withLocationExposure(expose: LocationExposure) {
+    this.exposeLocations = expose;
+    return this;
+  }
+
   private googleDestinationSettings?: GoogleDestinations;
   withGoogleDestinations(settings: GoogleDestinations) {
     this.googleDestinationSettings = settings;
@@ -498,6 +511,7 @@ export class Admin {
       const query = z
         .object({
           search: z.string().max(200).default(''),
+          purpose: z.literal('location-assignment').optional(),
           domains: z
             .string()
             .regex(/^[a-z_]+(?:,[a-z_]+)*$/)
@@ -896,18 +910,35 @@ export class Admin {
         if (
           input.notifications?.morning.mode === 'entity' &&
           (!profile.capabilities.includes('homeAssistant') ||
-            !scopedConfig(this.config, profile).homeAssistant.token ||
-            (/^(sensor|binary_sensor)\./.test(input.notifications.morning.entity) &&
-              scopedConfig(this.config, profile).homeAssistant.sensorEntities.length > 0 &&
-              !scopedConfig(this.config, profile).homeAssistant.sensorEntities.includes(
-                input.notifications.morning.entity,
-              )))
+            !scopedConfig(this.config, profile).homeAssistant.token)
         ) {
           send(400, {
             error:
               'Configura Home Assistant y permite la entidad seleccionada antes de usarla para el resumen.',
           });
           return true;
+        }
+        const changedLocations = [
+          profile.homeAssistant?.locationEntity,
+          profile.homeAssistant?.geocodedLocationEntity,
+        ].filter((entity): entity is string => !!entity);
+        if (
+          input.homeAssistant &&
+          profile.enabled &&
+          profile.capabilities.includes('homeAssistant') &&
+          !input.clearHomeAssistant &&
+          changedLocations.length &&
+          this.exposeLocations
+        ) {
+          const exposure = await this.exposeLocations(
+            scopedConfig(this.config, profile).homeAssistant,
+            changedLocations,
+            input.confirmLocationExposure,
+          );
+          if (exposure.confirmationRequired?.length) {
+            send(200, { saved: false, confirmationRequired: exposure.confirmationRequired });
+            return true;
+          }
         }
         await this.repository.saveProfile(profile);
         if (this.commands && !chatId.startsWith('ha:') && (profile.enabled || previous?.enabled)) {

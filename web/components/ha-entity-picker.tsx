@@ -18,6 +18,7 @@ export function HAEntityPicker({
   onChange,
   onSelect,
   pattern,
+  assignment = false,
 }: {
   profile: Profile;
   id: string;
@@ -29,6 +30,7 @@ export function HAEntityPicker({
   onChange?: (value: string) => void;
   onSelect?: (value: string) => void;
   pattern?: string;
+  assignment?: boolean;
 }) {
   const [local, setLocal] = useState(defaultValue);
   const [inputId, setInputId] = useState(id);
@@ -54,7 +56,13 @@ export function HAEntityPicker({
           '/' +
           encodeURIComponent(profile.chatId) +
           '/entities?' +
-          new URLSearchParams({ search: query, domains, offset: String(offset), limit: '20' }),
+          new URLSearchParams({
+            search: query,
+            domains,
+            offset: String(offset),
+            limit: '20',
+            ...(assignment ? { purpose: 'location-assignment' } : {}),
+          }),
         'GET',
         undefined,
         controller.signal,
@@ -76,7 +84,7 @@ export function HAEntityPicker({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [open, query, offset, domains, profile.bot, profile.chatId]);
+  }, [open, query, offset, domains, profile.bot, profile.chatId, assignment]);
   return (
     <div className="ha-entity-picker">
       <Label htmlFor={inputId}>{label}</Label>

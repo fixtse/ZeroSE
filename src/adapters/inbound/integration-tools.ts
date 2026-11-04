@@ -227,17 +227,21 @@ export function registerHomeAssistantTools(
     list(search: string, offset: number, limit: number): Promise<unknown>;
     location(userId: string, signal: AbortSignal): Promise<unknown>;
   },
-  setPerson?: (entity: string) => Promise<unknown>,
+  setPerson?: (entity: string, confirmed?: boolean) => Promise<unknown>,
 ) {
   if (!config.token) return;
   if (setPerson && !group)
     tools.add(
       'location_set_person',
-      'Save the own person or device_tracker GPS entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). Use only when the user explicitly wants to set or change their own entity. If their profile already has a location, use it automatically for "me"; do not ask them to declare or confirm it. Never use this to assign another person or infer an identity from an alert target.',
-      z.object({ entity_id: z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/) }),
+      'Save the own person or device_tracker GPS entity explicitly declared by the user in this private chat (for example "my entity is person.sergio"). Use only when the user explicitly wants to set or change their own entity. If their profile already has a location, use it automatically for "me"; do not ask them to declare or confirm it. If not yet exposed to Assist, this returns confirmationRequired without saving. Explain that exposing makes it available to Assist across the HA instance, and call again with confirm_exposure=true only after the user agrees. Never automatically retry an uncertain result. Never use this to assign another person or infer an identity from an alert target.',
+      z.object({
+        entity_id: z.string().regex(/^(person|device_tracker)\.[a-z0-9_]+$/),
+        confirm_exposure: z.boolean().default(false),
+      }),
       async (a) => {
-        const result = await setPerson(a.entity_id);
-        config.locationEntity = a.entity_id;
+        const result = await setPerson(a.entity_id, a.confirm_exposure);
+        if (!(result && typeof result === 'object' && 'confirmationRequired' in result))
+          config.locationEntity = a.entity_id;
         return result;
       },
     );

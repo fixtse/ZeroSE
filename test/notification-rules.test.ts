@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -318,12 +319,15 @@ test('scheduler adapter sends only rule configuration, with configured weather e
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   try {
-    const scheduler = new HomeAssistantRuleScheduler({
-      ...f.config.homeAssistant,
-      token: 'test',
-      url: `http://127.0.0.1:${(server.address() as any).port}`,
-      weatherEntity: 'weather.home',
-    });
+    const scheduler = new HomeAssistantRuleScheduler(
+      {
+        ...f.config.homeAssistant,
+        token: 'test',
+        url: `http://127.0.0.1:${(server.address() as any).port}`,
+        weatherEntity: 'weather.home',
+      },
+      assistExposureFixture(),
+    );
     await scheduler.ready();
     const rule = {
       ...value({
@@ -340,18 +344,21 @@ test('scheduler adapter sends only rule configuration, with configured weather e
     assert.equal(requests[1].body.session, undefined);
     assert.equal(requests[1].body.message, undefined);
     assert.equal(requests[1].body.callback_url, undefined);
-    const restricted = new HomeAssistantRuleScheduler({
-      ...f.config.homeAssistant,
-      token: 'test',
-      url: `http://127.0.0.1:${(server.address() as any).port}`,
-      sensorEntities: ['sensor.allowed'],
-    });
+    const restricted = new HomeAssistantRuleScheduler(
+      {
+        ...f.config.homeAssistant,
+        token: 'test',
+        url: `http://127.0.0.1:${(server.address() as any).port}`,
+        sensorEntities: ['sensor.allowed'],
+      },
+      assistExposureFixture(['sensor.allowed']),
+    );
     await assert.rejects(
       restricted.configure({
         ...rule,
         condition: { entity_id: 'sensor.forbidden', operator: 'above', value: 10, hold_seconds: 0 },
       }),
-      /no longer permitted/,
+      /not permitted/,
     );
     assert.equal(requests.length, 2);
     const locationRule: NotificationRule = {
@@ -368,13 +375,16 @@ test('scheduler adapter sends only rule configuration, with configured weather e
         max_accuracy_m: 200,
       },
     };
-    await assert.rejects(restricted.configure(locationRule), /no longer permitted/);
-    const locations = new HomeAssistantRuleScheduler({
-      ...f.config.homeAssistant,
-      token: 'test',
-      url: `http://127.0.0.1:${(server.address() as any).port}`,
-      sensorEntities: ['person.a', 'person.b', 'zone.office'],
-    });
+    await assert.rejects(restricted.configure(locationRule), /not permitted/);
+    const locations = new HomeAssistantRuleScheduler(
+      {
+        ...f.config.homeAssistant,
+        token: 'test',
+        url: `http://127.0.0.1:${(server.address() as any).port}`,
+        sensorEntities: ['person.a', 'person.b', 'zone.office'],
+      },
+      assistExposureFixture(),
+    );
     await locations.configure(locationRule);
     const configuredLocation = requests.at(-1);
     assert.ok(configuredLocation);
@@ -580,12 +590,15 @@ test('weather discovery chooses the sole daily source and rejects ambiguity befo
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   try {
-    const scheduler = new HomeAssistantRuleScheduler({
-      ...f.config.homeAssistant,
-      token: 'test',
-      url: `http://127.0.0.1:${(server.address() as any).port}`,
-      weatherEntity: '',
-    });
+    const scheduler = new HomeAssistantRuleScheduler(
+      {
+        ...f.config.homeAssistant,
+        token: 'test',
+        url: `http://127.0.0.1:${(server.address() as any).port}`,
+        weatherEntity: '',
+      },
+      assistExposureFixture(),
+    );
     const rule = {
       ...value({
         kind: 'alert',
@@ -1003,13 +1016,16 @@ test('tracker alerts require the integration capability and older integrations s
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   try {
-    const scheduler = new HomeAssistantRuleScheduler({
-      ...f.config.homeAssistant,
-      url: `http://127.0.0.1:${(server.address() as any).port}`,
-      token: 'test',
-      locationEntity: 'device_tracker.sergio',
-      sensorEntities: ['person.edson'],
-    });
+    const scheduler = new HomeAssistantRuleScheduler(
+      {
+        ...f.config.homeAssistant,
+        url: `http://127.0.0.1:${(server.address() as any).port}`,
+        token: 'test',
+        locationEntity: 'device_tracker.sergio',
+        sensorEntities: ['person.edson'],
+      },
+      assistExposureFixture(),
+    );
     const rule = {
       ...value({
         kind: 'alert',

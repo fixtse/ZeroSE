@@ -28,6 +28,7 @@ class WeatherSubscriptionsTests(unittest.IsolatedAsyncioTestCase):
         manager = Manager.__new__(Manager)
         manager.hass = SimpleNamespace(data={'weather': SimpleNamespace(get_entity=lambda _: entity)}, states=SimpleNamespace(get=lambda _: SimpleNamespace(attributes={'temperature_unit': '°C'})))
         manager.engine = SimpleNamespace(weather=AsyncMock(), rules={})
+        manager.authorized = AsyncMock(return_value=True)
         manager.listeners = {}
         manager.task = lambda coro: tasks.append(coro)
         return manager, callbacks, removed, tasks

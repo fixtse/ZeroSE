@@ -1,3 +1,4 @@
+import { assistExposureFixture } from './assist-exposure-fixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { IncomingMessage } from 'node:http';
@@ -229,6 +230,7 @@ test('groups explicitly reuse configured HA credentials with their own location 
   assert.deepEqual(f.profile.homeAssistant?.sensorEntities, []);
   const result = await request(admin, 'helper/-123');
   assert.equal(result.value.hasHomeAssistant, true);
+  assert.equal(result.value.homeAssistant.sensorEntities, undefined);
   assert(!JSON.stringify(result.value).includes(shared.token));
   assert.equal(shared.locationEntity, 'person.owner');
   assert.equal(
@@ -337,7 +339,7 @@ test('entity catalogs filter domains before pagination', async (t) => {
   const config = ConfigSchema.parse({
     homeAssistant: { url: 'https://ha.example', token: 'test-only' },
   });
-  const page = await new HomeAssistant(config.homeAssistant).entityCatalog(
+  const page = await new HomeAssistant(config.homeAssistant, assistExposureFixture()).entityCatalog(
     { search: '', domains: 'person,device_tracker', offset: 1, limit: 1 },
     AbortSignal.timeout(1000),
   );
@@ -367,7 +369,7 @@ test('admin entity prefix search returns every matching domain across bounded pa
     undefined,
     undefined,
     (config) => {
-      const ha = new HomeAssistant(config.homeAssistant);
+      const ha = new HomeAssistant(config.homeAssistant, assistExposureFixture());
       return {
         entities: (query, signal) => ha.entityCatalog(query, signal),
         services: async () => ({ items: [], total: 0 }),
@@ -596,4 +598,35 @@ test('uncertain scheduler permits explicit deletion but blocks other changes', a
     assert.match(cancelled.value.warning, /Cambio guardado/);
   }
   assert.deepEqual(calls, ['cancel', 'cancel']);
+});
+
+test('profile location assignment waits for explicit global Assist exposure confirmation', async () => {
+  const f = setup();
+  f.profile.homeAssistant!.sensorEntities = ['sensor.retired'];
+  const confirmations: boolean[] = [];
+  const admin = new Admin(f.config, f.repository, async () => {}).withLocationExposure(
+    async (_connection, ids, confirmed) => {
+      confirmations.push(confirmed);
+      return confirmed ? { exposed: ids } : { confirmationRequired: ids };
+    },
+  );
+  const input = {
+    kind: 'user',
+    label: 'Test',
+    enabled: true,
+    capabilities: ['homeAssistant'],
+    homeAssistant: { locationEntity: 'person.ana', geocodedLocationEntity: 'sensor.ana_address' },
+  };
+  const pending = await request(admin, 'helper/123', 'PUT', input);
+  assert.deepEqual(pending.value.confirmationRequired, ['person.ana', 'sensor.ana_address']);
+  assert.equal(f.profile.homeAssistant?.locationEntity, '');
+  assert.equal(
+    (await request(admin, 'helper/123', 'PUT', { ...input, confirmLocationExposure: true })).status,
+    200,
+  );
+  assert.deepEqual(confirmations, [false, true]);
+  assert.equal(f.profile.homeAssistant?.locationEntity, 'person.ana');
+  assert.deepEqual(f.profile.homeAssistant?.sensorEntities, ['sensor.retired']);
+  const visible = await request(admin, 'helper/123');
+  assert.equal(visible.value.homeAssistant.sensorEntities, undefined);
 });
