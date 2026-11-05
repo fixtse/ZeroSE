@@ -394,6 +394,10 @@ export class Codex {
     };
     context.signal.addEventListener('abort', onAbort, { once: true });
     try {
+      if (context.deadlineAt) {
+        const seconds = Math.max(0, Math.floor((context.deadlineAt - Date.now()) / 1000));
+        prompt += `\n\nExecution budget: ${seconds} seconds remain for this turn, including tools and delivery. For large research/document tasks, use at most half for initial research, then save a clearly labeled first pass with available results and unresolved items before optional refinements. Finish within the budget; never replay uncertain mutations.`;
+      }
       const response = await this.request('turn/start', {
         threadId: thread,
         input: [

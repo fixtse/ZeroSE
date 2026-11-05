@@ -118,6 +118,7 @@ export class Assistant {
     const context: ToolContext = {
       session: job.session,
       jobId: job.id,
+      deadlineAt: Date.now() + this.config.codex.timeoutMs,
       signal: controller.signal,
       ...(job.payload.source === 'home_assistant_voice'
         ? { source: 'home_assistant_voice' as const }

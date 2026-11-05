@@ -14,6 +14,7 @@ export interface GeneratedImage {
 export interface ToolContext {
   session: string;
   jobId: string;
+  deadlineAt?: number;
   signal: AbortSignal;
   capabilities?: string[];
   memoryMode?: MemoryMode;

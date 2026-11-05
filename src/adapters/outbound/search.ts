@@ -2,9 +2,10 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { Tools, text } from '../../application/tool-registry.js';
 import { jsonPage } from '../../application/context-budget.js';
-import { jsonRequest, boundedBody, RemoteError } from './http.js';
+import { boundedBody, RemoteError } from './http.js';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { setTimeout as delay } from 'node:timers/promises';
 
 // Retain bounded, turn-scoped snapshots so fragment reads do not repeat paid searches.
 const webPages = new Map<string, { expires: number; value: unknown }>();
@@ -65,6 +66,9 @@ export function registerSearch(
   reader = { url: 'https://r.jina.ai/', apiKey: '' },
 ) {
   if (key) {
+    let imageQueue: Promise<unknown> = Promise.resolve();
+    let nextImageRequest = 0;
+    const imagePages = new Map<string, { expires: number; value: unknown }>();
     tools.add(
       'web_search',
       'Search public web pages with Brave. Returns titles, URLs and excerpts; use url_read for full pages. Continue with next_page, or result_offset for fragments of the same page.',
@@ -124,26 +128,50 @@ export function registerSearch(
     );
     tools.add(
       'image_search',
-      'Find image URLs using Brave Image Search. When the user asks for images, search each requested item and include at least one relevant direct image URL per item in the reply. Large results return JSON fragments; continue with result_offset=next_offset.',
+      'Find candidate image URLs with Brave; results do not verify transparency or exact model. Search each requested item once before refining. For large document tasks, save a first pass with document_create before optional refinements; mark unresolved matches. Fragments use the same query and result_offset=next_offset without another search.',
       z.object({ query: text, result_offset: z.number().int().min(0).default(0) }),
       async (a, c) => {
-        const result = await jsonRequest(
-          'https://api.search.brave.com/res/v1/images/search?' +
-            new URLSearchParams({ q: a.query, count: '5' }),
-          {
-            headers: { 'X-Subscription-Token': key, Accept: 'application/json' },
-            signal: c.signal,
-          },
-          'Brave Search',
-        );
-        return jsonPage(
-          result.results?.map((r: any) => ({
+        const cacheKey = createHash('sha256')
+          .update(JSON.stringify([c.session, c.jobId, a.query]))
+          .digest('hex');
+        for (const [id, cached] of imagePages)
+          if (cached.expires <= Date.now()) imagePages.delete(id);
+        const read = () => {
+          const cached = imagePages.get(cacheKey);
+          if (!cached) throw new Error('Image search page expired. Restart with result_offset=0.');
+          return jsonPage(cached.value, a.result_offset);
+        };
+        if (a.result_offset || imagePages.has(cacheKey)) return read();
+        const pending = imageQueue.then(async () => {
+          c.signal.throwIfAborted();
+          if (imagePages.has(cacheKey)) return read();
+          // Space request starts even when callers issue a batch concurrently.
+          const wait = nextImageRequest - Date.now();
+          if (wait > 0) await delay(wait, undefined, { signal: c.signal });
+          c.signal.throwIfAborted();
+          nextImageRequest = Date.now() + 1100;
+          const response = await fetch(
+            'https://api.search.brave.com/res/v1/images/search?' +
+              new URLSearchParams({ q: a.query, count: '5' }),
+            {
+              headers: { 'X-Subscription-Token': key, Accept: 'application/json' },
+              redirect: 'error',
+              signal: AbortSignal.any([c.signal, AbortSignal.timeout(15_000)]),
+            },
+          );
+          if (!response.ok) throw new RemoteError('Brave Image Search', response.status);
+          const result = JSON.parse((await boundedBody(response, 1_000_000)).toString('utf8'));
+          const value = (result.results || []).slice(0, 5).map((r: any) => ({
             title: r.title,
             url: r.properties?.url,
             source: r.url,
-          })),
-          a.result_offset,
-        );
+          }));
+          if (imagePages.size >= 128) imagePages.delete(imagePages.keys().next().value!);
+          imagePages.set(cacheKey, { expires: Date.now() + 900_000, value });
+          return read();
+        });
+        imageQueue = pending.catch(() => {});
+        return pending;
       },
     );
   }

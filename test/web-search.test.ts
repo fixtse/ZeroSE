@@ -214,3 +214,80 @@ test('oversized Brave responses are rejected by the download limit', async (t) =
     /size limit/,
   );
 });
+
+test('image search spaces concurrent requests and reuses scoped results without paid fragment reads', async (t) => {
+  const starts: number[] = [];
+  t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => {
+    starts.push(Date.now());
+    assert(init?.signal);
+    return Response.json({
+      results: [
+        {
+          title: 'Device',
+          properties: { url: 'https://example.com/device.png' },
+          url: 'https://example.com/device',
+        },
+      ],
+    });
+  });
+  const tools = toolsFor('gpt-4.1');
+  const current = context('image-cache');
+  const args = { query: 'exact device model' };
+  const [first, duplicate] = await Promise.all([
+    tools.call('image_search', args, current),
+    tools.call('image_search', args, current),
+    tools.call('image_search', { query: 'another device' }, current),
+  ]);
+  assert.deepEqual(duplicate, first);
+  assert.equal(starts.length, 2);
+  assert(starts[1] - starts[0] >= 1000);
+  await tools.call('image_search', args, current);
+  assert.equal(starts.length, 2);
+  await assert.rejects(
+    tools.call('image_search', { ...args, result_offset: 1 }, context('other-image-job')),
+    /Image search page expired/,
+  );
+  assert.equal(starts.length, 2);
+});
+
+test('aborted queued image searches do not reach Brave or poison the queue', async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests++;
+    return Response.json({ results: [] });
+  });
+  const tools = toolsFor('gpt-4.1');
+  await tools.call('image_search', { query: 'first' }, context('image-abort'));
+  const controller = new AbortController();
+  const pending = tools.call(
+    'image_search',
+    { query: 'cancelled' },
+    { ...context('image-abort'), signal: controller.signal },
+  );
+  controller.abort();
+  await assert.rejects(pending);
+  assert.equal(requests, 1);
+  await tools.call('image_search', { query: 'next' }, context('image-abort'));
+  assert.equal(requests, 2);
+});
+
+test('image search rejects oversized responses and never retries provider failures', async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests++;
+    return requests === 1
+      ? new Response('', { status: 429 })
+      : new Response('{}', { headers: { 'Content-Length': '1000001' } });
+  });
+  const tools = toolsFor('gpt-4.1');
+  await assert.rejects(
+    tools.call('image_search', { query: 'limited' }, context('image-failure')),
+    /Brave Image Search returned HTTP 429/,
+  );
+  assert.equal(requests, 1);
+  await assert.rejects(
+    tools.call('image_search', { query: 'oversized' }, context('image-failure')),
+    /size limit/,
+  );
+  assert.equal(requests, 2);
+});
