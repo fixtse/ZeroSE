@@ -4,6 +4,7 @@ import { ProfileNotifications } from './profile-notifications';
 import { HAConnectionPicker, type HAConnectionChoice } from './ha-connection-picker';
 import { SecretEditor } from './secret-editor';
 import { Badge } from './ui/badge';
+import { Switch } from './ui/switch';
 import { HAEntityPicker } from './ha-entity-picker';
 import { TimezoneOptions } from './timezone-options';
 import { notifyWarning } from '../lib/notifications';
@@ -86,6 +87,8 @@ export function ProfileEditor({
   onCreated: (profile: Profile) => void;
 }) {
   const t = useTranslations();
+  const [approved, setApproved] = useState(!!profile?.enabled);
+  const [confirmApproval, setConfirmApproval] = useState(false);
   const confirmedNotifications = useRef(false);
   const confirmedLocations = useRef(false);
   const [confirmLocations, setConfirmLocations] = useState<string[]>();
@@ -123,6 +126,7 @@ export function ProfileEditor({
     if (!current) return;
     const result = await api<Profile>(path(current));
     setCurrent(result);
+    setApproved(result.enabled);
     setClearHAConnection(false);
     setTasksEnabled(result.capabilities.includes('tasks'));
     setSpeech(result.speech || defaultSpeech);
@@ -179,7 +183,7 @@ export function ProfileEditor({
       const value: Record<string, unknown> = {
         kind: current?.kind || data.get('kind'),
         label: String(data.get('label') || '').trim(),
-        enabled: data.has('enabled'),
+        enabled: approved,
         voiceReplies: data.has('voiceReplies'),
         ...(kind === 'group' ? { respondToReplies: data.has('respondToReplies') } : {}),
         timezone: String(data.get('timezone') || '').trim(),
@@ -267,6 +271,7 @@ export function ProfileEditor({
       }
       const saved = await api<Profile>(path({ bot, chatId }));
       setCurrent(saved);
+      setApproved(saved.enabled);
       setClearHAConnection(false);
 
       setTasksEnabled(saved.capabilities.includes('tasks'));
@@ -369,6 +374,28 @@ export function ProfileEditor({
             </div>
             <DialogDescription>{t('Permisos y conexiones de este perfil.')}</DialogDescription>
           </DialogHeader>
+          <AlertDialog open={confirmApproval} onOpenChange={setConfirmApproval}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t(approved ? '¿Marcar como pendiente?' : '¿Activar perfil?')}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t(
+                    approved
+                      ? 'Al guardar, Zero dejará de responder a este perfil. Para rechazarlo, elimina el perfil.'
+                      : 'Al guardar, Zero podrá responder a este perfil con los permisos seleccionados.',
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => setApproved(!approved)}>
+                  {t(approved ? 'Marcar como pendiente' : 'Activar perfil')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <form id="profile-settings-form" key={version} onSubmit={save} noValidate>
             <fieldset disabled={busy}>
               <Tabs value={provider} onValueChange={setProvider} className="provider-settings">
@@ -448,10 +475,26 @@ export function ProfileEditor({
                     </div>
                   )}
                   {current ? (
-                    <p className="settings-help">
-                      {current.source === 'home_assistant' ? 'Home Assistant user ID' : 'Chat ID'}:{' '}
-                      {current.chatId}
-                    </p>
+                    <div className="profile-identity-status">
+                      <p className="settings-help">
+                        {current.source === 'home_assistant' ? 'Home Assistant user ID' : 'Chat ID'}
+                        : {current.chatId}
+                      </p>
+                      <div className="profile-approval" data-approved={approved}>
+                        <span id="profile-status-label">{t('Estado del perfil')}</span>
+                        <div className="profile-approval-control">
+                          <span>{t('Pendiente')}</span>
+                          <Switch
+                            id="profile-approved"
+                            aria-labelledby="profile-status-label"
+                            checked={approved}
+                            onCheckedChange={() => setConfirmApproval(true)}
+                          />
+                          <span>{t('Activo')}</span>
+                        </div>
+                        <small>{t('Se aplica al guardar el perfil.')}</small>
+                      </div>
+                    </div>
                   ) : (
                     <Field
                       id="profile-chat-id"
@@ -491,12 +534,19 @@ export function ProfileEditor({
                       )}
                     </p>
                   </div>
-                  <CheckField
-                    id="profile-enabled"
-                    name="enabled"
-                    label={t('Permitir respuestas en este chat')}
-                    defaultChecked={!!current?.enabled}
-                  />
+                  {!current && (
+                    <div className="profile-new-status">
+                      <Switch
+                        id="profile-approved"
+                        checked={approved}
+                        onCheckedChange={() => setConfirmApproval(true)}
+                        aria-label={t('Activar perfil')}
+                      />
+                      <label htmlFor="profile-approved">
+                        {approved ? t('Activo') : t('Pendiente')}
+                      </label>
+                    </div>
+                  )}
                   <CheckField
                     id="profile-voice-replies"
                     name="voiceReplies"
@@ -818,7 +868,7 @@ export function ProfileEditor({
                       className="danger"
                       disabled={busy}
                       size="icon"
-                      tooltip={t('Eliminar perfil')}
+                      tooltip={t(current.enabled ? 'Eliminar perfil' : 'Rechazar perfil')}
                     >
                       <Trash2 />
                     </Button>
@@ -826,7 +876,7 @@ export function ProfileEditor({
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
-                        {t('¿Eliminar')} {current.label}?
+                        {t(current.enabled ? '¿Eliminar' : '¿Rechazar y eliminar')} {current.label}?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
                         {t('Se quitarán el acceso y las credenciales de')} {current.bot} ·{' '}
@@ -851,7 +901,7 @@ export function ProfileEditor({
                           })
                         }
                       >
-                        {t('Eliminar perfil')}
+                        {t(current.enabled ? 'Eliminar perfil' : 'Rechazar perfil')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

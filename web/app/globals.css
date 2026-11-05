@@ -3188,3 +3188,50 @@ h1 {
 .profile-editor .profile-reply-language {
   padding-top: 16px;
 }
+
+.profile-identity-status {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.profile-identity-status > .settings-help {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.profile-approval {
+  justify-self: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.profile-approval-control,
+.profile-new-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+.profile-approval-control > span {
+  transition: color 160ms ease;
+}
+.profile-approval[data-approved='false'] .profile-approval-control > span:first-child,
+.profile-approval[data-approved='true'] .profile-approval-control > span:last-child {
+  color: var(--primary);
+  font-weight: 600;
+}
+.profile-approval small {
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .profile-identity-status {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-approval-control > span {
+    transition: none;
+  }
+}
