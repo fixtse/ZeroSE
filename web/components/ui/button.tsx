@@ -5,6 +5,7 @@ import { Tooltip as TooltipPrimitive } from 'radix-ui';
 import { Slot } from 'radix-ui';
 import type * as React from 'react';
 
+import { interactionTransition } from '../../lib/motion';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
@@ -85,11 +86,14 @@ function ButtonControl({
 const MotionButton = motion.create(ButtonControl);
 function Button(props: React.ComponentProps<typeof ButtonControl>) {
   const reducedMotion = useReducedMotion();
+  const isIcon = props.size?.startsWith('icon');
+  const canAnimate = !props.disabled && !reducedMotion;
   return (
     <MotionButton
       {...(props as React.ComponentProps<typeof MotionButton>)}
-      whileTap={props.disabled || reducedMotion ? undefined : { scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 600, damping: 35 }}
+      whileHover={canAnimate ? { scale: isIcon ? 1.05 : 1.02 } : undefined}
+      whileTap={canAnimate ? { scale: isIcon ? 0.95 : 0.98 } : undefined}
+      transition={interactionTransition}
     />
   );
 }

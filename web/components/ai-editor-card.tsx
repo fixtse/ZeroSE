@@ -1,8 +1,12 @@
 'use client';
+import { motion, useReducedMotion } from 'framer-motion';
+import { contentHidden, contentReveal, contentTransition } from '../lib/motion';
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
+
+const MotionCollapsibleContent = motion.create(CollapsibleContent);
 
 export function AIEditorCard({
   id,
@@ -25,6 +29,7 @@ export function AIEditorCard({
   children: ReactNode;
   actions?: ReactNode;
 }) {
+  const reducedMotion = useReducedMotion();
   return (
     <Collapsible
       open={open}
@@ -46,9 +51,16 @@ export function AIEditorCard({
         </CollapsibleTrigger>
         <div className="action-group">{actions}</div>
       </div>
-      <CollapsibleContent forceMount hidden={!open} className="ai-editor-body">
+      <MotionCollapsibleContent
+        forceMount
+        hidden={!open}
+        className="ai-editor-body"
+        initial={false}
+        animate={open ? contentReveal : { ...contentHidden, y: reducedMotion ? 0 : 10 }}
+        transition={reducedMotion ? { duration: 0 } : contentTransition}
+      >
         {children}
-      </CollapsibleContent>
+      </MotionCollapsibleContent>
     </Collapsible>
   );
 }

@@ -6,6 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { Tabs as TabsPrimitive } from 'radix-ui';
 import type * as React from 'react';
 
+import { contentHidden, contentReveal, contentTransition } from '../../lib/motion';
 import { cn } from '../../lib/utils';
 
 const ActiveTab = createContext<string | undefined>(undefined);
@@ -93,8 +94,10 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
       data-slot="tabs-content"
       {...(props as React.ComponentProps<typeof MotionTabsContent>)}
       initial={false}
-      animate={{ opacity: activeTab === props.value ? 1 : 0 }}
-      transition={{ duration: reducedMotion ? 0 : 0.16 }}
+      animate={
+        activeTab === props.value ? contentReveal : { ...contentHidden, y: reducedMotion ? 0 : 10 }
+      }
+      transition={reducedMotion ? { duration: 0 } : contentTransition}
     />
   );
 }

@@ -1,4 +1,5 @@
 'use client';
+import { MotionContent } from '../components/motion-content';
 import { LanguageSelector } from '../components/language-selector';
 import { useTranslations } from '../i18n/provider';
 import { PairingProfilePicker, type PairingTarget } from '../components/pairing-profile-picker';
@@ -249,7 +250,7 @@ export default function Home() {
             </Button>
           )}
         </header>
-        <div className="content">
+        <MotionContent className="content" view={tab}>
           {checking ? (
             <p>{t('Cargando tu espacio…')}</p>
           ) : setupRequired ? (
@@ -765,7 +766,7 @@ export default function Home() {
           <footer>
             ZERO ASSISTANT <span>{t('Hecho para tu día a día.')}</span>
           </footer>
-        </div>
+        </MotionContent>
       </main>
     </div>
   );
