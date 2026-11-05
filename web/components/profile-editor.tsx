@@ -894,7 +894,8 @@ export function ProfileEditor({
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
-                        {t(current.approved ? '¿Eliminar' : '¿Rechazar y eliminar')} {current.label}?
+                        {t(current.approved ? '¿Eliminar' : '¿Rechazar y eliminar')} {current.label}
+                        ?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
                         {t('Se quitarán el acceso y las credenciales de')} {current.bot} ·{' '}

@@ -148,12 +148,8 @@
           "name": "access_profiles_assistant_id_fkey",
           "tableFrom": "access_profiles",
           "tableTo": "assistant_definitions",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -161,10 +157,7 @@
       "compositePrimaryKeys": {
         "access_profiles_pkey": {
           "name": "access_profiles_pkey",
-          "columns": [
-            "bot",
-            "chat_id"
-          ]
+          "columns": ["bot", "chat_id"]
         }
       },
       "uniqueConstraints": {},
@@ -329,12 +322,8 @@
           "name": "assistant_images_assistant_id_fkey",
           "tableFrom": "assistant_images",
           "tableTo": "assistant_definitions",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assistant_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -510,10 +499,7 @@
         "deployment_runs_run_id_attempt_key": {
           "name": "deployment_runs_run_id_attempt_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "run_id",
-            "attempt"
-          ]
+          "columns": ["run_id", "attempt"]
         }
       },
       "policies": {},
@@ -595,14 +581,8 @@
           "name": "group_members_profile_fkey",
           "tableFrom": "group_members",
           "tableTo": "access_profiles",
-          "columnsFrom": [
-            "bot",
-            "chat_id"
-          ],
-          "columnsTo": [
-            "bot",
-            "chat_id"
-          ],
+          "columnsFrom": ["bot", "chat_id"],
+          "columnsTo": ["bot", "chat_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -610,11 +590,7 @@
       "compositePrimaryKeys": {
         "group_members_pkey": {
           "name": "group_members_pkey",
-          "columns": [
-            "bot",
-            "chat_id",
-            "user_id"
-          ]
+          "columns": ["bot", "chat_id", "user_id"]
         }
       },
       "uniqueConstraints": {},
@@ -678,9 +654,7 @@
         "integration_credentials_digest_key": {
           "name": "integration_credentials_digest_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "digest"
-          ]
+          "columns": ["digest"]
         }
       },
       "policies": {},
@@ -799,16 +773,12 @@
         "jobs_sequence_key": {
           "name": "jobs_sequence_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "sequence"
-          ]
+          "columns": ["sequence"]
         },
         "jobs_dedupe_key": {
           "name": "jobs_dedupe_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "dedupe"
-          ]
+          "columns": ["dedupe"]
         }
       },
       "policies": {},
@@ -1010,12 +980,8 @@
           "name": "zero_mem0_records_superseded_by_fkey",
           "tableFrom": "zero_mem0_records",
           "tableTo": "zero_mem0_records",
-          "columnsFrom": [
-            "superseded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["superseded_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1025,9 +991,7 @@
         "zero_mem0_records_mem0_id_key": {
           "name": "zero_mem0_records_mem0_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "mem0_id"
-          ]
+          "columns": ["mem0_id"]
         }
       },
       "policies": {},
@@ -1230,12 +1194,8 @@
           "name": "memories_superseded_by_fkey",
           "tableFrom": "memories",
           "tableTo": "memories",
-          "columnsFrom": [
-            "superseded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["superseded_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1245,9 +1205,7 @@
         "memories_source_key": {
           "name": "memories_source_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "source"
-          ]
+          "columns": ["source"]
         }
       },
       "policies": {},
@@ -1493,10 +1451,7 @@
       "compositePrimaryKeys": {
         "access_profile_deletions_pkey": {
           "name": "access_profile_deletions_pkey",
-          "columns": [
-            "bot",
-            "chat_id"
-          ]
+          "columns": ["bot", "chat_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1534,12 +1489,8 @@
           "name": "notification_rule_events_rule_id_fkey",
           "tableFrom": "notification_rule_events",
           "tableTo": "notification_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rule_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1818,12 +1769,8 @@
           "name": "admin_auth_account_userId_fkey",
           "tableFrom": "admin_auth_account",
           "tableTo": "admin_auth_user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1942,12 +1889,8 @@
           "name": "admin_auth_passkey_userId_fkey",
           "tableFrom": "admin_auth_passkey",
           "tableTo": "admin_auth_user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1994,9 +1937,7 @@
         "admin_auth_rate_limit_key_key": {
           "name": "admin_auth_rate_limit_key_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -2079,12 +2020,8 @@
           "name": "admin_auth_session_userId_fkey",
           "tableFrom": "admin_auth_session",
           "tableTo": "admin_auth_user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2094,9 +2031,7 @@
         "admin_auth_session_token_key": {
           "name": "admin_auth_session_token_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -2189,12 +2124,8 @@
           "name": "admin_auth_two_factor_userId_fkey",
           "tableFrom": "admin_auth_two_factor",
           "tableTo": "admin_auth_user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2281,16 +2212,12 @@
         "admin_auth_user_email_key": {
           "name": "admin_auth_user_email_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "admin_auth_user_username_key": {
           "name": "admin_auth_user_username_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         }
       },
       "policies": {},

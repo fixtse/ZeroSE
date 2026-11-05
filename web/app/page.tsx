@@ -674,7 +674,11 @@ export default function Home() {
                           </div>
                           <div className="person-actions">
                             <Badge variant="outline" className="pill">
-                              {p.enabled ? t('Activo') : p.approved ? t('Inactivo') : t('Pendiente')}
+                              {p.enabled
+                                ? t('Activo')
+                                : p.approved
+                                  ? t('Inactivo')
+                                  : t('Pendiente')}
                             </Badge>
                             <AssistantAssignment profile={p} onAssigned={() => loadProfiles()} />
                             <Button

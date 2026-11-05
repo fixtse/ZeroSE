@@ -782,7 +782,10 @@ export class Admin {
           send(404, { error: 'Chat no encontrado.' });
           return true;
         }
-        const { enabled } = z.object({ enabled: z.boolean() }).strict().parse(await read());
+        const { enabled } = z
+          .object({ enabled: z.boolean() })
+          .strict()
+          .parse(await read());
         const profile: AccessProfile = {
           ...previous,
           enabled,
