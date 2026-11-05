@@ -5,6 +5,13 @@ import { PrepareNotification } from '../src/application/use-cases/prepare-notifi
 import type { ConversationStore, GooglePort } from '../src/application/ports.js';
 import type { Job, ToolContext } from '../src/domain/models.js';
 
+const googleDefaults: Omit<GooglePort, 'events'> = {
+  enabled: true,
+  context: async () => '',
+  cleanTasks: async () => ({ deleted: 0 }),
+  tasks: async () => [],
+};
+
 const job: Job = {
   id: 'event-notice',
   session: 'helper:123',
@@ -42,6 +49,7 @@ test('event reminders honor 5/20 minute lead times, filter non-upcoming events a
         },
       },
       {
+        ...googleDefaults,
         events: async (start: string, end: string) => {
           assert.equal(Date.parse(end) - Date.parse(start), minutes * 60_000);
           return [
@@ -60,7 +68,7 @@ test('event reminders honor 5/20 minute lead times, filter non-upcoming events a
             },
           ];
         },
-      } as GooglePort,
+      },
       {
         forecast: async () => {
           throw new Error('Weather must not be queried without credentials');
@@ -118,6 +126,7 @@ test('event notices receive only scoped memories, profile context, notes, tasks,
       },
     },
     {
+      ...googleDefaults,
       events: async (start: string) => {
         eventStart ||= new Date(Date.parse(start) + 4 * 60_000).toISOString();
         return [
@@ -132,7 +141,7 @@ test('event notices receive only scoped memories, profile context, notes, tasks,
         ];
       },
       tasks: async () => [{ title: 'Pack documents', notes: 'Referral in the blue folder' }],
-    } as GooglePort,
+    },
     { forecast: async () => ({ forecast: [{ datetime: eventStart, condition: 'rainy' }] }) },
     {},
     {
@@ -192,13 +201,14 @@ test('disabled memory and task permissions prevent reads, and optional context f
       },
     },
     {
+      ...googleDefaults,
       events: async (start: string) => [
         { id: 'event', start: { dateTime: new Date(Date.parse(start) + 60_000).toISOString() } },
       ],
       tasks: async () => {
         throw new Error('Forbidden task read');
       },
-    } as GooglePort,
+    },
     {
       forecast: async () => {
         throw new Error('Forbidden weather read');
