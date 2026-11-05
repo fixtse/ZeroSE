@@ -356,13 +356,11 @@ export function AssistantCatalog({ onZeroChanged }: { onZeroChanged: () => Promi
                     'Eres un asistente especializado en… Define su personalidad, su objetivo y cómo debe responder.',
                   )}
                 />
-                <small>
-                  {t(
-                    'El nombre, la fecha y hora y la zona horaria se añaden automáticamente. El contexto del usuario o grupo también se añade cuando existe, aunque mem0 esté desactivado. No es necesario usar variables en el prompt. Cada usuario conserva sus permisos, memoria e historial.',
-                  )}{' '}
-                  {editor?.id === 'zero' &&
-                    t('Este es el mismo prompt de Zero que se edita desde Home Assistant.')}
-                </small>
+                {editor?.id === 'zero' && (
+                  <small>
+                    {t('Este es el mismo prompt de Zero que se edita desde Home Assistant.')}
+                  </small>
+                )}
                 <p className="assistant-assignment-hint">
                   {t(
                     'Para asociarlo a un usuario, abre Usuarios → Asistente. Un asistente puede utilizarse en varios perfiles.',

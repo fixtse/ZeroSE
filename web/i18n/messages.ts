@@ -269,8 +269,6 @@ export const english: Record<string, string> = {
   'Editar perfil de ': 'Edit profile for ',
   'Ejecutable de FFmpeg': 'FFmpeg executable',
   'El bot no tiene foto de perfil.': 'The bot has no profile photo.',
-  'El nombre, la fecha y hora y la zona horaria se añaden automáticamente. El contexto del usuario o grupo también se añade cuando existe, aunque mem0 esté desactivado. No es necesario usar variables en el prompt. Cada usuario conserva sus permisos, memoria e historial.':
-    'The name, date, time and time zone are added automatically. User or group context is also added when present, even with mem0 disabled. Prompt variables are unnecessary. Each user retains their permissions, memory and history.',
   'El resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero escuchará sus cambios en Home Assistant.':
     'The briefing, reminders and new daily session follow these preferences. The daily reset clears conversation context. If you selected an entity, Zero listens for its changes in Home Assistant.',
   'El servidor compatible puede listar modelos sin indicar sus capacidades. Usa la prueba para confirmar que el modelo admite embeddings.':
