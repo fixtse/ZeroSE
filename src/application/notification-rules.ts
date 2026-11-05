@@ -345,7 +345,9 @@ export class NotificationRules {
       observed.status === 'completed' &&
       ['pending', 'uncertain'].includes(observed.last_event?.outcome || '');
     if (observed.generation !== rule.generation || awaitingCallback)
-      throw new Error('The existing alert does not match the saved generation or has a pending callback');
+      throw new Error(
+        'The existing alert does not match the saved generation or has a pending callback',
+      );
     const updated = {
       ...rule,
       scheduler_key: scope.scheduler.identity,

@@ -1227,12 +1227,15 @@ test('explicit HA confirmation adopts a paused weather alert after a connection 
     assert.equal(confirmed.status, 'paused');
     assert.equal(confirmed.generation, rule.generation);
     assert.equal(f.configurations.length, 1);
-    assert.equal(await recovered.receive({
-      id: rule.id,
-      generation: rule.generation,
-      event_id: randomUUID(),
-      fired_at: new Date().toISOString(),
-    }), false);
+    assert.equal(
+      await recovered.receive({
+        id: rule.id,
+        generation: rule.generation,
+        event_id: randomUUID(),
+        fired_at: new Date().toISOString(),
+      }),
+      false,
+    );
     await recovered.change(rule.session, rule.id, 'resume');
     assert.equal(f.configurations.length, 2);
     assert.equal(f.configurations.at(-1)?.generation, rule.generation + 1);
