@@ -182,7 +182,13 @@ test('briefings and reminders always require Spanish with default or custom temp
         },
         {
           enabled: false,
-          events: async () => [{ id: 'appointment', summary: 'Appointment' }],
+          events: async () => [
+            {
+              id: 'appointment',
+              summary: 'Appointment',
+              start: { dateTime: new Date(Date.now() + 5 * 60_000).toISOString() },
+            },
+          ],
           tasks: async () => [],
           context: async () => '',
           cleanTasks: async () => ({ deleted: 0 }),

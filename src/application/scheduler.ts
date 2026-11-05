@@ -49,8 +49,8 @@ export class Scheduler {
           kind: 'morning',
           chatId: target.chatId,
         });
-      if (personal.eventReminders && profile.calendar && Number(time.slice(3)) % 15 === 0)
-        await enqueue(`events:${day}:${time}:${session}`, session, {
+      if (personal.eventReminders && profile.calendar)
+        await enqueue(`events:${now.toISOString().slice(0, 16)}:${session}`, session, {
           kind: 'event_reminders',
           chatId: target.chatId,
         });

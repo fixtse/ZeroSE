@@ -216,6 +216,11 @@ export function ProfileEditor({
                 eventReminders: data.has('morningMode')
                   ? data.has('eventReminders')
                   : current.notifications?.eventReminders || false,
+                eventReminderMinutes: Number(
+                  data.get('eventReminderMinutes') ||
+                    current.notifications?.eventReminderMinutes ||
+                    15,
+                ),
                 reset: {
                   enabled: data.has('dailyReset'),
                   time: String(

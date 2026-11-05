@@ -1,5 +1,9 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Antelación del aviso (minutos)': 'Reminder lead time (minutes)',
+  'Revisa la agenda cada minuto y añade contexto relevante, recuerdos y previsión disponibles según los permisos del perfil.':
+    'Checks the calendar every minute and adds relevant context, memories and available forecasts according to the profile permissions.',
+
   Inactivo: 'Inactive',
   'Activar perfil': 'Activate profile',
   'Rechazar perfil': 'Reject profile',

@@ -7,6 +7,7 @@ import { HAEntityPicker } from './ha-entity-picker';
 
 export function ProfileNotifications({ profile }: { profile: Profile }) {
   const t = useTranslations();
+  const [events, setEvents] = useState(profile.notifications?.eventReminders || false);
   const [reset, setReset] = useState(profile.notifications?.reset?.enabled || false);
   const [mode, setMode] = useState(profile.notifications?.morning.mode || 'off');
   if (profile.notificationsMigrationPending)
@@ -32,11 +33,25 @@ export function ProfileNotifications({ profile }: { profile: Profile }) {
             id="profile-event-reminders"
             name="eventReminders"
             label={t('Recordatorios de eventos')}
-            defaultChecked={profile.notifications?.eventReminders || false}
+            checked={events}
+            onCheckedChange={(value) => setEvents(value === true)}
           />
+          {events && (
+            <Field
+              id="profile-event-reminder-minutes"
+              name="eventReminderMinutes"
+              label={t('Antelación del aviso (minutos)')}
+              type="number"
+              min={1}
+              max={1440}
+              step={1}
+              required
+              defaultValue={profile.notifications?.eventReminderMinutes || 15}
+            />
+          )}
           <p className="settings-help">
             {t(
-              'Con Google Calendar conectado y su permiso activo, revisa la agenda cada 15 minutos y avisa de los eventos de los próximos 15 minutos.',
+              'Revisa la agenda cada minuto y añade contexto relevante, recuerdos y previsión disponibles según los permisos del perfil.',
             )}
           </p>
           <div className="settings-grid">

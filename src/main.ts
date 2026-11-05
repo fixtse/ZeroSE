@@ -1036,6 +1036,8 @@ async function notify(job: Job, context: ToolContext): Promise<JobResult> {
     scope.profile?.context || '',
     notificationServices(scope.config, scope.profile),
     scope.profile?.label,
+    profileNotifications(scope.profile).eventReminderMinutes,
+    scope.memory,
   ).execute(job, context);
 }
 

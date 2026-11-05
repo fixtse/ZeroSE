@@ -40,6 +40,7 @@ test('every new profile defaults to disabled personal schedules, including the o
     p.owner = owner;
     assert.equal(profileNotifications(p).morning.mode, 'off');
     assert.equal(profileNotifications(p).eventReminders, false);
+    assert.equal(profileNotifications(p).eventReminderMinutes, 15);
     assert.equal(profileNotifications(p).reset.enabled, false);
   }
 });
@@ -78,6 +79,11 @@ test('personal schedules work without global resets, use profile timezone, disco
       jobs.filter((j) => j.payload.kind === 'event_reminders').map((j) => j.session),
       ['telegram:1', 'helper:2', 'telegram:5'],
     );
+    await scheduler.tick(new Date('2026-10-15T06:31:00Z'));
+    const reminders = (
+      await f.store.pool.query("SELECT payload FROM jobs WHERE payload->>'kind'='event_reminders'")
+    ).rows;
+    assert.equal(reminders.length, 6, 'Calendar checks also run outside quarter-hour boundaries');
   } finally {
     await f.close();
   }

@@ -19,6 +19,7 @@ export const capabilities = [
 export type Capability = (typeof capabilities)[number];
 export interface ProfileNotifications {
   eventReminders: boolean;
+  eventReminderMinutes?: number;
   reset: { enabled: boolean; time: string };
   morning: { mode: 'off' | 'time' | 'entity'; time: string; entity: string; state: string };
 }

@@ -499,6 +499,7 @@ test('profile notification preferences round trip without exposing the compatibi
   const admin = new Admin(f.config, f.repository, async () => {});
   const notifications = {
     eventReminders: true,
+    eventReminderMinutes: 20,
     reset: { enabled: false, time: '04:00' },
     morning: { mode: 'entity', time: '08:30', entity: 'input_boolean.sleep', state: 'off' },
   };
@@ -512,6 +513,18 @@ test('profile notification preferences round trip without exposing the compatibi
   assert.equal(saved.status, 200);
   const result = await request(admin, 'helper/123');
   assert.deepEqual(result.value.notifications, notifications);
+  for (const eventReminderMinutes of [0, 1441, 1.5]) {
+    await assert.rejects(
+      request(admin, 'helper/123', 'PUT', {
+        kind: 'user',
+        label: 'Test',
+        enabled: true,
+        capabilities: ['calendar', 'homeAssistant'],
+        notifications: { ...notifications, eventReminderMinutes },
+      }),
+    );
+  }
+
   assert.equal(result.value.morningCallbackTrigger, undefined);
   assert.deepEqual(f.profile.morningCallbackTrigger, {
     entity: 'input_boolean.sleep',

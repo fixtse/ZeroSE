@@ -2,10 +2,15 @@ import type { Config } from '../domain/config.js';
 import type { AccessProfile, ProfileNotifications } from '../domain/access.js';
 
 export function profileNotifications(profile?: AccessProfile): ProfileNotifications {
+  const minutes = profile?.notifications?.eventReminderMinutes;
   return {
     eventReminders: false,
     morning: { mode: 'off', time: '08:30', entity: '', state: 'off' },
     ...profile?.notifications,
+    eventReminderMinutes:
+      typeof minutes === 'number' && Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440
+        ? minutes
+        : 15,
     reset: profile?.notifications?.reset || { enabled: false, time: '04:00' },
   };
 }

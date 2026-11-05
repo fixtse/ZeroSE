@@ -59,6 +59,7 @@ const profileSchema = z.object({
   notifications: z
     .object({
       eventReminders: z.boolean(),
+      eventReminderMinutes: z.number().int().min(1).max(1440).optional(),
       reset: z.object({
         enabled: z.boolean(),
         time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
@@ -953,7 +954,15 @@ export class Admin {
           approved: !!previous?.approved || !!previous?.enabled || input.enabled,
           voiceReplies: input.voiceReplies ?? previous?.voiceReplies ?? true,
           respondToReplies: input.respondToReplies ?? previous?.respondToReplies ?? true,
-          notifications: input.notifications ?? previous?.notifications,
+          notifications: input.notifications
+            ? {
+                ...input.notifications,
+                eventReminderMinutes:
+                  input.notifications.eventReminderMinutes ??
+                  previous?.notifications?.eventReminderMinutes ??
+                  15,
+              }
+            : previous?.notifications,
           morningImportAutomation: input.notifications
             ? undefined
             : previous?.morningImportAutomation,
