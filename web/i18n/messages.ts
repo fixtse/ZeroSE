@@ -182,13 +182,16 @@ export const english: Record<string, string> = {
   'Cerrar sesión ↗': 'Sign out ↗',
   'Clave API': 'API key',
   'Clave API de Brave': 'Brave API key',
-  'Configura la clave del proveedor de imágenes seleccionado.': 'Configure the API key for the selected image provider.',
+  'Configura la clave del proveedor de imágenes seleccionado.':
+    'Configure the API key for the selected image provider.',
   'Búsqueda web e imágenes': 'Web and image search',
   'Proveedor de imágenes predeterminado': 'Default image provider',
   'Clave API de SearchAPI': 'SearchAPI API key',
   'Clave API de SerpApi': 'SerpApi API key',
-  'Brave mantiene la búsqueda web. Para imágenes, configura una o varias claves y elige el proveedor predeterminado. Zero puede elegir otro proveedor configurado en cada búsqueda; los errores no cambian de proveedor automáticamente.': 'Brave provides web search. For images, configure one or more keys and choose the default provider. Zero can choose another configured provider for each search; errors do not switch providers automatically.',
-  'SearchAPI y SerpApi ofrecen filtros de tamaño y fondo transparente. Comprueba el archivo original: los filtros no garantizan transparencia ni el modelo exacto.': 'SearchAPI and SerpApi offer size and transparent-background filters. Check the original file: filters do not guarantee transparency or an exact model match.',
+  'Brave mantiene la búsqueda web. Para imágenes, configura una o varias claves y elige el proveedor predeterminado. Zero puede elegir otro proveedor configurado en cada búsqueda; los errores no cambian de proveedor automáticamente.':
+    'Brave provides web search. For images, configure one or more keys and choose the default provider. Zero can choose another configured provider for each search; errors do not switch providers automatically.',
+  'SearchAPI y SerpApi ofrecen filtros de tamaño y fondo transparente. Comprueba el archivo original: los filtros no garantizan transparencia ni el modelo exacto.':
+    'SearchAPI and SerpApi offer size and transparent-background filters. Check the original file: filters do not guarantee transparency or an exact model match.',
   'Clave de configuración manual': 'Manual setup key',
   'Codex CLI (no disponible)': 'Codex CLI (unavailable)',
   'Codex CLI (sesión actual)': 'Codex CLI (current session)',

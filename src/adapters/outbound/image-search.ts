@@ -9,7 +9,10 @@ import type {
 import { boundedBody, RemoteError } from './http.js';
 
 const dimension = z.number().int().positive().optional().catch(undefined);
-const webUrl = z.string().url().refine((value) => /^https?:\/\//.test(value));
+const webUrl = z
+  .string()
+  .url()
+  .refine((value) => /^https?:\/\//.test(value));
 const image = z.object({
   title: z.string().default(''),
   url: webUrl,
@@ -40,7 +43,20 @@ class Images implements ImageSearchProvider {
       params.set('count', String(query.limit));
       // Brave has no native size/transparency filter. Search hints are not verification.
       if (query.transparent || query.size === 'large')
-        params.set('q', [query.transparent ? 'transparent png' : '', query.size === 'large' ? 'high resolution' : '', query.query].filter(Boolean).join(' ').split(/\s+/).slice(0, 50).join(' ').slice(0, 400));
+        params.set(
+          'q',
+          [
+            query.transparent ? 'transparent png' : '',
+            query.size === 'large' ? 'high resolution' : '',
+            query.query,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .split(/\s+/)
+            .slice(0, 50)
+            .join(' ')
+            .slice(0, 400),
+        );
       headers['X-Subscription-Token'] = this.key;
     } else if (this.id === 'searchapi') {
       endpoint = 'https://www.searchapi.io/api/v1/search';
@@ -69,17 +85,41 @@ class Images implements ImageSearchProvider {
     }
     if (!data || typeof data !== 'object' || data.error)
       throw new Error(`${this.name} search failed; check provider settings and quota`);
-    const raw = this.id === 'brave' ? data.results : this.id === 'searchapi' ? data.images : data.images_results;
+    const raw =
+      this.id === 'brave'
+        ? data.results
+        : this.id === 'searchapi'
+          ? data.images
+          : data.images_results;
     if (raw !== undefined && !Array.isArray(raw))
       throw new Error(`${this.name} returned invalid image results`);
     const results: ImageSearchResult[] = [];
     for (const item of raw || []) {
       if (!item || typeof item !== 'object') continue;
-      const candidate = this.id === 'brave'
-        ? { title: item.title ?? '', url: item.properties?.url, source: item.url, width: item.properties?.width, height: item.properties?.height }
-        : this.id === 'searchapi'
-          ? { title: item.title ?? '', url: item.original?.link, source: item.source?.link, width: item.original?.width, height: item.original?.height }
-          : { title: item.title ?? '', url: item.original, source: item.link, width: item.original_width, height: item.original_height };
+      const candidate =
+        this.id === 'brave'
+          ? {
+              title: item.title ?? '',
+              url: item.properties?.url,
+              source: item.url,
+              width: item.properties?.width,
+              height: item.properties?.height,
+            }
+          : this.id === 'searchapi'
+            ? {
+                title: item.title ?? '',
+                url: item.original?.link,
+                source: item.source?.link,
+                width: item.original?.width,
+                height: item.original?.height,
+              }
+            : {
+                title: item.title ?? '',
+                url: item.original,
+                source: item.link,
+                width: item.original_width,
+                height: item.original_height,
+              };
       const parsed = image.safeParse(candidate);
       if (parsed.success) results.push({ ...parsed.data, provider: this.id });
       if (results.length >= query.limit) break;
@@ -87,10 +127,17 @@ class Images implements ImageSearchProvider {
     return results;
   }
 }
-export function imageSearchProviders(braveKey: string, settings?: ImageSearchSettings): ImageSearchProvider[] {
+export function imageSearchProviders(
+  braveKey: string,
+  settings?: ImageSearchSettings,
+): ImageSearchProvider[] {
   return [
     ...(braveKey ? [new Images('brave', 'Brave Image Search', false, braveKey)] : []),
-    ...(settings?.searchApiKey ? [new Images('searchapi', 'SearchAPI Google Images', true, settings.searchApiKey)] : []),
-    ...(settings?.serpApiKey ? [new Images('serpapi', 'SerpApi Google Images', true, settings.serpApiKey)] : []),
+    ...(settings?.searchApiKey
+      ? [new Images('searchapi', 'SearchAPI Google Images', true, settings.searchApiKey)]
+      : []),
+    ...(settings?.serpApiKey
+      ? [new Images('serpapi', 'SerpApi Google Images', true, settings.serpApiKey)]
+      : []),
   ];
 }

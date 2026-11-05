@@ -213,7 +213,9 @@ function SettingsForm({
   const groupFor = (field: ServiceField) =>
     ['connectionUrl', 'timezone', 'concurrency'].includes(field.group)
       ? 'general'
-      : ['braveApiKey', 'imageSearch'].includes(field.group) ? 'search' : field.group;
+      : ['braveApiKey', 'imageSearch'].includes(field.group)
+        ? 'search'
+        : field.group;
   const groups = [...new Set([...settings.fields.map(groupFor), 'homeAssistant'])].sort((a, b) =>
     a === 'general' ? -1 : b === 'general' ? 1 : 0,
   );
@@ -317,7 +319,13 @@ function SettingsForm({
     >
       <fieldset disabled={busy}>
         <Tabs
-          value={['braveApiKey', 'imageSearch'].includes(tab) ? 'search' : groups.includes(tab) ? tab : groups[0]}
+          value={
+            ['braveApiKey', 'imageSearch'].includes(tab)
+              ? 'search'
+              : groups.includes(tab)
+                ? tab
+                : groups[0]
+          }
           onValueChange={setTab}
           className="provider-settings service-tabs"
         >
@@ -342,7 +350,11 @@ function SettingsForm({
             >
               <h3>{t(names[group] || group)}</h3>
               {group === 'search' && (
-                <p>{t('Brave mantiene la búsqueda web. Para imágenes, configura una o varias claves y elige el proveedor predeterminado. Zero puede elegir otro proveedor configurado en cada búsqueda; los errores no cambian de proveedor automáticamente.')}</p>
+                <p>
+                  {t(
+                    'Brave mantiene la búsqueda web. Para imágenes, configura una o varias claves y elige el proveedor predeterminado. Zero puede elegir otro proveedor configurado en cada búsqueda; los errores no cambian de proveedor automáticamente.',
+                  )}
+                </p>
               )}
               {group === 'general' && (
                 <p>
@@ -498,9 +510,15 @@ function SettingsForm({
                 <>
                   <div className="settings-grid">{field('imageSearch.defaultProvider')}</div>
                   <div className="settings-grid">
-                    {['braveApiKey', 'imageSearch.searchApiKey', 'imageSearch.serpApiKey'].map(field)}
+                    {['braveApiKey', 'imageSearch.searchApiKey', 'imageSearch.serpApiKey'].map(
+                      field,
+                    )}
                   </div>
-                  <p>{t('SearchAPI y SerpApi ofrecen filtros de tamaño y fondo transparente. Comprueba el archivo original: los filtros no garantizan transparencia ni el modelo exacto.')}</p>
+                  <p>
+                    {t(
+                      'SearchAPI y SerpApi ofrecen filtros de tamaño y fondo transparente. Comprueba el archivo original: los filtros no garantizan transparencia ni el modelo exacto.',
+                    )}
+                  </p>
                 </>
               ) : (
                 <div className="settings-grid">

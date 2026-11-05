@@ -677,20 +677,20 @@ Home Assistant forecast only covers its configured location.
 
 The application tool catalog is assembled in `src/main.ts`:
 
-| Capability         | Tool names                                                                                                        | Registration condition                                                      |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Calendar           | `calendar_list`, `calendar_availability`, `calendar_get`, `calendar_create`, `calendar_update`, `calendar_delete` | Google OAuth configured                                                     |
-| Tasks              | `tasks_list`, `task_get`, `task_create`, `task_update`, `task_delete`                                             | Google OAuth configured                                                     |
-| User/group context | `context_save`                                                                                                    | Memory enabled; no Google access required                                   |
-| Documents          | `document_create`                                                                                                 | Google OAuth configured                                                     |
-| Location           | `location_get`                                                                                                    | Home Assistant token and at least one location entity                       |
-| Sensors            | `sensors_list`, `sensor_get`, `sensor_history`                                                                    | Home Assistant token                                                        |
-| Shopping           | `shopping_list_get`, `shopping_list_change`                                                                       | Home Assistant token                                                        |
-| Local forecast     | `weather_forecast`                                                                                                | Home Assistant token and weather entity                                     |
-| Memory             | `memories_get`, `memory_catalog`, `memory_read`, `memory_save`                                                    | Always                                                                      |
-| Web search         | `web_search`                                                                                                      | Brave API key; profile web permission; omitted for GPT-5+ model identifiers |
-| Image search       | `image_search`, `image_search_providers`                                                                                                    | At least one configured Brave, SearchAPI or SerpApi key; profile web permission |
-| Public page text   | `url_read`                                                                                                        | Profile web permission; omitted for GPT-5+ model identifiers                |
+| Capability         | Tool names                                                                                                        | Registration condition                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Calendar           | `calendar_list`, `calendar_availability`, `calendar_get`, `calendar_create`, `calendar_update`, `calendar_delete` | Google OAuth configured                                                         |
+| Tasks              | `tasks_list`, `task_get`, `task_create`, `task_update`, `task_delete`                                             | Google OAuth configured                                                         |
+| User/group context | `context_save`                                                                                                    | Memory enabled; no Google access required                                       |
+| Documents          | `document_create`                                                                                                 | Google OAuth configured                                                         |
+| Location           | `location_get`                                                                                                    | Home Assistant token and at least one location entity                           |
+| Sensors            | `sensors_list`, `sensor_get`, `sensor_history`                                                                    | Home Assistant token                                                            |
+| Shopping           | `shopping_list_get`, `shopping_list_change`                                                                       | Home Assistant token                                                            |
+| Local forecast     | `weather_forecast`                                                                                                | Home Assistant token and weather entity                                         |
+| Memory             | `memories_get`, `memory_catalog`, `memory_read`, `memory_save`                                                    | Always                                                                          |
+| Web search         | `web_search`                                                                                                      | Brave API key; profile web permission; omitted for GPT-5+ model identifiers     |
+| Image search       | `image_search`, `image_search_providers`                                                                          | At least one configured Brave, SearchAPI or SerpApi key; profile web permission |
+| Public page text   | `url_read`                                                                                                        | Profile web permission; omitted for GPT-5+ model identifiers                    |
 
 Discovery is eager: registration builds a `Tools` registry; `definitions()` converts
 each tool's Zod input schema to JSON Schema. The adapter sends names, descriptions

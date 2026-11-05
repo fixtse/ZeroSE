@@ -138,14 +138,24 @@ export function registerSearch(
       z.object({}),
       async () => ({
         default_provider: imageSettings?.defaultProvider || 'brave',
-        items: providers.map(({ id, name, supportsFilters }) => ({ id, name, native_size_filter: supportsFilters, native_transparency_filter: supportsFilters })),
+        items: providers.map(({ id, name, supportsFilters }) => ({
+          id,
+          name,
+          native_size_filter: supportsFilters,
+          native_transparency_filter: supportsFilters,
+        })),
       }),
     );
     tools.add(
       'image_search',
       'Find candidate images with original URLs and dimensions. Discover configured providers with image_search_providers; omit provider to use the saved default. Filters do not verify transparency/model. Save large document tasks before refining. Fragments require identical search arguments and result_offset=next_offset; no repeat search.',
       z.object({
-        query: z.string().trim().min(1).max(400).refine((value) => value.split(/\s+/).length <= 50, 'Use at most 50 query words'),
+        query: z
+          .string()
+          .trim()
+          .min(1)
+          .max(400)
+          .refine((value) => value.split(/\s+/).length <= 50, 'Use at most 50 query words'),
         provider: z.enum(['brave', 'searchapi', 'serpapi']).optional(),
         limit: z.number().int().min(1).max(20).default(5),
         size: z.enum(['any', 'large']).default('any'),
@@ -153,8 +163,13 @@ export function registerSearch(
         result_offset: z.number().int().min(0).default(0),
       }),
       async (a, c) => {
-        const provider = providers.find((item) => item.id === (a.provider || imageSettings?.defaultProvider || 'brave'));
-        if (!provider) throw new Error('Image search provider is not configured. Use image_search_providers to discover available providers.');
+        const provider = providers.find(
+          (item) => item.id === (a.provider || imageSettings?.defaultProvider || 'brave'),
+        );
+        if (!provider)
+          throw new Error(
+            'Image search provider is not configured. Use image_search_providers to discover available providers.',
+          );
         const { result_offset, provider: _provider, ...query } = a;
         const cacheKey = createHash('sha256')
           .update(JSON.stringify([c.session, c.jobId, provider.id, query]))
