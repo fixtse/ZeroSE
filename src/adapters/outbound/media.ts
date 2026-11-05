@@ -58,13 +58,30 @@ export class Media {
     if (!this.config.media.asrUrl)
       throw new Error('Speech transcription endpoint is not configured');
     const form = new FormData();
-    form.set('audio_file', new Blob([new Uint8Array(buffer)], { type: mime }), 'audio.wav');
+    const clipse = this.config.media.asrProvider === 'clipse-whisper';
+    const extensions: Record<string, string> = {
+      'audio/ogg': 'ogg',
+      'audio/webm': 'webm',
+      'audio/mpeg': 'mp3',
+      'audio/mp4': 'm4a',
+      'audio/flac': 'flac',
+    };
+    const extension = extensions[mime.split(';')[0]!.trim()] || 'wav';
+    form.set(
+      clipse ? 'file' : 'audio_file',
+      new Blob([new Uint8Array(buffer)], { type: mime }),
+      clipse ? `audio.${extension}` : 'audio.wav',
+    );
+    if (clipse && speech?.sttLanguage) {
+      const language = speech.sttLanguage.split('-')[0]!.toLowerCase();
+      if (language !== 'auto') form.set('language', language);
+    }
     const result = await jsonRequest(
       this.config.media.asrUrl,
       { method: 'POST', body: form, signal },
       'Speech transcription',
     );
-    if (typeof result.text !== 'string') throw new Error('Transcription service returned no text');
+    if (typeof result?.text !== 'string') throw new Error('Transcription service returned no text');
     return result.text;
   }
   async extract(

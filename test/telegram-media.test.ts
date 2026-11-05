@@ -250,3 +250,50 @@ test('Telegram uploads generated images as original files with correct MIME, ext
   );
   assert.equal(calls, 4);
 });
+
+test('ClipSE Whisper uploads native audio with its file API and language hint', async (t) => {
+  const config = ConfigSchema.parse({
+    media: {
+      asrProvider: 'clipse-whisper',
+      asrUrl: 'http://whisper.test/transcribe',
+      speech: { stt: 'default', sttLanguage: 'es-ES', tts: 'default', ttsLanguage: '', voice: '' },
+    },
+  });
+  assert.equal(ConfigSchema.parse({}).media.asrProvider, 'legacy');
+  const audio = Buffer.from('test native OGG bytes');
+  let result: unknown = { text: 'Texto de ClipSE', segments: [], language: 'es' };
+  let status = 200;
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    calls++;
+    assert.equal(url, config.media.asrUrl);
+    assert.equal(options.method, 'POST');
+    assert.equal(options.redirect, 'error');
+    const form = options.body as FormData;
+    assert.equal(form.has('audio_file'), false);
+    const file = form.get('file') as File;
+    assert.equal(file.name, 'audio.ogg');
+    assert.equal(file.type, 'audio/ogg; codecs=opus');
+    assert.deepEqual(Buffer.from(await file.arrayBuffer()), audio);
+    assert.equal(form.get('language'), config.media.speech!.sttLanguage === 'es-ES' ? 'es' : null);
+    return Response.json(result, { status });
+  });
+  const media = new Media(config);
+  const signal = new AbortController().signal;
+  assert.equal(await media.transcribe(audio, 'audio/ogg; codecs=opus', signal), 'Texto de ClipSE');
+  for (const language of ['', 'auto']) {
+    config.media.speech!.sttLanguage = language;
+    assert.equal(
+      await media.transcribe(audio, 'audio/ogg; codecs=opus', signal),
+      'Texto de ClipSE',
+    );
+  }
+  result = null;
+  await assert.rejects(
+    media.transcribe(audio, 'audio/ogg; codecs=opus', signal),
+    /returned no text/,
+  );
+  status = 422;
+  await assert.rejects(media.transcribe(audio, 'audio/ogg; codecs=opus', signal), /HTTP 422/);
+  assert.equal(calls, 5, 'Failed requests must not be replayed');
+});

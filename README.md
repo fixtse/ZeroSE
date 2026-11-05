@@ -134,6 +134,15 @@ Scanned PDFs without a text layer currently require sending their pages as image
 
 Telegram videos (including video notes) and forwarded audio/voice messages return the
 transcript from the configured `media.asrUrl` speech-to-text service as a text reply.
+To use ClipSE Whisper, set `media.asrProvider` to `"clipse-whisper"` and
+`media.asrUrl` to its full `/transcribe` URL (for example,
+`http://clipse-whisper:8000/transcribe`). Keep the profile STT engine set to
+**Predeterminado**. Zero uploads the audio as multipart `file`, reads the returned
+`text`, and lets ClipSE choose its configured model and provider. A configured STT
+language such as `es-ES` is sent as `es`; blank or `auto` uses language detection.
+The default `"legacy"` provider preserves the existing multipart `audio_file` API.
+No live configuration or services are changed automatically.
+
 Direct audio/voice messages remain spoken requests to Zero. Replying to an audio or
 video message also returns its transcript. Transcripts are never executed as commands.
 Set `media.audioExtractionUrl` to the FFmpeg service's `/video/extract/audio` endpoint

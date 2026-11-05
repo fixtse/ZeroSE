@@ -180,6 +180,7 @@ export const ServiceConfigSchema = z.object({
           voice: z.string(),
         })
         .optional(),
+      asrProvider: z.enum(['legacy', 'clipse-whisper']).default('legacy'),
       asrUrl: secret,
       audioExtractionUrl: secret,
       voice: z.string().default('es-ES-AlvaroNeural'),
@@ -187,6 +188,7 @@ export const ServiceConfigSchema = z.object({
     })
     .default({
       ffmpegCommand: 'ffmpeg',
+      asrProvider: 'legacy',
       asrUrl: '',
       audioExtractionUrl: '',
       voice: 'es-ES-AlvaroNeural',

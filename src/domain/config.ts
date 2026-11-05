@@ -65,6 +65,7 @@ export interface Config {
   };
   media: {
     ffmpegCommand?: string;
+    asrProvider?: 'legacy' | 'clipse-whisper';
     asrUrl: string;
     audioExtractionUrl: string;
     voice: string;
