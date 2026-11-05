@@ -501,8 +501,8 @@ export const english: Record<string, string> = {
   'Modelo predeterminado de este perfil': "This profile's default model",
   Modelos: 'Models',
   'Modelos IA': 'AI models',
-  'Modelos alternativos permitidos para /model. La selección del usuario solo se aplica a la siguiente pregunta.':
-    "Alternative models allowed for /model. The user's selection applies only to the next question.",
+  'Modelos alternativos permitidos para /model. La selección del usuario se guarda como modelo predeterminado del perfil.':
+    "Alternative models allowed for /model. The user's selection is saved as the profile default model.",
   'Modelos del proveedor': 'Provider models',
   'Modelos no disponibles.': 'Models unavailable.',
   Mostrar: 'Show',

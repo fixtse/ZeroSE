@@ -627,6 +627,10 @@ const codex = new AIAgent(
             store,
             async (context) => (await services(context)).tools,
           ),
+    async (session, model) => {
+      const address = sessionAddress(session);
+      return address ? accessRepository.selectModel(address.bot, address.chatId, model) : false;
+    },
   ),
   processManagedMessage = new ProcessManagedMessage(
     store,

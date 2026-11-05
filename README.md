@@ -1119,13 +1119,16 @@ Use a base URL including `/v1` (OpenRouter uses `/api/v1`). Ollama defaults to
 Add each model's exact upstream ID and a stable local identifier, then choose the
 global default. In each user's profile, choose a default override and explicitly
 check the alternate models that user may select. `/model` lists permitted models;
-`/model <local-id>` selects one for the next supported question only, and
-`/model default` cancels it. Commands, transcription-only input, and background
-notifications do not consume the selection. The next attempted model turn consumes
-it even if the provider fails; requests and tools are never automatically retried.
-Permissions are checked again at execution. A deleted or revoked model fails
-explicitly rather than silently switching providers; update affected profiles
-when changing model identifiers.
+tap a Telegram choice or type `/model <name>` (case-insensitive model label) or
+`/model <local-id>` to save the selected model as the profile default. It remains
+active across questions, background turns and restarts until another model is
+selected or the profile is edited. `/model default` clears the profile override
+and uses the global default. Duplicate or reserved labels use local IDs in the
+choices; existing `/model #N` commands remain supported. Selection rechecks the
+profile's enabled status and permitted alternatives when saving. A deleted model
+fails explicitly rather than silently switching providers; update affected profile
+defaults as well as permitted alternatives when revoking a model. Requests and
+tools are never automatically retried.
 
 OpenAI uses Responses, Anthropic uses Messages, and OpenRouter, compatible servers,
 and Ollama use Chat Completions. Models must support tool calling; attachments

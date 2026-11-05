@@ -14,7 +14,7 @@ export class TelegramCommands implements ChatCommandsControl {
       ? [
           { command: 'nuevo', description: 'Iniciar una conversación nueva sin borrar recuerdos' },
           ...(profile.alternateModels?.length
-            ? [{ command: 'model', description: 'Elegir un modelo para la siguiente pregunta' }]
+            ? [{ command: 'model', description: 'Elegir el modelo de este perfil' }]
             : []),
           ...(profile.capabilities.includes('tasks')
             ? [{ command: 'clean', description: 'Vaciar la lista de tareas configurada' }]

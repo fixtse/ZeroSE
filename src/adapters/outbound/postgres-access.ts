@@ -188,6 +188,30 @@ export class PostgresAccess implements AccessRepository {
       .where(and(eq(profiles.bot, bot), eq(profiles.chat_id, chatId)));
     return row ? this.decode(row) : undefined;
   }
+  /** Change only the saved model, checking current permissions under the profile lock. */
+  async selectModel(bot: BotId, chatId: string, model: string | null) {
+    return this.db.transaction(async (database) => {
+      const [row] = await database
+        .select()
+        .from(profiles)
+        .where(and(eq(profiles.bot, bot), eq(profiles.chat_id, chatId)))
+        .for('update');
+      if (!row || !row.enabled) return false;
+      const profile = this.decode(row);
+      if (model !== null && !profile.alternateModels?.includes(model)) return false;
+      const credentials = row.credentials ? this.decrypt(row.credentials, `${bot}:${chatId}`) : {};
+      await database
+        .update(profiles)
+        .set({
+          credentials: this.encrypt(
+            { ...credentials, defaultModel: model || undefined },
+            `${bot}:${chatId}`,
+          ),
+        })
+        .where(and(eq(profiles.bot, bot), eq(profiles.chat_id, chatId)));
+      return true;
+    });
+  }
   async replaceGoogleConnection(
     bot: BotId,
     chatId: string,

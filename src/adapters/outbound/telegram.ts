@@ -60,10 +60,28 @@ export class Telegram {
     if (buffer.length > 1024 * 1024) return;
     return 'data:image/jpeg;base64,' + buffer.toString('base64');
   }
-  async send(chat: string, text: string, signal?: AbortSignal, replyTo?: number) {
+  async send(
+    chat: string,
+    text: string,
+    signal?: AbortSignal,
+    replyTo?: number,
+    choices?: string[],
+  ) {
     for (const chunk of chunks(text)) {
       const body = {
         chat_id: chat,
+        ...(choices
+          ? {
+              reply_markup: choices.length
+                ? {
+                    keyboard: choices.map((text) => [{ text }]),
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                    selective: true,
+                  }
+                : { remove_keyboard: true, selective: true },
+            }
+          : {}),
         ...(replyTo
           ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } }
           : {}),

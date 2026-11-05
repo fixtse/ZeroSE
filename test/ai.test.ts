@@ -29,20 +29,16 @@ const context = (userQuestion = true) => ({
   signal: AbortSignal.timeout(5000),
   userQuestion,
 });
-test('selection is one question only, admin-approved, isolated and rechecked; background turns do not consume it', async () => {
+test('model choices persist in the profile across turns, remain scoped and accept readable names', async () => {
   const value = settings();
-  const selections = new Map<string, string>();
   const repository: AISettingsPort = {
     read: async () => value,
     update: async () => true,
-    selectNext: async (session, model) => {
-      if (model) selections.set(session, model);
-      else selections.delete(session);
+    selectNext: async () => {
+      throw new Error('Must not write one-turn overrides');
     },
-    consumeNext: async (session) => {
-      const model = selections.get(session);
-      selections.delete(session);
-      return model;
+    consumeNext: async () => {
+      throw new Error('Must not consume one-turn overrides');
     },
   };
   const profile: AccessProfile = {
@@ -55,16 +51,16 @@ test('selection is one question only, admin-approved, isolated and rechecked; ba
     owner: false,
     alternateModels: ['alt'],
   };
-  const cli: AgentPort = {
-    run: async (...args) => {
-      assert.equal(args[3].aiEffort, 'high');
-      return 'cli:' + args[3].aiModel;
-    },
-  };
+  let rejectSave = false;
   const agent = new AIAgent(
     repository,
-    async (session) => (session === 'telegram:1' ? profile : undefined),
-    cli,
+    async (session) => (session === 'telegram:1' ? { ...profile } : undefined),
+    {
+      run: async (...args) => {
+        assert.equal(args[3].aiEffort, 'high');
+        return 'cli:' + args[3].aiModel;
+      },
+    },
     () => ({
       run: async (...args) => {
         assert.equal(args[3].aiModel, 'api-model');
@@ -72,25 +68,57 @@ test('selection is one question only, admin-approved, isolated and rechecked; ba
         return 'remote';
       },
     }),
+    async (session, model) => {
+      assert.equal(session, 'telegram:1');
+      if (rejectSave) return false;
+      profile.defaultModel = model || undefined;
+      return true;
+    },
   );
   const run = (session = 'telegram:1', user = true) =>
     agent.run(session, 'question', 'instructions', { ...context(user), session });
-  assert.match((await agent.userCommand('telegram:2', '/model alt'))!, /no permitido/);
-  assert.match((await agent.userCommand('telegram:1', '/model'))!, /\/model #1/);
-  assert.equal(await run(), 'cli:cli-model');
-  await agent.userCommand('telegram:1', '/model@zero_bot #1');
+  assert.match(String(await agent.userCommand('telegram:2', '/model alt')), /no permitido/);
+  assert.match(String(await agent.userCommand('telegram:2', '/model default')), /no permitido/);
+  const menu = await agent.userCommand('telegram:1', '/model');
+  assert.equal(typeof menu, 'object');
+  assert.deepEqual((menu as { choices: string[] }).choices, ['/model alternate', '/model default']);
+  await agent.userCommand('telegram:1', '/model Alternate');
+  assert.equal(profile.defaultModel, 'alt');
+  assert.equal(await run(), 'remote');
+  assert.equal(await run(), 'remote');
+  assert.equal(await run('telegram:1', false), 'remote');
   assert.equal(await run('telegram:2'), 'cli:cli-model');
-  assert.equal(await run('telegram:1', false), 'cli:cli-model');
-  assert.equal(await run(), 'remote');
-  assert.equal(await run(), 'cli:cli-model');
-  profile.defaultModel = 'alt';
-  assert.equal(await run(), 'remote');
-  await agent.userCommand('telegram:1', '/model alt');
   await agent.userCommand('telegram:1', '/model default');
-  assert.equal(selections.size, 0);
-  await agent.userCommand('telegram:1', '/model alt');
+  assert.equal(profile.defaultModel, undefined);
+  assert.equal(await run(), 'cli:cli-model');
+  value.models[1].label = 'Sol Fast';
+  const namedMenu = await agent.userCommand('telegram:1', '/model');
+  assert.deepEqual((namedMenu as { choices: string[] }).choices, [
+    '/model sol fast',
+    '/model default',
+  ]);
+  await agent.userCommand('telegram:1', '/model SOL FAST');
+  assert.equal(profile.defaultModel, 'alt');
+  value.models.push({ id: 'duplicate', label: 'Sol Fast', model: 'other', provider: 'api' });
+  profile.alternateModels!.push('duplicate');
+  assert.match(String(await agent.userCommand('telegram:1', '/model sol fast')), /no permitido/);
+  const duplicateMenu = await agent.userCommand('telegram:1', '/model');
+  assert.deepEqual((duplicateMenu as { choices: string[] }).choices, [
+    '/model alt',
+    '/model duplicate',
+    '/model default',
+  ]);
+  profile.alternateModels = ['alt'];
+  await agent.userCommand('telegram:1', '/model@zero_bot #1');
+  assert.equal(await run(), 'remote');
+  rejectSave = true;
+  await assert.rejects(() => agent.userCommand('telegram:1', '/model alt'), /no longer permitted/);
+  assert.equal(profile.defaultModel, 'alt');
+  rejectSave = false;
   profile.alternateModels = [];
-  await assert.rejects(run, /no longer permitted/);
+  assert.match(String(await agent.userCommand('telegram:1', '/model alt')), /no permitido/);
+  value.models = value.models.filter((m) => m.id !== 'alt');
+  await assert.rejects(run, /unavailable/);
   assert.equal(await agent.userCommand('telegram:1', 'hello'), undefined);
 });
 test('Postgres encrypts providers, protects revisions, persists profiles and atomically consumes overrides', async () => {
@@ -127,6 +155,30 @@ test('Postgres encrypts providers, protects revisions, persists profiles and ato
     const profile = await access.profile('zero', '1');
     assert.equal(profile?.defaultModel, 'alt');
     assert.deepEqual(profile?.alternateModels, ['main']);
+    await access.saveProfile({ ...profile!, context: 'kept context', google: f.config.google });
+    await access.updateContext('zero', '1', 'kept context', 0);
+    assert.equal(await access.selectModel('zero', '1', 'forbidden'), false);
+    assert.equal(await access.selectModel('zero', '1', 'main'), true);
+    const reloaded = new PostgresAccess(f.store.db, f.config.apiKey);
+    const saved = await reloaded.profile('zero', '1');
+    assert.equal(saved?.defaultModel, 'main');
+    assert.deepEqual(saved?.alternateModels, ['main']);
+    assert.equal(saved?.context, 'kept context');
+    assert.deepEqual(saved?.google, f.config.google);
+    const persistedAgent = new AIAgent(
+      repository,
+      async () => reloaded.profile('zero', '1'),
+      { run: async () => 'persisted-main' },
+      () => ({ run: async () => 'persisted-alt' }),
+      async (_session, model) => reloaded.selectModel('zero', '1', model),
+    );
+    assert.equal(await persistedAgent.run('telegram:1', 'q1', '', context()), 'persisted-main');
+    assert.equal(await persistedAgent.run('telegram:1', 'q2', '', context()), 'persisted-main');
+    assert.equal(await access.selectModel('zero', 'missing', 'main'), false);
+    assert.equal(await access.selectModel('zero', '1', null), true);
+    assert.equal((await reloaded.profile('zero', '1'))?.defaultModel, undefined);
+    await access.saveProfile({ ...saved!, enabled: false });
+    assert.equal(await access.selectModel('zero', '1', 'main'), false);
     const admin = new AIAdmin(repository);
     let status = 0,
       body: any;
@@ -347,6 +399,7 @@ test('background work uses the originating profile default, not the synthetic ag
         : undefined,
     { run: async () => 'cli' },
     () => ({ run: async () => 'profile-model' }),
+    async () => false,
   );
   assert.equal(
     await agent.run('system:memory:job1', 'summarize', 'policy', context(false)),

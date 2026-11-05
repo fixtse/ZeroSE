@@ -86,7 +86,10 @@ export interface MemoryPort {
   catalog(session: string): Promise<{ categories: string[]; tags: string[] }>;
 }
 export interface AgentPort {
-  userCommand?(session: string, text: string): Promise<string | undefined>;
+  userCommand?(
+    session: string,
+    text: string,
+  ): Promise<string | { text: string; choices: string[] } | undefined>;
   run(
     session: string,
     prompt: string,
@@ -158,7 +161,13 @@ export interface TelegramPort {
     job: string,
     signal: AbortSignal,
   ): Promise<{ text: string; images: string[]; transcriptionOnly: boolean; serviceReply?: string }>;
-  send(chat: string, text: string, signal?: AbortSignal, replyTo?: number): Promise<void>;
+  send(
+    chat: string,
+    text: string,
+    signal?: AbortSignal,
+    replyTo?: number,
+    choices?: string[],
+  ): Promise<void>;
   sendImage(
     chat: string,
     image: GeneratedImage,

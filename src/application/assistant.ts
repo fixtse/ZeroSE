@@ -68,7 +68,13 @@ export class Assistant {
       await telegram.sendImage(chat, image, signal, job.payload.message?.message_id);
     }
     if (result.output.trim())
-      await telegram.send(chat, result.output, signal, job.payload.message?.message_id);
+      await telegram.send(
+        chat,
+        result.output,
+        signal,
+        job.payload.message?.message_id,
+        result.choices,
+      );
     await result.afterDelivery?.();
     if (
       !result.output.trim() ||

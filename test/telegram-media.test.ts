@@ -314,3 +314,26 @@ test('ClipSE Whisper uploads native audio with its file API and language hint', 
   await assert.rejects(media.transcribe(audio, 'audio/ogg; codecs=opus', signal), /HTTP 422/);
   assert.equal(calls, 7, 'Failed requests must not be replayed');
 });
+
+test('Telegram model choices are tappable commands and selection removes the keyboard', async () => {
+  const config = ConfigSchema.parse({ telegram: { token: 'test-only' } });
+  const calls: any[] = [];
+  class ChoiceTelegram extends Telegram {
+    async call(method: string, body: any) {
+      assert.equal(method, 'sendMessage');
+      calls.push(body);
+      return true;
+    }
+  }
+  const telegram = new ChoiceTelegram(config, new Media(config));
+  await telegram.send('1', 'Choose a model', undefined, 42, ['/model sol', '/model default']);
+  assert.deepEqual(calls[0].reply_markup, {
+    keyboard: [[{ text: '/model sol' }], [{ text: '/model default' }]],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+    selective: true,
+  });
+  assert.equal(calls[0].reply_parameters.message_id, 42);
+  await telegram.send('1', 'Selected Sol', undefined, 43, []);
+  assert.deepEqual(calls[1].reply_markup, { remove_keyboard: true, selective: true });
+});

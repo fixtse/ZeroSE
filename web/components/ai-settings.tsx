@@ -984,7 +984,7 @@ export function ProfileModels({
       </SelectField>
       <p>
         {t(
-          'Modelos alternativos permitidos para /model. La selección del usuario solo se aplica a la siguiente pregunta.',
+          'Modelos alternativos permitidos para /model. La selección del usuario se guarda como modelo predeterminado del perfil.',
         )}
       </p>
       {models.map((m) => (
