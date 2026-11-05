@@ -1204,6 +1204,44 @@ test('explicit HA confirmation recovers a changed connection identity without re
   }
 });
 
+test('explicit HA confirmation adopts a paused weather alert after a connection identity change without replaying activation', async () => {
+  const f = await setup();
+  try {
+    Object.assign(f.scheduler, { identity: 'a'.repeat(64) });
+    const rule = (await f.rules.ensureOwnerWeather('telegram:1'))!;
+    const scheduler = {
+      ...f.scheduler,
+      identity: 'b'.repeat(64),
+      async inspect() {
+        return { generation: rule.generation, status: 'paused' as const, next_at: null };
+      },
+    };
+    const recovered = new NotificationRules(f.repository, async (_session, _kind, key) => ({
+      enabled: true,
+      scheduler: key && key !== scheduler.identity ? undefined : scheduler,
+    }));
+    const confirmed = await recovered.confirmScheduler(rule.session, rule.id);
+    assert('scheduler_key' in confirmed);
+    assert.equal(confirmed.scheduler_key, scheduler.identity);
+    assert.equal(confirmed.scheduler_state, 'installed');
+    assert.equal(confirmed.status, 'paused');
+    assert.equal(confirmed.generation, rule.generation);
+    assert.equal(f.configurations.length, 1);
+    assert.equal(await recovered.receive({
+      id: rule.id,
+      generation: rule.generation,
+      event_id: randomUUID(),
+      fired_at: new Date().toISOString(),
+    }), false);
+    await recovered.change(rule.session, rule.id, 'resume');
+    assert.equal(f.configurations.length, 2);
+    assert.equal(f.configurations.at(-1)?.generation, rule.generation + 1);
+    assert.equal(f.configurations.at(-1)?.status, 'active');
+  } finally {
+    await f.close();
+  }
+});
+
 test('missing HA alerts require a fresh absence check, preserve identity and claim recreation only once', async () => {
   const f = await setup();
   try {

@@ -341,11 +341,15 @@ export class NotificationRules {
         return { missing: true as const, version: rule.version };
       throw error;
     }
-    if (observed.generation !== rule.generation || observed.status !== rule.status)
-      throw new Error('The existing alert does not match the saved generation and status');
+    const awaitingCallback =
+      observed.status === 'completed' &&
+      ['pending', 'uncertain'].includes(observed.last_event?.outcome || '');
+    if (observed.generation !== rule.generation || awaitingCallback)
+      throw new Error('The existing alert does not match the saved generation or has a pending callback');
     const updated = {
       ...rule,
       scheduler_key: scope.scheduler.identity,
+      status: observed.status,
       scheduler_state: 'installed' as const,
       next_at: observed.next_at,
     };
