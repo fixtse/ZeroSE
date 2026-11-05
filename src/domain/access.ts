@@ -28,6 +28,7 @@ export interface AccessProfile {
   kind: 'user' | 'group';
   label: string;
   enabled: boolean;
+  approved?: boolean;
   capabilities: Capability[];
   owner: boolean;
   context?: string;

@@ -58,6 +58,7 @@ export interface Profile {
   kind: 'user' | 'group';
   label: string;
   enabled: boolean;
+  approved: boolean;
   owner: boolean;
   capabilities: string[];
   hasHomeAssistant: boolean;

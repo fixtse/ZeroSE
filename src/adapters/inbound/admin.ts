@@ -127,6 +127,7 @@ function publicProfile(
     kind: p.kind,
     label: p.label,
     enabled: p.enabled,
+    approved: !!p.approved || p.enabled,
     replyLanguage: p.replyLanguage || 'es',
     voiceReplies: p.voiceReplies !== false,
     respondToReplies: p.respondToReplies !== false,
@@ -776,6 +777,34 @@ export class Admin {
         );
         return true;
       }
+      if (req.method === 'PATCH') {
+        if (!previous) {
+          send(404, { error: 'Chat no encontrado.' });
+          return true;
+        }
+        const { enabled } = z.object({ enabled: z.boolean() }).strict().parse(await read());
+        const profile: AccessProfile = {
+          ...previous,
+          enabled,
+          approved: !!previous.approved || previous.enabled || enabled,
+        };
+        await this.repository.saveProfile(profile);
+        let warning: string | undefined;
+        if (this.commands && !chatId.startsWith('ha:') && enabled !== previous.enabled) {
+          try {
+            await this.commands.configure(profile);
+          } catch {
+            warning =
+              'Estado guardado. No se pudo confirmar la actualización del menú de Telegram; no se ha reintentado automáticamente.';
+          }
+        }
+        send(200, {
+          enabled: profile.enabled,
+          approved: profile.approved,
+          ...(warning ? { warning } : {}),
+        });
+        return true;
+      }
       if (req.method === 'PUT') {
         const input = profileSchema.parse(await read());
         await this.ai?.validateModels(input.defaultModel, input.alternateModels);
@@ -918,6 +947,7 @@ export class Admin {
           kind: input.kind,
           label: input.label,
           enabled: input.enabled,
+          approved: !!previous?.approved || !!previous?.enabled || input.enabled,
           voiceReplies: input.voiceReplies ?? previous?.voiceReplies ?? true,
           respondToReplies: input.respondToReplies ?? previous?.respondToReplies ?? true,
           notifications: input.notifications ?? previous?.notifications,

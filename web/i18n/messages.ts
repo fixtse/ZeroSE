@@ -1,17 +1,16 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
-  'Estado del perfil': 'Profile status',
-  'Se aplica al guardar el perfil.': 'Applied when you save the profile.',
+  Inactivo: 'Inactive',
   'Activar perfil': 'Activate profile',
   'Rechazar perfil': 'Reject profile',
   '¿Rechazar y eliminar': 'Reject and delete',
-  '¿Marcar como pendiente?': 'Mark as pending?',
+  '¿Desactivar perfil?': 'Deactivate profile?',
   '¿Activar perfil?': 'Activate profile?',
-  'Marcar como pendiente': 'Mark as pending',
-  'Al guardar, Zero dejará de responder a este perfil. Para rechazarlo, elimina el perfil.':
-    'When saved, Zero will stop replying to this profile. To reject it, delete the profile.',
-  'Al guardar, Zero podrá responder a este perfil con los permisos seleccionados.':
-    'When saved, Zero can reply to this profile with the selected permissions.',
+  'Desactivar perfil': 'Deactivate profile',
+  'Zero dejará de responder a este perfil. Puedes volver a activarlo en cualquier momento.':
+    'Zero will stop replying to this profile. You can reactivate it at any time.',
+  'Zero podrá responder a este perfil con los permisos guardados.':
+    'Zero can reply to this profile with its saved permissions.',
 
   'Idioma de las respuestas': 'Reply language',
   'Se aplica a las respuestas, resúmenes y avisos de este perfil. El idioma de la interfaz y los motores de voz se eligen por separado.':

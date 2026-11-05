@@ -152,6 +152,7 @@ export const accessProfiles = pgTable(
     kind: text().$type<AccessProfile['kind']>().notNull(),
     label: text().notNull(),
     enabled: boolean().notNull().default(false),
+    approved: boolean().notNull().default(false),
     capabilities: jsonb()
       .$type<AccessProfile['capabilities']>()
       .notNull()

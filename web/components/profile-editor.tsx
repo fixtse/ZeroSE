@@ -122,6 +122,26 @@ export function ProfileEditor({
   );
   const path = (value: Pick<Profile, 'bot' | 'chatId'>) =>
     '/v1/admin/profiles/' + value.bot + '/' + encodeURIComponent(value.chatId);
+  async function changeStatus() {
+    const enabled = !approved;
+    if (!current) {
+      setApproved(enabled);
+      return;
+    }
+    await run(async () => {
+      const result = await api<{ enabled: boolean; approved: boolean; warning?: string }>(
+        path(current),
+        'PATCH',
+        { enabled },
+      );
+      setApproved(result.enabled);
+      setCurrent(
+        (value) => value && { ...value, enabled: result.enabled, approved: result.approved },
+      );
+      await onChanged();
+      if (result.warning) notifyWarning(result.warning);
+    });
+  }
   async function refresh() {
     if (!current) return;
     const result = await api<Profile>(path(current));
@@ -378,20 +398,20 @@ export function ProfileEditor({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  {t(approved ? '¿Marcar como pendiente?' : '¿Activar perfil?')}
+                  {t(approved ? '¿Desactivar perfil?' : '¿Activar perfil?')}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   {t(
                     approved
-                      ? 'Al guardar, Zero dejará de responder a este perfil. Para rechazarlo, elimina el perfil.'
-                      : 'Al guardar, Zero podrá responder a este perfil con los permisos seleccionados.',
+                      ? 'Zero dejará de responder a este perfil. Puedes volver a activarlo en cualquier momento.'
+                      : 'Zero podrá responder a este perfil con los permisos guardados.',
                   )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
-                <AlertDialogAction onClick={() => setApproved(!approved)}>
-                  {t(approved ? 'Marcar como pendiente' : 'Activar perfil')}
+                <AlertDialogAction disabled={busy} onClick={() => void changeStatus()}>
+                  {t(approved ? 'Desactivar perfil' : 'Activar perfil')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -481,18 +501,16 @@ export function ProfileEditor({
                         : {current.chatId}
                       </p>
                       <div className="profile-approval" data-approved={approved}>
-                        <span id="profile-status-label">{t('Estado del perfil')}</span>
                         <div className="profile-approval-control">
-                          <span>{t('Pendiente')}</span>
+                          <span>{t(current.approved ? 'Inactivo' : 'Pendiente')}</span>
                           <Switch
                             id="profile-approved"
-                            aria-labelledby="profile-status-label"
+                            aria-label={t(approved ? 'Desactivar perfil' : 'Activar perfil')}
                             checked={approved}
                             onCheckedChange={() => setConfirmApproval(true)}
                           />
                           <span>{t('Activo')}</span>
                         </div>
-                        <small>{t('Se aplica al guardar el perfil.')}</small>
                       </div>
                     </div>
                   ) : (
@@ -868,7 +886,7 @@ export function ProfileEditor({
                       className="danger"
                       disabled={busy}
                       size="icon"
-                      tooltip={t(current.enabled ? 'Eliminar perfil' : 'Rechazar perfil')}
+                      tooltip={t(current.approved ? 'Eliminar perfil' : 'Rechazar perfil')}
                     >
                       <Trash2 />
                     </Button>
@@ -876,7 +894,7 @@ export function ProfileEditor({
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
-                        {t(current.enabled ? '¿Eliminar' : '¿Rechazar y eliminar')} {current.label}?
+                        {t(current.approved ? '¿Eliminar' : '¿Rechazar y eliminar')} {current.label}?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
                         {t('Se quitarán el acceso y las credenciales de')} {current.bot} ·{' '}
@@ -901,7 +919,7 @@ export function ProfileEditor({
                           })
                         }
                       >
-                        {t(current.enabled ? 'Eliminar perfil' : 'Rechazar perfil')}
+                        {t(current.approved ? 'Eliminar perfil' : 'Rechazar perfil')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

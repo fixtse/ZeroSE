@@ -493,6 +493,31 @@ test('admin API requires authentication, redacts and encrypts secrets, preserves
     assert.equal(updated.google?.refreshToken, 'refresh-secret');
     assert.equal(updated.homeAssistant?.token, 'ha-secret');
     assert.equal((await get('profiles?pending=true')).total, 0);
+    const status = await fetch(base + '/v1/admin/profiles/helper/11', {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ enabled: false }),
+    });
+    assert.equal(status.status, 200);
+    assert.deepEqual(await status.json(), { enabled: false, approved: true });
+    assert.equal((await get('profiles?pending=true')).total, 0);
+    const inactive = await get('profiles/helper/11');
+    assert.equal(inactive.enabled, false);
+    assert.equal(inactive.approved, true);
+    assert.equal(inactive.label, input.label);
+    assert.deepEqual(inactive.capabilities, input.capabilities);
+    assert.equal(
+      (await repository.profile('helper', '11'))?.google?.refreshToken,
+      'refresh-secret',
+    );
+    const reactivated = await fetch(base + '/v1/admin/profiles/helper/11', {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ enabled: true }),
+    });
+    assert.equal(reactivated.status, 200);
+    assert.deepEqual(await reactivated.json(), { enabled: true, approved: true });
+
     assert.equal(
       (await put('profiles/helper/12', { ...input, capabilities: ['unknown'] })).status,
       400,

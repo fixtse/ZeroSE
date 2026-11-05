@@ -3190,8 +3190,8 @@ h1 {
 }
 
 .profile-identity-status {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
@@ -3201,8 +3201,7 @@ h1 {
   overflow-wrap: anywhere;
 }
 .profile-approval {
-  justify-self: center;
-  text-align: center;
+  text-align: left;
   font-size: 12px;
   color: var(--muted-foreground);
 }
@@ -3210,7 +3209,7 @@ h1 {
 .profile-new-status {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   margin: 6px 0;
 }
@@ -3221,14 +3220,6 @@ h1 {
 .profile-approval[data-approved='true'] .profile-approval-control > span:last-child {
   color: var(--primary);
   font-weight: 600;
-}
-.profile-approval small {
-  font-size: 11px;
-}
-@media (max-width: 600px) {
-  .profile-identity-status {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .profile-approval-control > span {

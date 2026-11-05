@@ -29,6 +29,7 @@ test('existing pre-cleanup database upgrades without losing saved assistant data
       DELETE FROM __drizzle_migrations WHERE created_at>=1793116800000;
       DROP INDEX notification_rules_local_due;
       ALTER TABLE access_profiles DROP COLUMN respond_to_replies;
+      ALTER TABLE access_profiles DROP COLUMN approved;
       UPDATE __drizzle_migrations SET hash='15d0bed3f76f30026a155a50e6abeee740a95c54a1ebadb10103cad4008d3fcd' WHERE created_at=1793064686202;
       ALTER TABLE assistant_definitions DROP CONSTRAINT assistant_definitions_preset_check;
       ALTER TABLE access_profiles DROP CONSTRAINT access_profiles_prompt_preset_check;
@@ -63,7 +64,7 @@ test('existing pre-cleanup database upgrades without losing saved assistant data
     const {
       rows: [history],
     } = await f.pool.query('SELECT count(*)::int AS count FROM __drizzle_migrations');
-    assert.equal(history.count, 7);
+    assert.equal(history.count, 8);
   } finally {
     await f.close();
   }

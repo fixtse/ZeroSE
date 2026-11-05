@@ -124,6 +124,7 @@ export class PostgresAccess implements AccessRepository {
   private profileSeed(value: typeof profiles.$inferInsert) {
     const row: typeof profiles.$inferSelect = {
       enabled: false,
+      approved: !!value.enabled,
       capabilities: ['web', 'transcription'],
       owner: false,
       credentials: null,
@@ -166,6 +167,7 @@ export class PostgresAccess implements AccessRepository {
       kind: row.kind,
       label: row.label,
       enabled: row.enabled,
+      approved: row.approved || row.enabled,
       capabilities: row.capabilities,
       owner: row.owner,
       context: row.context || '',
@@ -216,7 +218,7 @@ export class PostgresAccess implements AccessRepository {
     const filter = and(
       isNull(profiles.linked_chat_id),
       sql`position(lower(${search}) in lower(${profiles.label} || ' ' || ${profiles.chat_id})) > 0`,
-      pending ? eq(profiles.enabled, false) : undefined,
+      pending ? and(eq(profiles.approved, false), eq(profiles.enabled, false)) : undefined,
     );
     const rows = await this.db
       .select({ ...getTableColumns(profiles), total: sql<number>`count(*) over()`.mapWith(Number) })
@@ -278,6 +280,7 @@ export class PostgresAccess implements AccessRepository {
         kind: profile.kind,
         label: profile.label,
         enabled: profile.enabled,
+        approved: !!profile.approved || profile.enabled,
         capabilities: profile.capabilities,
         owner: false,
         credentials,
@@ -294,6 +297,7 @@ export class PostgresAccess implements AccessRepository {
           kind: profile.kind,
           label: profile.label,
           enabled: profile.enabled,
+          approved: sql`${profiles.approved} OR ${!!profile.approved || profile.enabled}`,
           capabilities: profile.capabilities,
           credentials,
           memory_mode: sql`coalesce(${profile.memoryMode || null}, ${profiles.memory_mode})`,
@@ -421,6 +425,7 @@ export class PostgresAccess implements AccessRepository {
           kind: 'group',
           label: source.label,
           enabled: source.enabled,
+          approved: source.approved || source.enabled,
           capabilities: source.capabilities,
           owner: false,
           credentials,
