@@ -11,7 +11,7 @@ import { boundedBody, RemoteError } from './http.js';
 const dimension = z.number().int().positive().optional().catch(undefined);
 const webUrl = z.string().url().refine((value) => /^https?:\/\//.test(value));
 const image = z.object({
-  title: z.string().max(1000).default(''),
+  title: z.string().default(''),
   url: webUrl,
   source: webUrl,
   width: dimension,

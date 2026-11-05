@@ -277,7 +277,7 @@ test('image search rejects oversized responses and never retries provider failur
     requests++;
     return requests === 1
       ? new Response('', { status: 429 })
-      : new Response('{}', { headers: { 'Content-Length': '1000001' } });
+      : new Response('{}', { headers: { 'Content-Length': '4000001' } });
   });
   const tools = toolsFor('gpt-4.1');
   await assert.rejects(
@@ -349,7 +349,7 @@ test('provider selection is explicit, unavailable keys fail before requests, and
   let requests = 0;
   t.mock.method(globalThis, 'fetch', async () => {
     requests++;
-    return Response.json({ images: Array.from({ length: 20 }, (_, i) => ({ title: `${i} ` + '元'.repeat(950), original: { link: `https://example.com/${i}.png`, width: 2000, height: 2000 }, source: { link: 'https://example.com/product' } })) });
+    return Response.json({ images: Array.from({ length: 20 }, (_, i) => ({ title: `${i} ` + 'Product specifications and original image details. '.repeat(12), original: { link: `https://example.com/${i}.png`, width: 2000, height: 2000 }, source: { link: 'https://example.com/product' } })) });
   });
   const tools = toolsFor('gpt-6', true, '', { defaultProvider: 'brave', searchApiKey: 'search-key', serpApiKey: '' });
   await assert.rejects(tools.call('image_search', { query: 'default missing' }, context('missing-default')), /not configured/);
