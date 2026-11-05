@@ -1,10 +1,11 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Detectar automáticamente': 'Detect automatically',
   'Motor Whisper': 'Whisper engine',
   'Modelo Whisper': 'Whisper model',
   'Predeterminado del servicio': 'Service default',
-  'Usa la URL completa de /transcribe. El modelo debe ser compatible con el motor Whisper del servicio. Deja el idioma vacío o usa auto para detectarlo.':
-    'Use the full /transcribe URL. The model must be compatible with the service’s Whisper engine. Leave the language blank or use auto to detect it.',
+  'Usa la URL completa de /transcribe. Selecciona un motor Whisper para elegir su modelo. El idioma se puede detectar automáticamente.':
+    'Use the full /transcribe URL. Select a Whisper engine to choose its model. The language can be detected automatically.',
   'Antelación del aviso (minutos)': 'Reminder lead time (minutes)',
   'Revisa la agenda cada minuto y añade contexto relevante, recuerdos y previsión disponibles según los permisos del perfil.':
     'Checks the calendar every minute and adds relevant context, memories and available forecasts according to the profile permissions.',

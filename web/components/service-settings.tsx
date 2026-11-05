@@ -6,6 +6,8 @@ import { useUrlState } from '../hooks/use-url-state';
 import { HomeAssistantAccess } from './home-assistant-access';
 import { SecretEditor } from './secret-editor';
 import { ServiceSpeechPicker } from './service-speech-picker';
+import { SpeechLanguagePicker } from './speech-language-picker';
+import { whisperLanguages } from '../lib/whisper-languages';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -195,11 +197,10 @@ function SettingsForm({
   );
   const [whisperProvider, setWhisperProvider] = useState(get('media.asrWhisperProvider'));
   const [whisperModel, setWhisperModel] = useState(get('media.asrModel'));
+  const [sttLanguage, setSttLanguage] = useState(get('media.speech.sttLanguage'));
   const whisperModels = [
-    ...(whisperProvider !== 'hailo' ? ['small', 'medium', 'large-v3-turbo'] : []),
-    ...(whisperProvider !== 'faster-whisper'
-      ? ['whisper-tiny', 'whisper-base', 'whisper-small']
-      : []),
+    ...(whisperProvider === 'faster-whisper' ? ['small', 'medium', 'large-v3-turbo'] : []),
+    ...(whisperProvider === 'hailo' ? ['whisper-tiny', 'whisper-base', 'whisper-small'] : []),
   ];
   const [voice, setVoice] = useState(get('media.voice'));
   const [language, setLanguage] = useState(() => {
@@ -295,7 +296,7 @@ function SettingsForm({
         }
         if (stt === 'clipse-whisper') {
           extra['media.asrWhisperProvider'] = whisperProvider;
-          extra['media.asrModel'] = whisperModel;
+          extra['media.asrModel'] = whisperModels.includes(whisperModel) ? whisperModel : '';
         }
         if (tts === 'default') extra['media.voice'] = voice;
         save(new FormData(event.currentTarget), extra);
@@ -434,29 +435,35 @@ function SettingsForm({
                         <SelectField
                           id="service-whisper-model"
                           label={t('Modelo Whisper')}
-                          value={whisperModel}
+                          value={whisperModels.includes(whisperModel) ? whisperModel : ''}
+                          disabled={!whisperProvider}
                           onChange={(event) => setWhisperModel(event.target.value)}
                         >
                           <option value="">{t('Predeterminado del servicio')}</option>
-                          {whisperModel && !whisperModels.includes(whisperModel) && (
-                            <option value={whisperModel}>
-                              {whisperModel} {t('(guardado)')}
-                            </option>
-                          )}
                           {whisperModels.map((model) => (
                             <option key={model} value={model}>
                               {model}
                             </option>
                           ))}
                         </SelectField>
-                        {field('media.speech.sttLanguage')}
+                        <SpeechLanguagePicker
+                          id="service-stt-language"
+                          name="media.speech.sttLanguage"
+                          label={t('Idioma de reconocimiento')}
+                          value={sttLanguage}
+                          languages={whisperLanguages}
+                          useDefaultLanguages={false}
+                          allowAutomatic
+                          disabled={busy}
+                          onChange={setSttLanguage}
+                        />
                       </>
                     )}
                   </div>
                   {stt === 'clipse-whisper' && (
                     <p>
                       {t(
-                        'Usa la URL completa de /transcribe. El modelo debe ser compatible con el motor Whisper del servicio. Deja el idioma vacío o usa auto para detectarlo.',
+                        'Usa la URL completa de /transcribe. Selecciona un motor Whisper para elegir su modelo. El idioma se puede detectar automáticamente.',
                       )}
                     </p>
                   )}

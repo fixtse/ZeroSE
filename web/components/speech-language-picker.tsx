@@ -23,6 +23,8 @@ export function SpeechLanguagePicker({
   useDefaultLanguages,
   disabled,
   onChange,
+  allowAutomatic = false,
+  name,
 }: {
   id: string;
   label: string;
@@ -31,17 +33,26 @@ export function SpeechLanguagePicker({
   useDefaultLanguages: boolean;
   disabled: boolean;
   onChange(value: string): void;
+  allowAutomatic?: boolean;
+  name?: string;
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
+  const selected = allowAutomatic && (!value || value.toLowerCase() === 'auto') ? '' : value;
   const choices = [
-    ...new Set([value, ...(useDefaultLanguages ? defaultLanguages : languages)]),
+    ...new Set([selected, ...(useDefaultLanguages ? defaultLanguages : languages)]),
   ].filter(Boolean);
+  if (allowAutomatic) choices.unshift('');
+  const choiceLabel = (code: string) =>
+    code
+      ? languageName(code, t.locale) + ' · ' + code
+      : t(allowAutomatic ? 'Detectar automáticamente' : 'Seleccionar…');
   return (
     <div className="settings-field">
       <Label id={id + '-label'} htmlFor={id}>
         {label}
       </Label>
+      {name && <input type="hidden" name={name} value={value} disabled={disabled} />}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -54,9 +65,7 @@ export function SpeechLanguagePicker({
             disabled={disabled}
             className="w-full justify-between"
           >
-            <span className="truncate">
-              {languageName(value, t.locale)} · {value}
-            </span>
+            <span className="truncate">{choiceLabel(selected)}</span>
             <ChevronsUpDown className="shrink-0" />
           </Button>
         </PopoverTrigger>
@@ -71,16 +80,14 @@ export function SpeechLanguagePicker({
               {choices.map((code) => (
                 <CommandItem
                   key={code}
-                  value={code + ' ' + languageName(code, t.locale)}
+                  value={(code || 'auto') + ' ' + choiceLabel(code)}
                   onSelect={() => {
                     onChange(code);
                     setOpen(false);
                   }}
                 >
-                  <span className="min-w-0 flex-1">
-                    {languageName(code, t.locale)} · {code}
-                  </span>
-                  {code === value && <Check className="size-4 shrink-0" />}
+                  <span className="min-w-0 flex-1">{choiceLabel(code)}</span>
+                  {code === selected && <Check className="size-4 shrink-0" />}
                 </CommandItem>
               ))}
             </CommandList>

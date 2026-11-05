@@ -139,7 +139,9 @@ enter the full `/transcribe` URL, and select the Whisper engine and model.
 **Service default** leaves that choice to ClipSE. Faster Whisper offers `small`,
 `medium` and `large-v3-turbo`; Hailo offers `whisper-tiny`, `whisper-base` and
 `whisper-small`. Changing the engine resets the model to the service default.
-Saved models are retained even if they are not in the current list.
+The model selector only lists models for the selected engine. Choose an engine
+before choosing a model; service-default mode delegates both choices to ClipSE.
+Recognition language uses a searchable dropdown with automatic detection.
 
 For configuration files, set `media.asrProvider` to `"clipse-whisper"` and
 `media.asrUrl` to its full `/transcribe` URL (for example,
