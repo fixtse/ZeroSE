@@ -538,3 +538,68 @@ test('deleting a service secret survives reload and later saves with an empty pa
   );
   assert.equal(field.configured, false);
 });
+
+test('ClipSE Whisper engine and model are discoverable, saved, applied and retained', async () => {
+  const f = fixture();
+  const initial = await request(f.admin, 'GET');
+  const field = (result: any, path: string) =>
+    result.fields.find((item: any) => item.path === path);
+  assert.equal(field(initial.result, 'media.asrProvider').value, 'legacy');
+  assert.equal(field(initial.result, 'media.asrModel').value, '');
+  assert.equal(field(initial.result, 'media.asrWhisperProvider').value, '');
+  const saved = await request(f.admin, 'PUT', {
+    revision: 1,
+    changes: {
+      'media.speech.stt': 'default',
+      'media.asrProvider': 'clipse-whisper',
+      'media.asrUrl': 'http://whisper.test/transcribe',
+      'media.asrWhisperProvider': 'faster-whisper',
+      'media.asrModel': 'large-v3-turbo',
+    },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(f.applied[0].media.asrModel, 'large-v3-turbo');
+  const reloaded = await request(f.admin, 'GET');
+  assert.equal(field(reloaded.result, 'media.asrProvider').value, 'clipse-whisper');
+  assert.equal(field(reloaded.result, 'media.asrModel').value, 'large-v3-turbo');
+  assert.equal(field(reloaded.result, 'media.asrWhisperProvider').value, 'faster-whisper');
+  assert.equal(
+    (
+      await request(f.admin, 'PUT', {
+        revision: 2,
+        changes: { 'media.asrProvider': 'legacy' },
+      })
+    ).status,
+    200,
+  );
+  assert.equal(f.value().media.asrModel, 'large-v3-turbo');
+  assert.equal(
+    (
+      await request(f.admin, 'PUT', {
+        revision: 3,
+        changes: { 'media.asrWhisperProvider': 'unknown' },
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(f.admin, 'PUT', {
+        revision: 3,
+        changes: { 'media.asrModel': 'x'.repeat(181) },
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(f.admin, 'PUT', {
+        revision: 3,
+        changes: { 'media.asrModel': '', 'media.asrWhisperProvider': '' },
+      })
+    ).status,
+    200,
+  );
+  assert.equal(f.value().media.asrModel, '');
+  assert.equal(f.value().media.asrWhisperProvider, '');
+});

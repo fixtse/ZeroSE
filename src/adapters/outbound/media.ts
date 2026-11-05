@@ -72,6 +72,9 @@ export class Media {
       new Blob([new Uint8Array(buffer)], { type: mime }),
       clipse ? `audio.${extension}` : 'audio.wav',
     );
+    if (clipse && this.config.media.asrModel) form.set('model', this.config.media.asrModel);
+    if (clipse && this.config.media.asrWhisperProvider)
+      form.set('provider', this.config.media.asrWhisperProvider);
     if (clipse && speech?.sttLanguage) {
       const language = speech.sttLanguage.split('-')[0]!.toLowerCase();
       if (language !== 'auto') form.set('language', language);

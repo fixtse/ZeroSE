@@ -65,6 +65,8 @@ const fieldNames: Record<string, string> = {
   enabled: 'Activado',
   ffmpegCommand: 'Ejecutable de FFmpeg',
   asrUrl: 'URL de transcripción de audio',
+  asrModel: 'Modelo Whisper',
+  asrWhisperProvider: 'Motor Whisper',
   audioExtractionUrl: 'URL del servicio de extracción de audio de vídeos',
   voice: 'Voz',
   maxBytes: 'Tamaño máximo de archivos (bytes)',
@@ -184,7 +186,21 @@ function SettingsForm({
     get('media.audioExtractionUrl') ? 'external' : 'internal',
   );
   const [tts, setTts] = useState(get('media.speech.tts') || 'default');
-  const [stt, setStt] = useState(get('media.speech.stt') || 'default');
+  const [stt, setStt] = useState(
+    get('media.speech.stt') && get('media.speech.stt') !== 'default'
+      ? get('media.speech.stt')
+      : get('media.asrProvider') === 'clipse-whisper'
+        ? 'clipse-whisper'
+        : 'default',
+  );
+  const [whisperProvider, setWhisperProvider] = useState(get('media.asrWhisperProvider'));
+  const [whisperModel, setWhisperModel] = useState(get('media.asrModel'));
+  const whisperModels = [
+    ...(whisperProvider !== 'hailo' ? ['small', 'medium', 'large-v3-turbo'] : []),
+    ...(whisperProvider !== 'faster-whisper'
+      ? ['whisper-tiny', 'whisper-base', 'whisper-small']
+      : []),
+  ];
   const [voice, setVoice] = useState(get('media.voice'));
   const [language, setLanguage] = useState(() => {
     const match = /^([a-z]{2,3}-[A-Za-z0-9-]+)-[^-]+Neural$/.exec(get('media.voice'));
@@ -273,7 +289,14 @@ function SettingsForm({
             ? ''
             : new FormData(event.currentTarget).get('media.audioExtractionUrl');
         extra['media.speech.tts'] = tts;
-        extra['media.speech.stt'] = stt;
+        extra['media.speech.stt'] = stt === 'clipse-whisper' ? 'default' : stt;
+        if (stt === 'default' || stt === 'clipse-whisper') {
+          extra['media.asrProvider'] = stt === 'clipse-whisper' ? 'clipse-whisper' : 'legacy';
+        }
+        if (stt === 'clipse-whisper') {
+          extra['media.asrWhisperProvider'] = whisperProvider;
+          extra['media.asrModel'] = whisperModel;
+        }
         if (tts === 'default') extra['media.voice'] = voice;
         save(new FormData(event.currentTarget), extra);
       }}
@@ -385,21 +408,67 @@ function SettingsForm({
                       onChange={(event) => setStt(event.target.value)}
                     >
                       <option value="default">{t('Servicio externo')}</option>
+                      <option value="clipse-whisper">ClipSE Whisper</option>
                       {get('media.speech.stt') && get('media.speech.stt') !== 'default' && (
                         <option value={get('media.speech.stt')}>
                           Home Assistant · {get('media.speech.stt')}
                         </option>
                       )}
                     </SelectField>
-                    {stt === 'default' && field('media.asrUrl')}
+                    {(stt === 'default' || stt === 'clipse-whisper') && field('media.asrUrl')}
+                    {stt === 'clipse-whisper' && (
+                      <>
+                        <SelectField
+                          id="service-whisper-provider"
+                          label={t('Motor Whisper')}
+                          value={whisperProvider}
+                          onChange={(event) => {
+                            setWhisperProvider(event.target.value);
+                            setWhisperModel('');
+                          }}
+                        >
+                          <option value="">{t('Predeterminado del servicio')}</option>
+                          <option value="faster-whisper">Faster Whisper</option>
+                          <option value="hailo">Hailo</option>
+                        </SelectField>
+                        <SelectField
+                          id="service-whisper-model"
+                          label={t('Modelo Whisper')}
+                          value={whisperModel}
+                          onChange={(event) => setWhisperModel(event.target.value)}
+                        >
+                          <option value="">{t('Predeterminado del servicio')}</option>
+                          {whisperModel && !whisperModels.includes(whisperModel) && (
+                            <option value={whisperModel}>
+                              {whisperModel} {t('(guardado)')}
+                            </option>
+                          )}
+                          {whisperModels.map((model) => (
+                            <option key={model} value={model}>
+                              {model}
+                            </option>
+                          ))}
+                        </SelectField>
+                        {field('media.speech.sttLanguage')}
+                      </>
+                    )}
                   </div>
+                  {stt === 'clipse-whisper' && (
+                    <p>
+                      {t(
+                        'Usa la URL completa de /transcribe. El modelo debe ser compatible con el motor Whisper del servicio. Deja el idioma vacío o usa auto para detectarlo.',
+                      )}
+                    </p>
+                  )}
                   <details className="service-advanced">
                     <summary>{t('Opciones avanzadas')}</summary>
                     <div className="settings-grid">
                       {field('media.maxBytes')}
                       {tts !== 'default' &&
                         ['media.speech.ttsLanguage', 'media.speech.voice'].map(field)}
-                      {stt !== 'default' && field('media.speech.sttLanguage')}
+                      {stt !== 'default' &&
+                        stt !== 'clipse-whisper' &&
+                        field('media.speech.sttLanguage')}
                     </div>
                   </details>
                 </>

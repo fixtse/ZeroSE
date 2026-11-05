@@ -66,6 +66,8 @@ export interface Config {
   media: {
     ffmpegCommand?: string;
     asrProvider?: 'legacy' | 'clipse-whisper';
+    asrWhisperProvider?: '' | 'faster-whisper' | 'hailo';
+    asrModel?: string;
     asrUrl: string;
     audioExtractionUrl: string;
     voice: string;

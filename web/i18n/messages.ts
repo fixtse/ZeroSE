@@ -1,5 +1,10 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Motor Whisper': 'Whisper engine',
+  'Modelo Whisper': 'Whisper model',
+  'Predeterminado del servicio': 'Service default',
+  'Usa la URL completa de /transcribe. El modelo debe ser compatible con el motor Whisper del servicio. Deja el idioma vacío o usa auto para detectarlo.':
+    'Use the full /transcribe URL. The model must be compatible with the service’s Whisper engine. Leave the language blank or use auto to detect it.',
   'Antelación del aviso (minutos)': 'Reminder lead time (minutes)',
   'Revisa la agenda cada minuto y añade contexto relevante, recuerdos y previsión disponibles según los permisos del perfil.':
     'Checks the calendar every minute and adds relevant context, memories and available forecasts according to the profile permissions.',

@@ -109,6 +109,8 @@ test('video uses the configured extraction service before STT and direct audio b
       return;
     }
     assert.equal(req.url, '/configured-stt?output=json');
+    assert.equal(body.has('model'), false);
+    assert.equal(body.has('provider'), false);
     const file = body.get('audio_file') as File;
     received.push({ mime: file.type, buffer: Buffer.from(await file.arrayBuffer()) });
     res.setHeader('Content-Type', 'application/json');
@@ -121,6 +123,8 @@ test('video uses the configured extraction service before STT and direct audio b
     dataDir: dir,
     media: {
       asrUrl: base + '/configured-stt?output=json',
+      asrModel: 'whisper-base',
+      asrWhisperProvider: 'hailo',
       audioExtractionUrl: base + '/video/extract/audio',
       maxBytes: 100,
     },
@@ -271,6 +275,8 @@ test('ClipSE Whisper uploads native audio with its file API and language hint', 
     assert.equal(options.redirect, 'error');
     const form = options.body as FormData;
     assert.equal(form.has('audio_file'), false);
+    assert.equal(form.get('model'), config.media.asrModel || null);
+    assert.equal(form.get('provider'), config.media.asrWhisperProvider || null);
     const file = form.get('file') as File;
     assert.equal(file.name, 'audio.ogg');
     assert.equal(file.type, 'audio/ogg; codecs=opus');
@@ -288,6 +294,17 @@ test('ClipSE Whisper uploads native audio with its file API and language hint', 
       'Texto de ClipSE',
     );
   }
+  for (const [provider, model] of [
+    ['faster-whisper', 'large-v3-turbo'],
+    ['hailo', 'whisper-base'],
+  ] as const) {
+    config.media.asrWhisperProvider = provider;
+    config.media.asrModel = model;
+    assert.equal(
+      await media.transcribe(audio, 'audio/ogg; codecs=opus', signal),
+      'Texto de ClipSE',
+    );
+  }
   result = null;
   await assert.rejects(
     media.transcribe(audio, 'audio/ogg; codecs=opus', signal),
@@ -295,5 +312,5 @@ test('ClipSE Whisper uploads native audio with its file API and language hint', 
   );
   status = 422;
   await assert.rejects(media.transcribe(audio, 'audio/ogg; codecs=opus', signal), /HTTP 422/);
-  assert.equal(calls, 5, 'Failed requests must not be replayed');
+  assert.equal(calls, 7, 'Failed requests must not be replayed');
 });

@@ -181,6 +181,8 @@ export const ServiceConfigSchema = z.object({
         })
         .optional(),
       asrProvider: z.enum(['legacy', 'clipse-whisper']).default('legacy'),
+      asrWhisperProvider: z.enum(['', 'faster-whisper', 'hailo']).default(''),
+      asrModel: z.string().trim().max(180).default(''),
       asrUrl: secret,
       audioExtractionUrl: secret,
       voice: z.string().default('es-ES-AlvaroNeural'),
@@ -189,6 +191,8 @@ export const ServiceConfigSchema = z.object({
     .default({
       ffmpegCommand: 'ffmpeg',
       asrProvider: 'legacy',
+      asrWhisperProvider: '',
+      asrModel: '',
       asrUrl: '',
       audioExtractionUrl: '',
       voice: 'es-ES-AlvaroNeural',
