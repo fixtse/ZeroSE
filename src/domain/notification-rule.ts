@@ -40,6 +40,7 @@ export interface NotificationRule {
   session: string;
   kind: 'reminder' | 'timer' | 'alert';
   message: string;
+  assistant_request?: string;
   status: 'active' | 'paused' | 'cancelled' | 'completed' | 'expired';
   next_at: string | null;
   repeat_seconds: number | null;

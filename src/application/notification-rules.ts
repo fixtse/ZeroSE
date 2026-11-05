@@ -261,6 +261,21 @@ export class NotificationRules {
     await this.install(rule, scope.scheduler, signal);
     return { id, status: rule.status, next_at: rule.next_at, scheduler_state: 'installed' };
   }
+  /** Change only Zero's execution request; HA continues watching the same rule. */
+  async setAssistantRequest(session: string, id: string, request: string | null) {
+    const rule = await this.repository.read(session, id);
+    if (!rule) throw new Error('Notification rule not found in this chat');
+    if (rule.wake_date || !['active', 'paused'].includes(rule.status))
+      throw new Error('Only active or paused standalone notifications can run an assistant turn');
+    const scope = await this.scope(session, rule.kind, rule.scheduler_key);
+    if (!scope.enabled) throw new Error('Notifications are disabled for this chat');
+    if (request !== null && (!request.trim() || request.trim().length > 4000))
+      throw new Error('Supply an assistant request between 1 and 4000 characters');
+    rule.assistant_request = request?.trim() || undefined;
+    if (!(await this.repository.apply(rule)))
+      throw new Error('Rule changed concurrently; read it before trying again');
+    return { id, assistant_request: rule.assistant_request ?? null };
+  }
   async receive(event: RuleEvent, local = false) {
     const age = Date.now() - Date.parse(event.fired_at);
     if (!Number.isFinite(age) || age < -30_000 || age > 60_000) return false;
@@ -427,6 +442,7 @@ export class NotificationRules {
     job: Job,
     explainWeather?: (change?: WeatherChange) => Promise<string | JobResult>,
     language?: ReplyLanguage,
+    runAssistant?: (request: string) => Promise<JobResult>,
   ): Promise<JobResult> {
     const rule = await this.repository.read(job.session, job.payload.ruleId);
     const permitted = rule && (await this.canNotify(rule));
@@ -435,9 +451,14 @@ export class NotificationRules {
       rule.wake_date ||
       !permitted ||
       rule.generation !== job.payload.generation ||
+      rule.assistant_request !== job.payload.assistantRequest ||
       ['cancelled', 'paused', 'expired'].includes(rule.status)
     )
       return { output: '', deliver: false };
+    if (rule.assistant_request) {
+      if (!runAssistant) throw new Error('Scheduled assistant turns are unavailable');
+      return runAssistant(rule.assistant_request);
+    }
     if (rule.condition?.source === 'weather' && explainWeather) {
       const pending = job.payload.weather
         ? await this.repository.weatherEvidence(rule.id, rule.generation, job.payload.weather)

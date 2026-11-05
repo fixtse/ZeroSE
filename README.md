@@ -408,6 +408,19 @@ checks an indexed set of due rules approximately once per second. Accepting an
 occurrence, recording its receipt, advancing the rule and queueing its notification
 share a transaction. Competing ticks cannot enqueue the same occurrence twice.
 No model runs while waiting for a deadline or delivering an ordinary reminder.
+Reminders, timers and conditional alerts can instead save an optional
+`assistant_request`: a user-authorized task to execute as a full assistant turn
+when the trigger fires. `message` remains its short label. The turn uses the
+chat's assigned assistant, conversation, current tools and permissions, and sends
+its result directly to that chat. This supports arbitrary assistant requests,
+including fresh searches and tool actions; it is not limited to canned reports.
+Use `operation=set_request` on `reminder_change` or `alert_change` to update an
+existing rule, or pass `assistant_request=null` to restore plain notifications.
+This local update preserves the installed schedule, rule ID and generation.
+Already queued occurrences whose saved request has changed are suppressed.
+Triggered turns retain queue ordering and deduplication and are never automatically
+replayed after an interruption or an uncertain action. Existing plain-message
+rules are not silently converted into assistant tasks.
 
 The tools remain `reminder_create`, `timer_start`, `reminders_list`, `reminder_get`
 and `reminder_change`; agents never choose a scheduler. `reminder_create` takes an

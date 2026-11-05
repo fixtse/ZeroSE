@@ -29,6 +29,19 @@ export class ProcessManagedMessage {
     private ownerPrompt: string | (() => Promise<string>),
     private definitions?: Pick<AssistantDefinitions, 'resolve'>,
   ) {}
+  async executeNotification(job: Job, context: ToolContext, request: string): Promise<JobResult> {
+    return this.execute(
+      {
+        ...job,
+        payload: {
+          ...job.payload,
+          text: `Scheduled assistant task triggered at ${new Date().toISOString()}. Execute the user's saved request now and send the result to this chat:
+${request}`,
+        },
+      },
+      context,
+    );
+  }
   async execute(job: Job, context: ToolContext): Promise<JobResult> {
     const address = sessionAddress(job.session);
     let identity = 'Zero';

@@ -63,6 +63,7 @@ export function registerNotificationTools(
         session: c.session,
         kind,
         message: a.message,
+        ...(a.assistant_request ? { assistant_request: a.assistant_request } : {}),
         ...(a.wake_date ? { wake_date: a.wake_date } : {}),
         status: 'active',
         next_at: next,
@@ -82,11 +83,17 @@ export function registerNotificationTools(
     return { id: rule.id, status: rule.status, next_at: rule.next_at, wake_date: rule.wake_date };
   };
   const message = z.string().trim().min(1).max(1000);
+  const assistantRequest = z.string().trim().min(1).max(4000);
+  const executionDescription =
+    ' Optional assistant_request runs a full assistant turn with this chat’s current tools and permissions when triggered; put the user-authorized task there and use message as its short label. Omit it for a plain notification.';
+
   tools.add(
     'reminder_create',
-    'Schedule a persistent Telegram reminder at a clock time, using an ISO datetime with timezone offset. For wake-up briefing requests use wake_reminder_create instead. Optional repeat_seconds repeats at a fixed elapsed interval (not local calendar days). Missed deadlines are not replayed after restart.',
+    'Schedule a persistent Telegram reminder at a clock time, using an ISO datetime with timezone offset. For wake-up briefing requests use wake_reminder_create instead. Optional repeat_seconds repeats at a fixed elapsed interval (not local calendar days). Missed deadlines are not replayed after restart.' +
+      executionDescription,
     z.object({
       message,
+      assistant_request: assistantRequest.optional(),
       at: z.iso.datetime({ offset: true }),
       repeat_seconds: seconds.min(60).optional(),
     }),
@@ -106,8 +113,13 @@ export function registerNotificationTools(
   );
   tools.add(
     'timer_start',
-    'Start a persistent countdown in seconds. The notification is queued only when due; no external connection is required.',
-    z.object({ message, duration_seconds: seconds }),
+    'Start a persistent countdown in seconds. The notification is queued only when due; no external connection is required.' +
+      executionDescription,
+    z.object({
+      message,
+      assistant_request: assistantRequest.optional(),
+      duration_seconds: seconds,
+    }),
     (a, c) => create('timer', a, c),
   );
   tools.add(
@@ -119,14 +131,17 @@ export function registerNotificationTools(
       return jsonPage(
         {
           ...result,
-          items: result.items.map(({ id, kind, message, status, next_at, wake_date }) => ({
-            id,
-            kind,
-            message,
-            status,
-            next_at,
-            wake_date,
-          })),
+          items: result.items.map(
+            ({ id, kind, message, assistant_request, status, next_at, wake_date }) => ({
+              id,
+              kind,
+              message,
+              assistant_request,
+              status,
+              next_at,
+              wake_date,
+            }),
+          ),
         },
         a.result_offset,
       );
@@ -143,6 +158,7 @@ export function registerNotificationTools(
         id,
         kind,
         message,
+        assistant_request,
         status,
         next_at,
         wake_date,
@@ -161,6 +177,7 @@ export function registerNotificationTools(
           id,
           kind,
           message,
+          assistant_request,
           status,
           next_at,
           wake_date,
@@ -180,25 +197,35 @@ export function registerNotificationTools(
   );
   tools.add(
     'reminder_change',
-    'Cancel, pause, resume or snooze a reminder/timer by ID. Snooze requires seconds. Never repeat a mutation to fetch its output.',
-    z.object({
-      id,
-      operation: z.enum(['cancel', 'pause', 'resume', 'snooze']),
-      seconds: seconds.optional(),
-    }),
+    'Cancel, pause, resume or snooze a reminder/timer by ID. Snooze requires seconds. set_request sets assistant_request for future triggers; null restores plain notifications without changing the schedule. Never repeat a mutation to fetch its output.',
+    z
+      .object({
+        id,
+        operation: z.enum(['cancel', 'pause', 'resume', 'snooze', 'set_request']),
+        seconds: seconds.optional(),
+        assistant_request: assistantRequest.nullable().optional(),
+      })
+      .refine(
+        (a) => (a.operation === 'set_request') === (a.assistant_request !== undefined),
+        'Supply assistant_request only for set_request; use null for a plain notification',
+      ),
     async (a, c) => {
       const rule = await rules.repository.read(c.session, a.id);
       if (!rule || rule.kind === 'alert') throw new Error('Reminder/timer not found in this chat');
+      if (a.operation === 'set_request')
+        return rules.setAssistantRequest(c.session, a.id, a.assistant_request!);
       return rules.change(c.session, a.id, a.operation, a.seconds, new Date(), c.signal);
     },
   );
   if (!ha) return;
   tools.add(
     'weather_alert_create',
-    'Notify this Telegram chat when Home Assistant’s daily forecast changes within horizon_hours. Default any_change includes storms, snow, wind, temperature, rain and clearing. Use mode=rain for rain-only requests, or mode=conditions with explicit HA condition names (storms: lightning/lightning-rainy). minimum_probability applies only to rain mode. The first observation establishes a baseline. Event-driven; no model runs in the background.',
+    'Notify this Telegram chat when Home Assistant’s daily forecast changes within horizon_hours. Default any_change includes storms, snow, wind, temperature, rain and clearing. Use mode=rain for rain-only requests, or mode=conditions with explicit HA condition names (storms: lightning/lightning-rainy). minimum_probability applies only to rain mode. The first observation establishes a baseline. Event-driven; no model runs while waiting.' +
+      executionDescription,
     z
       .object({
         message,
+        assistant_request: assistantRequest.optional(),
         mode: z.enum(['any_change', 'conditions', 'rain']).default('any_change'),
         conditions: z
           .array(
@@ -249,9 +276,11 @@ export function registerNotificationTools(
   );
   tools.add(
     'alert_create',
-    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person/device_tracker and zone; distance above/below watches two GPS entities (person or device_tracker) in metres (straight-line). In private chats use "self" for the user: it automatically uses the person or device_tracker GPS location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing. Distance alerts use last known GPS even when old (stationary trackers may not update); missing/unavailable/inaccurate GPS breaks holds. Zone alerts also require recent reports. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.',
+    'Create a conditional Telegram alert. Discover permitted sensors or ha_location_entities first. Zone enter/leave watches a person/device_tracker and zone; distance above/below watches two GPS entities (person or device_tracker) in metres (straight-line). In private chats use "self" for the user: it automatically uses the person or device_tracker GPS location saved in their profile, without asking them to name or confirm it. Location alerts start from a baseline and fire only on a later crossing. Distance alerts use last known GPS even when old (stationary trackers may not update); missing/unavailable/inaccurate GPS breaks holds. Zone alerts also require recent reports. Recurring distance alerts rearm beyond reset_margin_m. HA watches changes without AI polling. Restarts reset holds; uncertain deliveries are never replayed.' +
+      executionDescription,
     z.object({
       message,
+      assistant_request: assistantRequest.optional(),
       condition: z.union([
         z
           .object({
@@ -302,9 +331,10 @@ export function registerNotificationTools(
       return jsonPage(
         {
           ...result,
-          items: result.items.map(({ id, message, status, condition }) => ({
+          items: result.items.map(({ id, message, assistant_request, status, condition }) => ({
             id,
             message,
+            assistant_request,
             status,
             condition,
           })),
@@ -315,11 +345,22 @@ export function registerNotificationTools(
   );
   tools.add(
     'alert_change',
-    'Pause, resume or cancel a conditional alert by ID in this chat.',
-    z.object({ id, operation: z.enum(['pause', 'resume', 'cancel']) }),
+    'Pause, resume or cancel a conditional alert by ID in this chat. set_request sets assistant_request for future triggers; null restores plain notifications without changing the HA rule.',
+    z
+      .object({
+        id,
+        operation: z.enum(['pause', 'resume', 'cancel', 'set_request']),
+        assistant_request: assistantRequest.nullable().optional(),
+      })
+      .refine(
+        (a) => (a.operation === 'set_request') === (a.assistant_request !== undefined),
+        'Supply assistant_request only for set_request; use null for a plain notification',
+      ),
     async (a, c) => {
       const rule = await rules.repository.read(c.session, a.id);
       if (rule?.kind !== 'alert') throw new Error('Alert not found in this chat');
+      if (a.operation === 'set_request')
+        return rules.setAssistantRequest(c.session, a.id, a.assistant_request!);
       return rules.change(c.session, a.id, a.operation, undefined, new Date(), c.signal);
     },
   );

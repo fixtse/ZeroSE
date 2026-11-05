@@ -435,6 +435,7 @@ async function canRespond(job: Job, result?: JobResult) {
     if (
       !rule ||
       rule.generation !== job.payload.generation ||
+      rule.assistant_request !== job.payload.assistantRequest ||
       ['paused', 'cancelled', 'expired'].includes(rule.status)
     )
       return false;
@@ -673,6 +674,7 @@ const codex = new AIAgent(
             );
           },
           (await access.forSession(job.session))?.replyLanguage,
+          (request) => processManagedMessage.executeNotification(job, context, request),
         ),
       reset: async (job) => {
         await store.reset(job.session);

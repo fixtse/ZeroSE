@@ -1381,3 +1381,161 @@ test('concurrent confirmed recreation installs the active alert once with the or
     await f.close();
   }
 });
+
+test('conditional triggers queue one assistant request and suppress stale or revoked turns', async () => {
+  const f = await setup();
+  try {
+    const request = 'Inspect my open tasks and prepare the next useful action.';
+    const rule = await f.rules.create(
+      value({
+        kind: 'alert',
+        next_at: null,
+        condition: { entity_id: 'sensor.usage', operator: 'equals', value: 0, hold_seconds: 30 },
+        assistant_request: request,
+      }),
+    );
+    const event = {
+      id: rule.id,
+      generation: rule.generation,
+      event_id: randomUUID(),
+      fired_at: new Date().toISOString(),
+    };
+    assert.deepEqual((await Promise.all([f.rules.receive(event), f.rules.receive(event)])).sort(), [
+      false,
+      true,
+    ]);
+    const job = (await f.store.claim([]))!;
+    assert.equal(job.session, rule.session);
+    assert.equal(job.payload.assistantRequest, request);
+    let calls = 0;
+    const run = async (saved: string) => {
+      calls++;
+      assert.equal(saved, request);
+      return { output: 'Completed using current tool results' };
+    };
+    assert.equal(
+      (await f.rules.notification(job, undefined, undefined, run)).output,
+      'Completed using current tool results',
+    );
+    assert.equal(calls, 1);
+    assert.equal(await f.store.claim([]), undefined);
+    assert.equal(
+      (
+        await f.rules.notification(
+          { ...job, payload: { ...job.payload, generation: rule.generation + 1 } },
+          undefined,
+          undefined,
+          run,
+        )
+      ).deliver,
+      false,
+    );
+    f.revoke();
+    assert.equal((await f.rules.notification(job, undefined, undefined, run)).deliver, false);
+    assert.equal(calls, 1);
+    assert.equal(f.configurations.length, 1);
+  } finally {
+    await f.close();
+  }
+});
+
+test('assistant requests can be changed through existing tools without replacing the installed schedule or reinterpreting queued events', async () => {
+  const f = await setup();
+  try {
+    const tools = new Tools(f.store);
+    registerNotificationTools(tools, f.rules, { async sensor() {} } as any);
+    const context = {
+      session: 'telegram:1',
+      jobId: 'assistant-request',
+      signal: AbortSignal.timeout(10000),
+    };
+    const created = (await tools.call(
+      'alert_create',
+      {
+        message: 'Run my task',
+        assistant_request: 'Fetch current information and take the requested action.',
+        condition: { entity_id: 'sensor.usage', operator: 'equals', value: 0, hold_seconds: 30 },
+        recurring: true,
+      },
+      context,
+    )) as any;
+    const original = (await f.repository.read(context.session, created.id))!;
+    const detail = (await tools.call('reminder_get', { id: created.id }, context)) as any;
+    assert.equal(detail.assistant_request, original.assistant_request);
+    assert.equal(
+      await f.rules.receive({
+        id: created.id,
+        generation: original.generation,
+        event_id: randomUUID(),
+        fired_at: new Date().toISOString(),
+      }),
+      true,
+    );
+    const job = (await f.store.claim([]))!;
+    await assert.rejects(
+      tools.call('alert_change', { id: created.id, operation: 'set_request' }, context),
+      /assistant_request/,
+    );
+    await assert.rejects(
+      tools.call(
+        'alert_change',
+        { id: created.id, operation: 'set_request', assistant_request: ' ' },
+        context,
+      ),
+    );
+    await assert.rejects(
+      f.rules.setAssistantRequest('telegram:2', created.id, 'Other task'),
+      /not found/,
+    );
+    await tools.call(
+      'alert_change',
+      { id: created.id, operation: 'set_request', assistant_request: 'A different task' },
+      context,
+    );
+    const updated = (await f.repository.read(context.session, created.id))!;
+    assert.equal(updated.generation, original.generation);
+    assert.equal(updated.scheduler_key, original.scheduler_key);
+    assert.equal(updated.assistant_request, 'A different task');
+    assert.equal(f.configurations.length, 1);
+    const neverRun = async () => {
+      throw new Error('Stale task must not execute');
+    };
+    assert.equal((await f.rules.notification(job, undefined, undefined, neverRun)).deliver, false);
+    await tools.call(
+      'alert_change',
+      { id: created.id, operation: 'set_request', assistant_request: null },
+      context,
+    );
+    assert.equal(
+      (await f.repository.read(context.session, created.id))?.assistant_request,
+      undefined,
+    );
+    assert.equal((await f.rules.notification(job, undefined, undefined, neverRun)).deliver, false);
+
+    const timer = (await tools.call(
+      'timer_start',
+      { message: 'Review', duration_seconds: 60, assistant_request: 'Review my tasks' },
+      context,
+    )) as any;
+    assert.equal(
+      (await f.repository.read(context.session, timer.id))?.assistant_request,
+      'Review my tasks',
+    );
+    await tools.call(
+      'reminder_change',
+      { id: timer.id, operation: 'set_request', assistant_request: null },
+      context,
+    );
+    assert.equal(
+      (await f.repository.read(context.session, timer.id))?.assistant_request,
+      undefined,
+    );
+    f.revoke();
+    await assert.rejects(
+      f.rules.setAssistantRequest(context.session, timer.id, 'Disabled task'),
+      /disabled/,
+    );
+  } finally {
+    await f.close();
+  }
+});

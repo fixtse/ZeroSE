@@ -277,6 +277,7 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
             kind: 'rule_notification',
             ruleId: rule.id,
             generation: rule.generation,
+            ...(rule.assistant_request ? { assistantRequest: rule.assistant_request } : {}),
             ...(event.weather ? { weather: event.weather, firedAt: event.fired_at } : {}),
             ...(chat ? { chatId: chat.chatId } : {}),
           },

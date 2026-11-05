@@ -16,6 +16,7 @@ test('Helper access is checked before account context or media and owner prompts
     calls = 0,
     imageOnly = false;
   let lastMessage: any;
+  let lastTurn: any;
   let profile: AccessProfile = {
     bot: 'helper',
     chatId: '1',
@@ -26,7 +27,14 @@ test('Helper access is checked before account context or media and owner prompts
     capabilities: ['web', 'transcription'],
   };
   const agent: AgentPort = {
-    async run(_session, _prompt, instructions, context) {
+    async run(_session, _prompt, instructions, context, _images, _schema, toolsEnabled) {
+      lastTurn = {
+        session: _session,
+        prompt: _prompt,
+        instructions,
+        capabilities: context.capabilities,
+        toolsEnabled,
+      };
       if (imageOnly) {
         context.generatedImages = [{ data: new Uint8Array([1, 2, 3]), mimeType: 'image/png' }];
         return '';
@@ -167,6 +175,34 @@ test('Helper access is checked before account context or media and owner prompts
       'Hola',
     );
     assert.deepEqual(lastMessage, { text: 'hello' });
+    const scheduled: Job = {
+      id: 'scheduled-turn',
+      session: 'helper:1',
+      status: 'running',
+      payload: { kind: 'rule_notification', ruleId: 'rule', generation: 0 },
+    };
+    const scheduledContext = context();
+    const inputCount = inputs;
+    const beforeHistory = (await f.store.history(scheduled.session)).length;
+    const request = 'Use the available tools to carry out my saved task.';
+    assert.equal(
+      (await managed.executeNotification(scheduled, scheduledContext, request)).output,
+      'Hola',
+    );
+    assert.equal(lastTurn.session, scheduled.session);
+    assert.match(lastTurn.prompt, /Scheduled assistant task triggered/);
+    assert(lastTurn.prompt.includes(request));
+    assert.match(lastTurn.instructions, /Stored assistant prompt/);
+    assert.match(lastTurn.instructions, /triggered assistant turn/);
+    assert.deepEqual(lastTurn.capabilities, ['web']);
+    assert.notEqual(lastTurn.toolsEnabled, false);
+    assert.equal(inputs, inputCount, 'Scheduled turns must not read Telegram media');
+    assert.equal((await f.store.history(scheduled.session)).length, beforeHistory + 2);
+    enabled = false;
+    const callCount = calls;
+    assert.equal((await managed.executeNotification(scheduled, context(), request)).deliver, false);
+    assert.equal(calls, callCount);
+    enabled = true;
     imageOnly = true;
     const imageContext: ToolContext = context();
     assert.deepEqual(await managed.execute(job({ text: 'Generate a cat' }), imageContext), {
