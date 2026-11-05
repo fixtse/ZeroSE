@@ -131,10 +131,12 @@ test('service settings encrypt at rest, import once, roundtrip, and compare revi
   const f = await databaseFixture();
   try {
     const settings = new PostgresServiceSettings(f.store.db, 'stable-private-key');
-    const initial = serviceConfig(ConfigSchema.parse({ braveApiKey: 'private-search-key' }));
+    const initial = serviceConfig(ConfigSchema.parse({ braveApiKey: 'private-search-key', imageSearch: { defaultProvider: 'searchapi', searchApiKey: 'private-searchapi-key', serpApiKey: 'private-serpapi-key' } }));
     await settings.initialize(initial);
     const row = (await f.store.pool.query('SELECT value FROM service_settings')).rows[0];
     assert(!row.value.includes('private-search-key'));
+    assert(!row.value.includes('private-searchapi-key'));
+    assert(!row.value.includes('private-serpapi-key'));
     await settings.initialize(serviceConfig(ConfigSchema.parse({})));
     assert.equal((await settings.read()).value.braveApiKey, 'private-search-key');
     assert(await settings.update(1, { ...initial, timezone: 'UTC' }));
@@ -602,4 +604,28 @@ test('ClipSE Whisper engine and model are discoverable, saved, applied and retai
   );
   assert.equal(f.value().media.asrModel, '');
   assert.equal(f.value().media.asrWhisperProvider, '');
+});
+
+test('image search settings preserve blank secrets, show masked hints, validate selection and apply without restart', async () => {
+  const f = fixture();
+  assert.equal((await request(f.admin, 'PUT', { revision: 1, changes: { 'imageSearch.defaultProvider': 'searchapi' } })).status, 400);
+  assert.equal((await request(f.admin, 'PUT', { revision: 1, changes: { 'imageSearch.defaultProvider': 'searchapi', 'imageSearch.searchApiKey': 'private-searchapi-secret', 'imageSearch.serpApiKey': 'private-serpapi-secret' } })).status, 200);
+  let current = await request(f.admin, 'GET');
+  for (const path of ['imageSearch.searchApiKey', 'imageSearch.serpApiKey']) {
+    const field = current.result.fields.find((x: any) => x.path === path);
+    assert.equal(field.value, '');
+    assert.equal(field.type, 'secret');
+    assert.equal(field.configured, true);
+    assert(field.secretHint.includes('••••'));
+  }
+  assert(!JSON.stringify(current.result).includes('private-searchapi-secret'));
+  assert(!JSON.stringify(current.result).includes('private-serpapi-secret'));
+  assert.equal((await request(f.admin, 'PUT', { revision: 2, changes: { 'imageSearch.searchApiKey': '', 'imageSearch.serpApiKey': '', timezone: 'UTC' } })).status, 200);
+  assert.equal(f.value().imageSearch?.searchApiKey, 'private-searchapi-secret');
+  assert.equal(f.applied.at(-1)?.imageSearch?.defaultProvider, 'searchapi');
+  assert.equal((await request(f.admin, 'PUT', { revision: 3, changes: { 'imageSearch.serpApiKey': null } })).status, 200);
+  assert.equal(f.value().imageSearch?.serpApiKey, '');
+  assert.equal((await request(f.admin, 'PUT', { revision: 4, changes: { 'imageSearch.defaultProvider': 'unsupported' } })).status, 400);
+  current = await request(f.admin, 'GET');
+  assert.equal(current.result.restartRequired, false);
 });

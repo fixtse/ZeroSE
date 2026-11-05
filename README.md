@@ -170,6 +170,13 @@ connected service local. Local-model options are available through Ollama and
 compatible endpoints. You can also reuse a supported Home Assistant AI Task
 provider without copying its model credentials into Zero.
 
+Image search can use Brave, SearchAPI Google Images or SerpApi Google Images.
+Configure their API keys and choose the default in **Settings → Web and image
+search**. Zero can discover configured providers and select one for a search.
+Google Images providers support size and transparent-background filters; returned
+URLs and dimensions still need checking against the exact device model and the
+original image. Search errors do not switch providers automatically.
+
 ## Get started
 
 1. **Install Zero.** Follow the [Docker Compose instructions](docs/technical-guide.md#run)

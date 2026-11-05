@@ -47,7 +47,7 @@ const names: Record<string, string> = {
   media: 'Vídeo y voz',
   reader: 'Jina AI',
   places: 'Mapas y rutas',
-  braveApiKey: 'Brave Search',
+  search: 'Búsqueda web e imágenes',
 };
 const icons = {
   homeAssistant: Home,
@@ -55,7 +55,7 @@ const icons = {
   media: AudioLines,
   reader: BookOpen,
   places: Map,
-  braveApiKey: Search,
+  search: Search,
 };
 const fieldNames: Record<string, string> = {
   connectionUrl: 'URL de conexión pública',
@@ -79,6 +79,9 @@ const fieldNames: Record<string, string> = {
   photonUrl: 'URL de geocodificación Photon',
   osrmUrl: 'URL de rutas OSRM',
   braveApiKey: 'Clave API de Brave',
+  defaultProvider: 'Proveedor de imágenes predeterminado',
+  searchApiKey: 'Clave API de SearchAPI',
+  serpApiKey: 'Clave API de SerpApi',
 };
 function fieldLabel(path: string) {
   const parts = path.split('.');
@@ -208,7 +211,9 @@ function SettingsForm({
     return match?.[1] || '';
   });
   const groupFor = (field: ServiceField) =>
-    ['connectionUrl', 'timezone', 'concurrency'].includes(field.group) ? 'general' : field.group;
+    ['connectionUrl', 'timezone', 'concurrency'].includes(field.group)
+      ? 'general'
+      : ['braveApiKey', 'imageSearch'].includes(field.group) ? 'search' : field.group;
   const groups = [...new Set([...settings.fields.map(groupFor), 'homeAssistant'])].sort((a, b) =>
     a === 'general' ? -1 : b === 'general' ? 1 : 0,
   );
@@ -228,6 +233,14 @@ function SettingsForm({
       label: t(fieldLabel(field.path)),
       disabled: field.readOnly,
     };
+    if (field.path === 'imageSearch.defaultProvider')
+      return (
+        <SelectField key={field.path} {...common} defaultValue={String(field.value)}>
+          <option value="brave">Brave Search</option>
+          <option value="searchapi">SearchAPI · Google Images</option>
+          <option value="serpapi">SerpApi · Google Images</option>
+        </SelectField>
+      );
     if (field.path === 'concurrency')
       return (
         <SelectField key={field.path} {...common} defaultValue={String(field.value)}>
@@ -304,7 +317,7 @@ function SettingsForm({
     >
       <fieldset disabled={busy}>
         <Tabs
-          value={groups.includes(tab) ? tab : groups[0]}
+          value={['braveApiKey', 'imageSearch'].includes(tab) ? 'search' : groups.includes(tab) ? tab : groups[0]}
           onValueChange={setTab}
           className="provider-settings service-tabs"
         >
@@ -328,7 +341,9 @@ function SettingsForm({
               data-service-panel={group}
             >
               <h3>{t(names[group] || group)}</h3>
-              {group === 'braveApiKey' && <p>{t('Búsqueda web e imágenes con la misma clave.')}</p>}
+              {group === 'search' && (
+                <p>{t('Brave mantiene la búsqueda web. Para imágenes, configura una o varias claves y elige el proveedor predeterminado. Zero puede elegir otro proveedor configurado en cada búsqueda; los errores no cambian de proveedor automáticamente.')}</p>
+              )}
               {group === 'general' && (
                 <p>
                   {t(
@@ -478,6 +493,14 @@ function SettingsForm({
                         field('media.speech.sttLanguage')}
                     </div>
                   </details>
+                </>
+              ) : group === 'search' ? (
+                <>
+                  <div className="settings-grid">{field('imageSearch.defaultProvider')}</div>
+                  <div className="settings-grid">
+                    {['braveApiKey', 'imageSearch.searchApiKey', 'imageSearch.serpApiKey'].map(field)}
+                  </div>
+                  <p>{t('SearchAPI y SerpApi ofrecen filtros de tamaño y fondo transparente. Comprueba el archivo original: los filtros no garantizan transparencia ni el modelo exacto.')}</p>
                 </>
               ) : (
                 <div className="settings-grid">

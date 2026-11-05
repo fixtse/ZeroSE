@@ -407,7 +407,7 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 - Google Calendar availability and event CRUD; Google Tasks CRUD; `/clean` clears the configured task list.
 - `/nuevo` starts a new conversation while retaining long-term memory.
 - Google Docs creation from HTML, formatted append/replace in existing documents, and PDF export URLs.
-- Codex web search, public URL reading, and Brave web/image search when configured.
+- Codex web search, public URL reading, and Brave web search and Brave, SearchAPI or SerpApi image search when configured.
 - Home Assistant shopping-list reads/additions/completion/removal, sensor discovery/current values,
   and up to seven days of recorded sensor history. Sensor access can be restricted to named entities.
 - On-demand home/away and known-zone awareness, with GPS accuracy, geocoded address and source timestamps for location-aware suggestions.
@@ -689,7 +689,7 @@ The application tool catalog is assembled in `src/main.ts`:
 | Local forecast     | `weather_forecast`                                                                                                | Home Assistant token and weather entity                                     |
 | Memory             | `memories_get`, `memory_catalog`, `memory_read`, `memory_save`                                                    | Always                                                                      |
 | Web search         | `web_search`                                                                                                      | Brave API key; profile web permission; omitted for GPT-5+ model identifiers |
-| Image search       | `image_search`                                                                                                    | Brave API key                                                               |
+| Image search       | `image_search`, `image_search_providers`                                                                                                    | At least one configured Brave, SearchAPI or SerpApi key; profile web permission |
 | Public page text   | `url_read`                                                                                                        | Profile web permission; omitted for GPT-5+ model identifiers                |
 
 Discovery is eager: registration builds a `Tools` registry; `definitions()` converts

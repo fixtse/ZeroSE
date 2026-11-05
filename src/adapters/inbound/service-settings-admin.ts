@@ -160,6 +160,14 @@ export class ServiceSettingsAdmin {
         });
         return true;
       }
+      if (Object.hasOwn(input.changes, 'imageSearch.defaultProvider')) {
+        const images = parsed.data.imageSearch;
+        const configured = images.defaultProvider === 'brave' ? parsed.data.braveApiKey : images.defaultProvider === 'searchapi' ? images.searchApiKey : images.serpApiKey;
+        if (!configured) {
+          send(400, { error: 'Configura la clave del proveedor de imágenes seleccionado.', fields: ['imageSearch.defaultProvider'] });
+          return true;
+        }
+      }
       try {
         new Intl.DateTimeFormat('en', { timeZone: parsed.data.timezone });
       } catch {

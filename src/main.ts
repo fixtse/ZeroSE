@@ -180,7 +180,7 @@ const tools = new Tools(store),
 registerGoogleTools(tools, google);
 registerHomeAssistantTools(tools, ha, config.homeAssistant);
 registerMemoryTools(tools, memory, config.memory.mode);
-registerSearch(tools, config.braveApiKey, config.reader);
+registerSearch(tools, config.braveApiKey, config.reader, config.imageSearch);
 const accessRepository = new PostgresAccess(
   store.db,
   process.env.ASSISTANT_SECRETS_KEY || config.apiKey,
@@ -570,7 +570,7 @@ async function services(context: ToolContext) {
   );
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
   registerMemoryTools(tools, memory, scoped.memory.mode);
-  registerSearch(tools, scoped.braveApiKey, scoped.reader);
+  registerSearch(tools, scoped.braveApiKey, scoped.reader, scoped.imageSearch);
   registerNotificationTools(
     tools,
     rules,
@@ -978,6 +978,7 @@ const codex = new AIAgent(
           if (!value.media.speech) delete config.media.speech;
           Object.assign(config.reader, value.reader);
           config.braveApiKey = value.braveApiKey;
+          config.imageSearch = structuredClone(value.imageSearch);
           config.places = {
             photonUrl:
               process.env.ASSISTANT_PHOTON_URL ||

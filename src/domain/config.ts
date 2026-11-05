@@ -77,4 +77,5 @@ export interface Config {
   reader?: { url: string; apiKey: string };
   places?: { photonUrl: string; osrmUrl: string };
   braveApiKey: string;
+  imageSearch?: import('./image-search.js').ImageSearchSettings;
 }

@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
-import { Tools, text } from '../../application/tool-registry.js';
+import { Tools } from '../../application/tool-registry.js';
 import { jsonPage } from '../../application/context-budget.js';
 import { boundedBody, RemoteError } from './http.js';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import type { ImageSearchSettings } from '../../domain/image-search.js';
+import { imageSearchProviders } from './image-search.js';
 import { setTimeout as delay } from 'node:timers/promises';
 
 // Retain bounded, turn-scoped snapshots so fragment reads do not repeat paid searches.
@@ -64,11 +66,9 @@ export function registerSearch(
   tools: Tools,
   key: string,
   reader = { url: 'https://r.jina.ai/', apiKey: '' },
+  imageSettings?: ImageSearchSettings,
 ) {
   if (key) {
-    let imageQueue: Promise<unknown> = Promise.resolve();
-    let nextImageRequest = 0;
-    const imagePages = new Map<string, { expires: number; value: unknown }>();
     tools.add(
       'web_search',
       'Search public web pages with Brave. Returns titles, URLs and excerpts; use url_read for full pages. Continue with next_page, or result_offset for fragments of the same page.',
@@ -126,13 +126,38 @@ export function registerSearch(
         return jsonPage(value);
       },
     );
+  }
+  const providers = imageSearchProviders(key, imageSettings);
+  if (providers.length) {
+    let imageQueue: Promise<unknown> = Promise.resolve();
+    let nextImageRequest = 0;
+    const imagePages = new Map<string, { expires: number; value: unknown }>();
+    tools.add(
+      'image_search_providers',
+      'Discover configured image search providers, the default provider and supported filters. No credentials are returned.',
+      z.object({}),
+      async () => ({
+        default_provider: imageSettings?.defaultProvider || 'brave',
+        items: providers.map(({ id, name, supportsFilters }) => ({ id, name, native_size_filter: supportsFilters, native_transparency_filter: supportsFilters })),
+      }),
+    );
     tools.add(
       'image_search',
-      'Find candidate image URLs with Brave; results do not verify transparency or exact model. Search each requested item once before refining. For large document tasks, save a first pass with document_create before optional refinements; mark unresolved matches. Fragments use the same query and result_offset=next_offset without another search.',
-      z.object({ query: text, result_offset: z.number().int().min(0).default(0) }),
+      'Find candidate images with original URLs and dimensions. Discover configured providers with image_search_providers; omit provider to use the saved default. Filters do not verify transparency/model. Save large document tasks before refining. Fragments require identical search arguments and result_offset=next_offset; no repeat search.',
+      z.object({
+        query: z.string().trim().min(1).max(400).refine((value) => value.split(/\s+/).length <= 50, 'Use at most 50 query words'),
+        provider: z.enum(['brave', 'searchapi', 'serpapi']).optional(),
+        limit: z.number().int().min(1).max(20).default(5),
+        size: z.enum(['any', 'large']).default('any'),
+        transparent: z.boolean().default(false),
+        result_offset: z.number().int().min(0).default(0),
+      }),
       async (a, c) => {
+        const provider = providers.find((item) => item.id === (a.provider || imageSettings?.defaultProvider || 'brave'));
+        if (!provider) throw new Error('Image search provider is not configured. Use image_search_providers to discover available providers.');
+        const { result_offset, provider: _provider, ...query } = a;
         const cacheKey = createHash('sha256')
-          .update(JSON.stringify([c.session, c.jobId, a.query]))
+          .update(JSON.stringify([c.session, c.jobId, provider.id, query]))
           .digest('hex');
         for (const [id, cached] of imagePages)
           if (cached.expires <= Date.now()) imagePages.delete(id);
@@ -150,22 +175,7 @@ export function registerSearch(
           if (wait > 0) await delay(wait, undefined, { signal: c.signal });
           c.signal.throwIfAborted();
           nextImageRequest = Date.now() + 1100;
-          const response = await fetch(
-            'https://api.search.brave.com/res/v1/images/search?' +
-              new URLSearchParams({ q: a.query, count: '5' }),
-            {
-              headers: { 'X-Subscription-Token': key, Accept: 'application/json' },
-              redirect: 'error',
-              signal: AbortSignal.any([c.signal, AbortSignal.timeout(15_000)]),
-            },
-          );
-          if (!response.ok) throw new RemoteError('Brave Image Search', response.status);
-          const result = JSON.parse((await boundedBody(response, 1_000_000)).toString('utf8'));
-          const value = (result.results || []).slice(0, 5).map((r: any) => ({
-            title: r.title,
-            url: r.properties?.url,
-            source: r.url,
-          }));
+          const value = await provider.search(query, c.signal);
           if (imagePages.size >= 128) imagePages.delete(imagePages.keys().next().value!);
           imagePages.set(cacheKey, { expires: Date.now() + 900_000, value });
           return read();

@@ -205,6 +205,11 @@ export const ServiceConfigSchema = z.object({
     .object({ photonUrl: z.url(), osrmUrl: z.url() })
     .default({ photonUrl: 'https://photon.komoot.io', osrmUrl: 'https://router.project-osrm.org' }),
   braveApiKey: secret,
+  imageSearch: z.object({
+    defaultProvider: z.enum(['brave', 'searchapi', 'serpapi']).default('brave'),
+    searchApiKey: secret,
+    serpApiKey: secret,
+  }).default({ defaultProvider: 'brave', searchApiKey: '', serpApiKey: '' }),
 });
 
 export const ConfigSchema = BootstrapConfigSchema.extend(ServiceConfigSchema.shape);
