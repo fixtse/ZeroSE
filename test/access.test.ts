@@ -100,7 +100,10 @@ test('discovery records Helper contacts as pending, never inherits sender permis
     assert.equal(await access.receive('helper', { ...group, update_id: 6 }), undefined);
     assert.equal((await repository.profile('helper', '-10'))?.approved, true);
     assert.equal((await repository.profiles('', 0, 20, true)).total, 1);
-    assert.equal((await repository.profiles('A group', 0, 1, true)).items.length, 0);
+    const matchingPending = await repository.profiles('A group', 0, 1, true);
+    assert.equal(matchingPending.items.length, 1);
+    assert.equal(matchingPending.items[0].bot, 'zero');
+    assert.equal(matchingPending.items[0].chatId, '10');
     assert.equal((await repository.profiles('', 99, 20, true)).total, 1);
     await assert.rejects(() => access.receive('helper', { update_id: 'wrong' }), /Invalid update/);
   } finally {
