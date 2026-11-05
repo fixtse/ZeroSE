@@ -632,11 +632,6 @@ export function AISettingsEditor() {
                     </option>
                   ))}
                 </SelectField>
-                <p>
-                  {t(
-                    'Codex CLI conserva su autenticación y configuración actuales. Las API externas usan sus propias capacidades; búsqueda web e imágenes generadas de Codex no están disponibles en ellas. Usa modelos que admitan herramientas y, si corresponde, imágenes y salida JSON estructurada.',
-                  )}
-                </p>
               </TabsContent>
               <TabsContent value="reranking">
                 <h3>{t('Relevancia de recuerdos')}</h3>

@@ -175,8 +175,6 @@ export const english: Record<string, string> = {
   'Clave de configuración manual': 'Manual setup key',
   'Codex CLI (no disponible)': 'Codex CLI (unavailable)',
   'Codex CLI (sesión actual)': 'Codex CLI (current session)',
-  'Codex CLI conserva su autenticación y configuración actuales. Las API externas usan sus propias capacidades; búsqueda web e imágenes generadas de Codex no están disponibles en ellas. Usa modelos que admitan herramientas y, si corresponde, imágenes y salida JSON estructurada.':
-    'Codex CLI keeps its current authentication and configuration. External APIs use their own capabilities; Codex web search and generated images are unavailable through them. Use models supporting tools and, where needed, images and structured JSON output.',
   'Comprobar webhook y estado en Telegram': 'Check webhook and Telegram status',
   'Comprueba que reconoces esta instancia antes de aprobar.':
     'Make sure you recognize this instance before approving.',
