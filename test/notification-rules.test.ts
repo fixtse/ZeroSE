@@ -1065,7 +1065,18 @@ test('tracker alerts require the integration capability and older integrations s
 test('inspection and lists reconcile HA pauses without reinstalling; resume keeps the identity', async () => {
   const f = await setup();
   try {
-    const rule = await f.rules.ensureOwnerWeather('telegram:1');
+    const rule = await f.rules.create(
+      value({
+        kind: 'alert',
+        next_at: null,
+        condition: {
+          source: 'weather',
+          mode: 'any_change',
+          horizon_hours: 24,
+          minimum_probability: 30,
+        },
+      }),
+    );
     assert(rule);
     f.scheduler.inspect = async () => ({
       generation: rule.generation,
@@ -1535,6 +1546,46 @@ test('assistant requests can be changed through existing tools without replacing
       f.rules.setAssistantRequest(context.session, timer.id, 'Disabled task'),
       /disabled/,
     );
+  } finally {
+    await f.close();
+  }
+});
+
+test('profile weather reuses legacy subscription and stays out of paginated alert lists', async () => {
+  const f = await setup();
+  try {
+    const legacy = (await f.rules.ensureOwnerWeather('telegram:1'))!;
+    legacy.weather_delivery = { episodes: {} };
+    assert(await f.repository.apply(legacy));
+    await f.rules.change('telegram:1', legacy.id, 'cancel');
+    const subscription = (await f.rules.ensureProfileWeather('telegram:1'))!;
+    assert.equal(subscription.id, legacy.id);
+    assert.equal(subscription.status, 'active');
+    assert.deepEqual(subscription.weather_delivery, { episodes: {} });
+    await f.rules.ensureProfileWeather('telegram:1');
+    assert.equal(f.configurations.length, 3); // initial, cancellation, one reactivation
+    const custom = await f.rules.create(value({ kind: 'alert' }));
+    const page = await f.rules.list('telegram:1', 'alert', 0, 1);
+    assert.equal(page.total, 1);
+    assert.equal(page.items[0]?.id, custom.id);
+    assert.equal(page.next_offset, null);
+    assert.equal((await f.repository.read('telegram:1', legacy.id))?.id, legacy.id);
+  } finally {
+    await f.close();
+  }
+});
+
+test('profile weather reports uncertain setup without automatically replaying it', async () => {
+  const f = await setup();
+  try {
+    f.scheduler.configure = async () => {
+      throw new Error('unknown');
+    };
+    await assert.rejects(f.rules.ensureProfileWeather('telegram:1'), /uncertain/);
+    f.scheduler.configure = async () => {
+      assert.fail('must not retry');
+    };
+    await assert.rejects(f.rules.ensureProfileWeather('telegram:1'), /uncertain/);
   } finally {
     await f.close();
   }

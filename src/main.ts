@@ -7,6 +7,7 @@ import { PublicConnection } from './application/public-connection.js';
 import { migrateProfileSchedules } from './application/migrate-profile-schedules.js';
 import { HomeAssistantMorningTriggers } from './adapters/outbound/ha-morning-triggers.js';
 import { MorningTriggers, importMorningTrigger } from './application/morning-triggers.js';
+import { provisionProfileWeather } from './application/profile-weather.js';
 import { profileNotifications, notificationServices } from './application/profile-notifications.js';
 import { startDatabaseRuntime } from './adapters/outbound/pglite-runtime.js';
 import { HomeAssistantConnections } from './application/home-assistant-connections.js';
@@ -377,6 +378,7 @@ const rules = new NotificationRules(
         (kind !== 'alert' ||
           (profile.capabilities.includes('homeAssistant') && !!scoped.homeAssistant.token)),
       scheduler,
+      weatherEnabled: profileNotifications(profile).weather?.mode !== 'off',
     };
   },
   async (session) => {
@@ -668,7 +670,12 @@ const codex = new AIAgent(
             const change = weatherChangeSchema.safeParse(pending || job.payload.weather);
             if (!change.success) return { output: '', deliver: false };
             const scoped = await services(context);
-            return new WeatherNotification(codex, undefined, scoped.profile?.replyLanguage).update(
+            return new WeatherNotification(
+              codex,
+              undefined,
+              scoped.profile?.replyLanguage,
+              scoped.ha,
+            ).update(
               change.data,
               job.payload.firedAt,
               scoped.config.timezone,
@@ -1067,9 +1074,9 @@ server.listen(config.port, config.host, () => {
   void rules
     .migrateLegacy()
     .then(async () => {
-      const chat = config.telegram.allowedUsers[0] || config.telegram.notificationChatId;
-      if (chat && (await access.forSession('telegram:' + chat))?.owner)
-        await rules.ensureOwnerWeather('telegram:' + chat);
+      await provisionProfileWeather(accessRepository, config, rules, () =>
+        console.error(JSON.stringify({ event: 'profile_weather_setup_failed' })),
+      );
     })
     .catch(() => console.error(JSON.stringify({ event: 'notification_rule_startup_failed' })));
   void bots.start().catch(() =>

@@ -114,7 +114,7 @@ test('admin catalogs use the saved chat connection, bounded query and isolated r
     'alert',
     3,
     20,
-    { includeAlerts: true, excludeCancelled: true },
+    { includeAlerts: true, excludeCancelled: true, excludeManaged: true },
   ]);
   assert.equal((await request(admin, 'zero/123/rules')).status, 404);
   await assert.rejects(request(admin, 'helper/123/entities?limit=51'));

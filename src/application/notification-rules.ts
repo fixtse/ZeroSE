@@ -51,7 +51,7 @@ export interface RuleRepository {
     kind: NotificationRule['kind'] | undefined,
     offset: number,
     limit: number,
-    options?: { includeAlerts?: boolean; excludeCancelled?: boolean },
+    options?: { includeAlerts?: boolean; excludeCancelled?: boolean; excludeManaged?: boolean },
   ): Promise<{ items: NotificationRule[]; total: number; next_offset: number | null }>;
   wakeReminders(session: string, date: string): Promise<NotificationRule[]>;
   completeWakeReminders(session: string, rules: NotificationRule[]): Promise<void>;
@@ -69,6 +69,7 @@ export interface RuleRepository {
 }
 export interface RuleScope {
   enabled: boolean;
+  weatherEnabled?: boolean;
   scheduler?: RuleSchedulerPort;
 }
 export class NotificationRules {
@@ -81,7 +82,17 @@ export class NotificationRules {
     ) => Promise<RuleScope>,
     readonly wakeProfile?: (session: string) => Promise<{ enabled: boolean; date: string }>,
   ) {}
+  /** Legacy entry point retained for stored identities and compatibility. */
   async ensureOwnerWeather(session: string, sleepEntity: string | null = 'input_boolean.dormir') {
+    return this.ensureWeather(session, sleepEntity, false);
+  }
+  async ensureProfileWeather(session: string, sleepEntity: string | null = null) {
+    const rule = await this.ensureWeather(session, sleepEntity, true);
+    if (rule?.scheduler_state !== 'installed')
+      throw new Error('Weather subscription setup is uncertain; inspect before changing it.');
+    return rule;
+  }
+  private async ensureWeather(session: string, sleepEntity: string | null, activate: boolean) {
     const scope = await this.scope(session, 'alert');
     if (!scope.enabled || !scope.scheduler)
       throw new Error('Weather alerts require an enabled chat and Home Assistant connection');
@@ -115,16 +126,23 @@ export class NotificationRules {
       scheduler_state: 'installing',
       scheduler_key: scope.scheduler.identity,
     });
+    if (result.rule.scheduler_key && result.rule.scheduler_key !== scope.scheduler.identity)
+      throw new Error('Weather subscription belongs to another Home Assistant connection.');
     if (result.created) await this.install(result.rule, scope.scheduler);
     else if (
-      result.rule.status === 'active' &&
+      (result.rule.status === 'active' ||
+        (activate && ['paused', 'cancelled'].includes(result.rule.status))) &&
       result.rule.scheduler_state === 'installed' &&
       result.rule.condition?.source === 'weather' &&
-      ((hourly && !result.rule.condition.hourly_updates) || result.rule.cooldown_seconds !== 0)
+      ((hourly && !result.rule.condition.hourly_updates) ||
+        result.rule.cooldown_seconds !== 0 ||
+        (activate && result.rule.status !== 'active'))
     ) {
       const rule = result.rule;
       rule.condition = { ...result.rule.condition, ...(hourly ? { hourly_updates: true } : {}) };
       rule.cooldown_seconds = 0;
+      rule.status = 'active';
+      rule.retired_at = null;
       rule.generation++;
       rule.scheduler_state = 'installing';
       rule.scheduler_key = scope.scheduler.identity;
@@ -134,6 +152,7 @@ export class NotificationRules {
   }
   async canNotify(rule: NotificationRule) {
     const scope = await this.scope(rule.session, rule.kind, rule.scheduler_key);
+    if (rule.managed === 'owner_weather' && scope.weatherEnabled === false) return false;
     if (!scope.enabled || (rule.scheduler_key && scope.scheduler?.identity !== rule.scheduler_key))
       return false;
     if (
@@ -325,7 +344,11 @@ export class NotificationRules {
     return { rule, observed };
   }
   async list(...args: Parameters<RuleRepository['list']>) {
-    const page = await this.repository.list(...args);
+    const [session, kind, offset, limit, options] = args;
+    const page = await this.repository.list(session, kind, offset, limit, {
+      ...options,
+      excludeManaged: true,
+    });
     const items = [];
     const signal = AbortSignal.timeout(10000);
     for (const rule of page.items) items.push((await this.observe(rule, signal)).rule);

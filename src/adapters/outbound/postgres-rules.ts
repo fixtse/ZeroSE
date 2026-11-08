@@ -79,7 +79,7 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
     kind: NotificationRule['kind'] | undefined,
     offset: number,
     limit: number,
-    options?: { includeAlerts?: boolean; excludeCancelled?: boolean },
+    options?: { includeAlerts?: boolean; excludeCancelled?: boolean; excludeManaged?: boolean },
   ) {
     const filter = and(
       eq(rules.session, session),
@@ -91,6 +91,9 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
     );
     const visibleFilter = and(
       filter,
+      options?.excludeManaged
+        ? sql`(${rules.value}->>'managed') IS DISTINCT FROM 'owner_weather'`
+        : undefined,
       options?.excludeCancelled ? ne(sql`${rules.value}->>'status'`, 'cancelled') : undefined,
     );
     const rows = await this.db
@@ -322,6 +325,7 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
         .where(
           and(
             inArray(sql`${rules.value}->>'status'`, terminalStatuses),
+            sql`(${rules.value}->>'managed') IS DISTINCT FROM 'owner_weather'`,
             sql`(${rules.value}->>'retired_at' IS NULL OR ${rules.value}->>'retired_at' <= ${cutoff})`,
             sql`NOT EXISTS (
             SELECT 1 FROM ${jobs}
