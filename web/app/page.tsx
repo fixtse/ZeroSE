@@ -52,6 +52,23 @@ const navigation = [
   { id: 'ai', label: 'Proveedores IA', Icon: Cpu },
   { id: 'security', label: 'Seguridad', Icon: ShieldCheck },
 ];
+function ZeroBrand() {
+  return (
+    <a className="brand" href={adminPath('/admin/')}>
+      <img
+        src={adminPath('/admin/zero-logo.webp')}
+        width={39}
+        height={39}
+        style={{ width: 39, height: 39 }}
+        fetchPriority="high"
+        alt=""
+      />
+      <span>
+        zero<span className="brand-dot">.</span>
+      </span>
+    </a>
+  );
+}
 export default function Home() {
   const t = useTranslations();
   const queryClient = useQueryClient();
@@ -183,62 +200,67 @@ export default function Home() {
       const data = new FormData(event.currentTarget);
       void run(() => work(data));
     };
+  if (checking)
+    return (
+      <div className="page-loading" role="status">
+        {t('Cargando tu espacio…')}
+      </div>
+    );
   return (
-    <div className="shell">
-      <aside>
-        <a className="brand" href={adminPath('/admin/')}>
-          <img
-            src={adminPath('/admin/zero-logo.webp')}
-            width={39}
-            height={39}
-            style={{ width: 39, height: 39 }}
-            fetchPriority="high"
-            alt=""
-          />
-          <span>
-            zero<span className="brand-dot">.</span>
-          </span>
-        </a>
-        <div className="workspace-label">{t('TU ESPACIO')}</div>
-        <nav aria-label={t('Administración')}>
-          {navigation.map(({ id, label, Icon }) => (
-            <Button
-              key={id}
-              className={tab === id ? 'nav active' : 'nav'}
-              aria-current={tab === id ? 'page' : undefined}
-              onClick={() => {
-                setTab(id);
-              }}
-            >
-              <Icon size={18} />
-              <span>{t(label)}</span>
-            </Button>
-          ))}
-        </nav>
-        <div className="aside-bottom">
-          <span className="live-dot" /> {t('Zero, a tu manera')}
-          <p>
-            {t('Una identidad.')}
-            <br />
-            {t('Todas tus conversaciones.')}
-          </p>
-          <small>{t('Configuración de tus asistentes y conexiones.')}</small>
-        </div>
-      </aside>
+    <div
+      key={authenticated ? 'workspace' : 'authentication'}
+      className={authenticated ? 'shell' : 'shell auth-shell'}
+      data-ui-shell
+      data-ready="true"
+    >
+      {authenticated && (
+        <aside>
+          <ZeroBrand />
+          <div className="workspace-label">{t('TU ESPACIO')}</div>
+          <nav aria-label={t('Administración')}>
+            {navigation.map(({ id, label, Icon }) => (
+              <Button
+                key={id}
+                className={tab === id ? 'nav active' : 'nav'}
+                aria-current={tab === id ? 'page' : undefined}
+                onClick={() => {
+                  setTab(id);
+                }}
+              >
+                <Icon size={18} />
+                <span>{t(label)}</span>
+              </Button>
+            ))}
+          </nav>
+          <div className="aside-bottom">
+            <span className="live-dot" /> {t('Zero, a tu manera')}
+            <p>
+              {t('Una identidad.')}
+              <br />
+              {t('Todas tus conversaciones.')}
+            </p>
+            <small>{t('Configuración de tus asistentes y conexiones.')}</small>
+          </div>
+        </aside>
+      )}
       <main>
         <header>
-          <span className="breadcrumb">
-            {t('Tu espacio')} <span>/</span>{' '}
-            {tab === 'people'
-              ? t('Usuarios')
-              : tab === 'settings'
-                ? t('Asistentes')
-                : tab === 'services'
-                  ? t('Ajustes')
-                  : tab === 'ai'
-                    ? t('Proveedores IA')
-                    : t('Seguridad')}
-          </span>
+          {authenticated ? (
+            <span className="breadcrumb">
+              {t('Tu espacio')} <span>/</span>{' '}
+              {tab === 'people'
+                ? t('Usuarios')
+                : tab === 'settings'
+                  ? t('Asistentes')
+                  : tab === 'services'
+                    ? t('Ajustes')
+                    : tab === 'ai'
+                      ? t('Proveedores IA')
+                      : t('Seguridad')}
+            </span>
+          ) : (
+            <ZeroBrand />
+          )}
           <LanguageSelector />
           {authenticated && !ingress && (
             <Button
@@ -258,9 +280,7 @@ export default function Home() {
           )}
         </header>
         <MotionContent className="content" view={tab}>
-          {checking ? (
-            <p>{t('Cargando tu espacio…')}</p>
-          ) : setupRequired ? (
+          {setupRequired ? (
             <Card className="login panel">
               <h1>{t('Configura tu Zero.')}</h1>
               <p>{t('Crea la cuenta administradora de esta instalación para empezar.')}</p>

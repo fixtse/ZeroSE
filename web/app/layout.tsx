@@ -13,6 +13,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <style>{`
+          html { background: #030b1c; color-scheme: dark; }
+          body { margin: 0; visibility: hidden; }
+          [data-ui-shell] { visibility: hidden; }
+          .page-loading {
+            visibility: visible; min-height: 100svh; display: grid; place-items: center;
+            color: #94a3b8; font: 14px system-ui, sans-serif;
+          }
+        `}</style>
+      </head>
       <body>
         <I18nProvider>
           <AdminQueryProvider>{children}</AdminQueryProvider>
