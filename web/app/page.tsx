@@ -187,7 +187,14 @@ export default function Home() {
     <div className="shell">
       <aside>
         <a className="brand" href={adminPath('/admin/')}>
-          <img src={adminPath('/icon.png')} alt="" />
+          <img
+            src={adminPath('/admin/zero-logo.webp')}
+            width={39}
+            height={39}
+            style={{ width: 39, height: 39 }}
+            fetchPriority="high"
+            alt=""
+          />
           <span>
             zero<span className="brand-dot">.</span>
           </span>

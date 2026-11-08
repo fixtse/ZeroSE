@@ -46,7 +46,7 @@ const wind = (value: unknown, units: WeatherChange['units']) => {
           ? n * 1.609344
           : undefined;
 };
-function hazards(period: Period, change: WeatherChange) {
+export function weatherHazards(period: Period, change: WeatherChange) {
   const after = period.after;
   if (!after) return [];
   const result: [string, number][] = [];
@@ -100,8 +100,8 @@ function routine(period: Period, change: WeatherChange) {
   )
     return true;
   if (
-    hazards({ ...period, after: period.before }, change).length &&
-    !hazards(period, change).length
+    weatherHazards({ ...period, after: period.before }, change).length &&
+    !weatherHazards(period, change).length
   )
     return true;
   const before = number(period.before.uv_index),
@@ -157,7 +157,7 @@ export function selectWeatherNotification(
   >();
   for (const period of upcoming) {
     const at = Date.parse(period.datetime);
-    for (const [kind, severity] of hazards(period, change)) {
+    for (const [kind, severity] of weatherHazards(period, change)) {
       const key = `${format.format(new Date(at))}:${kind}`;
       const old = observed.get(key);
       observed.set(key, {

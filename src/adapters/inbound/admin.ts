@@ -465,7 +465,7 @@ export class Admin {
       }
       const session = telegramSession(profile.bot, profile.chatId);
       const rule = await this.notificationRules.repository.read(session, ruleMutation[3]);
-      if (!rule) {
+      if (!rule || rule.managed === 'owner_weather') {
         send(404, { error: 'Alerta o recordatorio no encontrado.' });
         return true;
       }
@@ -591,7 +591,7 @@ export class Admin {
             kind,
             query.offset,
             query.limit,
-            { includeAlerts: true, excludeCancelled: true },
+            { includeAlerts: true, excludeCancelled: true, excludeManaged: true },
           );
           send(200, {
             ...result,
@@ -1055,13 +1055,15 @@ export class Admin {
         }
         await this.repository.saveProfile(profile);
         if (
-          input.notifications?.weather &&
-          input.notifications.weather.mode !== 'off' &&
+          profileNotifications(profile).weather?.mode !== 'off' &&
+          profile.capabilities.includes('homeAssistant') &&
+          !!scopedConfig(this.config, profile).homeAssistant.token &&
+          !profile.chatId.startsWith('ha:') &&
           profile.enabled &&
           this.notificationRules
         ) {
           try {
-            await this.notificationRules.ensureOwnerWeather(
+            await this.notificationRules.ensureProfileWeather(
               telegramSession(bot, chatId),
               profile.owner ? 'input_boolean.dormir' : null,
             );
@@ -1069,7 +1071,7 @@ export class Admin {
             send(502, {
               saved: true,
               error:
-                'Preferencias guardadas, pero no se pudo confirmar el registro meteorológico. Revisa la regla en notificaciones; no se ha reintentado automáticamente.',
+                'Preferencias guardadas, pero no se pudo confirmar el registro meteorológico. Revisa la conexión de Home Assistant; no se ha reintentado automáticamente.',
             });
             return true;
           }

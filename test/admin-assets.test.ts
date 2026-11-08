@@ -13,6 +13,7 @@ test('static admin serves the exported UI and assets with security headers and c
   await mkdir(join(root, '_next/static'), { recursive: true });
   await writeFile(join(root, 'index.html'), '<html>Zero UI</html>');
   await writeFile(join(root, '_next/static/app.js'), 'console.log("Zero")');
+  await writeFile(join(root, 'zero-logo.webp'), Buffer.from('RIFFwebp'));
   await writeFile(join(directory, 'private.json'), 'never public');
   const server = createServer(async (req, res) => {
     if (!(await adminAssets(req, res, root))) {
@@ -36,6 +37,10 @@ test('static admin serves the exported UI and assets with security headers and c
     const asset = await fetch(base + '/admin/_next/static/app.js');
     assert.equal(asset.status, 200);
     assert.match(asset.headers.get('content-type')!, /javascript/);
+    const logo = await fetch(base + '/admin/zero-logo.webp');
+    assert.equal(logo.status, 200);
+    assert.equal(logo.headers.get('content-type'), 'image/webp');
+    assert.equal(await logo.text(), 'RIFFwebp');
     for (const path of ['/admin/advanced', '/admin/%2e%2e%2fprivate.json', '/admin/missing.js'])
       assert.equal((await fetch(base + path)).status, 404);
     assert.equal((await fetch(base + '/admin/', { method: 'POST' })).status, 404);
