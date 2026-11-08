@@ -7,6 +7,7 @@ import { HAEntityPicker } from './ha-entity-picker';
 
 export function ProfileNotifications({ profile }: { profile: Profile }) {
   const t = useTranslations();
+  const [weather, setWeather] = useState(profile.notifications?.weather?.mode || 'off');
   const [events, setEvents] = useState(profile.notifications?.eventReminders || false);
   const [reset, setReset] = useState(profile.notifications?.reset?.enabled || false);
   const [mode, setMode] = useState(profile.notifications?.morning.mode || 'off');
@@ -25,6 +26,48 @@ export function ProfileNotifications({ profile }: { profile: Profile }) {
     <section className="provider-settings">
       {profile.source !== 'home_assistant' ? (
         <>
+          <h3>{t('Avisos del tiempo')}</h3>
+          <SelectField
+            id="profile-weather-mode"
+            name="weatherMode"
+            label={t('Notificaciones meteorológicas')}
+            value={weather}
+            onChange={(event) => setWeather(event.target.value as typeof weather)}
+          >
+            <option value="off">{t('Desactivado')}</option>
+            <option value="important" disabled={!profile.hasHomeAssistant}>
+              {t('Solo tiempo importante')}
+            </option>
+            <option value="updates" disabled={!profile.hasHomeAssistant}>
+              {t('Tiempo importante y actualizaciones ocasionales')}
+            </option>
+            <option value="all" disabled={!profile.hasHomeAssistant}>
+              {t('Todos los cambios')}
+            </option>
+          </SelectField>
+          <p className="settings-help">
+            {t(
+              'Avisa de nueva lluvia, tormentas, nieve, granizo, niebla, viento fuerte y temperaturas extremas. Agrupa revisiones del mismo episodio y avisa si empeora o empieza al menos una hora antes. La previsión corresponde a la zona configurada en Home Assistant.',
+            )}
+          </p>
+          {weather === 'updates' && (
+            <Field
+              id="profile-weather-hours"
+              name="weatherRoutineHours"
+              label={t('Intervalo mínimo entre actualizaciones habituales (horas)')}
+              type="number"
+              min={1}
+              max={24}
+              step={1}
+              required
+              defaultValue={profile.notifications?.weather?.routineIntervalHours || 6}
+            />
+          )}
+          <p className="settings-help">
+            {t(
+              'La lluvia y el tiempo importante no esperan este intervalo. Los cambios pequeños quedan para el resumen de la mañana, si está activado. Todos los cambios puede generar muchos avisos. Requiere Home Assistant.',
+            )}
+          </p>
           <h3>{t('Agenda y resumen de la mañana')}</h3>
           <p className="settings-help">
             {t('Se envían a este perfil. Los perfiles nuevos los tienen desactivados.')}

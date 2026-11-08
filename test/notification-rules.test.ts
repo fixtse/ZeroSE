@@ -519,7 +519,7 @@ test('owner weather is enabled once, persists across startups and never replays 
     assert.equal(f.configurations.length, 1);
     const rule = (await f.repository.list('telegram:1', 'alert', 0, 20)).items[0];
     assert.equal(rule.managed, 'owner_weather');
-    assert.equal(rule.cooldown_seconds, 1800);
+    assert.equal(rule.cooldown_seconds, 0);
     assert.equal((rule.condition as any).sleep_entity, 'input_boolean.dormir');
     assert.equal((rule.condition as any).mode, 'any_change');
     await f.rules.ensureOwnerWeather('telegram:1');

@@ -1,5 +1,17 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Avisos del tiempo': 'Weather notifications',
+  'Notificaciones meteorológicas': 'Weather notifications',
+  'Solo tiempo importante': 'Important weather only',
+  'Tiempo importante y actualizaciones ocasionales': 'Important weather and occasional updates',
+  'Todos los cambios': 'All changes',
+  'Intervalo mínimo entre actualizaciones habituales (horas)':
+    'Minimum interval between routine updates (hours)',
+  'Avisa de nueva lluvia, tormentas, nieve, granizo, niebla, viento fuerte y temperaturas extremas. Agrupa revisiones del mismo episodio y avisa si empeora o empieza al menos una hora antes. La previsión corresponde a la zona configurada en Home Assistant.':
+    'Alerts for new rain, storms, snow, hail, fog, strong winds and extreme temperatures. Groups revisions of the same episode and alerts if it worsens or starts at least one hour earlier. Forecasts cover the area configured in Home Assistant.',
+  'La lluvia y el tiempo importante no esperan este intervalo. Los cambios pequeños quedan para el resumen de la mañana, si está activado. Todos los cambios puede generar muchos avisos. Requiere Home Assistant.':
+    'Rain and important weather bypass this interval. Small changes stay in the morning briefing, if enabled. All changes can generate many notifications. Requires Home Assistant.',
+
   'Detectar automáticamente': 'Detect automatically',
   'Motor Whisper': 'Whisper engine',
   'Modelo Whisper': 'Whisper model',
@@ -287,8 +299,8 @@ export const english: Record<string, string> = {
   'Editar perfil de ': 'Edit profile for ',
   'Ejecutable de FFmpeg': 'FFmpeg executable',
   'El bot no tiene foto de perfil.': 'The bot has no profile photo.',
-  'El resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero escuchará sus cambios en Home Assistant.':
-    'The briefing, reminders and new daily session follow these preferences. The daily reset clears conversation context. If you selected an entity, Zero listens for its changes in Home Assistant.',
+  'Los avisos del tiempo, el resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero escuchará sus cambios en Home Assistant.':
+    'Weather alerts, briefings, reminders and new daily sessions follow these preferences. The daily reset clears conversation context. If you selected an entity, Zero listens for its changes in Home Assistant.',
   'El servidor compatible puede listar modelos sin indicar sus capacidades. Usa la prueba para confirmar que el modelo admite embeddings.':
     'The compatible server may list models without their capabilities. Use the test to confirm embeddings support.',
   'El webhook registrado no coincide con la URL guardada.':

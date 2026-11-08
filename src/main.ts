@@ -664,7 +664,7 @@ const codex = new AIAgent(
       rule_notification: async (job, context) =>
         rules.notification(
           job,
-          async (pending) => {
+          async (pending, rule) => {
             const change = weatherChangeSchema.safeParse(pending || job.payload.weather);
             if (!change.success) return { output: '', deliver: false };
             const scoped = await services(context);
@@ -674,7 +674,13 @@ const codex = new AIAgent(
               scoped.config.timezone,
               context,
               scoped.profile?.capabilities.includes('calendar') ? scoped.google : undefined,
-              (reported) => rules.weatherDelivered(job, reported),
+              (reported, state) => rules.weatherDelivered(job, reported, state),
+              rule?.managed === 'owner_weather'
+                ? {
+                    preferences: profileNotifications(scoped.profile).weather!,
+                    state: rule.weather_delivery,
+                  }
+                : undefined,
             );
           },
           (await access.forSession(job.session))?.replyLanguage,

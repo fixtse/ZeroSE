@@ -1,3 +1,8 @@
+import {
+  selectWeatherNotification,
+  type WeatherDeliveryState,
+  type WeatherPreferences,
+} from '../domain/weather-notifications.js';
 import { replyLanguageInstruction, replyText, type ReplyLanguage } from '../domain/language.js';
 import type { AgentPort, GooglePort } from './ports.js';
 import type { ToolContext } from '../domain/models.js';
@@ -136,10 +141,14 @@ export class WeatherNotification {
     timezone: string,
     context: ToolContext,
     calendar?: GooglePort,
-    onDelivered?: (change: WeatherChange) => Promise<void>,
+    onDelivered?: (change: WeatherChange, state?: WeatherDeliveryState) => Promise<void>,
+    policy?: { preferences: WeatherPreferences; state?: WeatherDeliveryState },
   ): Promise<JobResult> {
     const now = new Date();
-    const scopedChange = {
+    const selected = policy
+      ? selectWeatherNotification(change, policy.preferences, policy.state, now, timezone)
+      : undefined;
+    const scopedChange = selected?.change || {
       ...change,
       changes: change.changes.filter((period) => {
         const at = Date.parse(period.datetime);
@@ -155,7 +164,7 @@ export class WeatherNotification {
         JSON.stringify({
           event: 'weather_update_evaluated',
           job: context.jobId,
-          decision: 'no_relevant_upcoming_change',
+          decision: selected?.reason || 'no_relevant_upcoming_change',
         }),
       );
       return { output: '', deliver: false };
@@ -180,14 +189,15 @@ export class WeatherNotification {
       JSON.stringify({
         event: 'weather_update_evaluated',
         job: context.jobId,
-        decision: impacts.length ? 'weather_with_event_context' : 'general_weather',
+        decision:
+          selected?.reason || (impacts.length ? 'weather_with_event_context' : 'general_weather'),
         relevant_periods: scopedChange.changes.length,
       }),
     );
     return {
       output: await this.explain(scopedChange, firedAt, timezone, context, impacts),
       voice: false,
-      afterDelivery: onDelivered ? () => onDelivered(scopedChange) : undefined,
+      afterDelivery: onDelivered ? () => onDelivered(scopedChange, selected?.state) : undefined,
       ...(impacts.length ? { requiredCapabilities: ['calendar' as const] } : {}),
     };
   }

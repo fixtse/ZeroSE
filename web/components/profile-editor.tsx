@@ -187,6 +187,9 @@ export function ProfileEditor({
             data.get('morningState') !== current.notifications?.morning.state)));
     if (
       (changedMorning ||
+        (data.has('weatherMode') &&
+          data.get('weatherMode') !== 'off' &&
+          data.get('weatherMode') !== current?.notifications?.weather?.mode) ||
         (data.has('eventReminders') && !current?.notifications?.eventReminders) ||
         (data.has('dailyReset') &&
           (!current?.notifications?.reset?.enabled ||
@@ -210,9 +213,20 @@ export function ProfileEditor({
         memoryMode: data.get('memoryMode'),
         replyLanguage: data.get('replyLanguage') || current?.replyLanguage || 'es',
         speech,
-        ...(current && (data.has('morningMode') || data.has('dailyResetTime'))
+        ...(current &&
+        (data.has('morningMode') || data.has('dailyResetTime') || data.has('weatherMode'))
           ? {
               notifications: {
+                weather: data.has('weatherMode')
+                  ? {
+                      mode: String(data.get('weatherMode')),
+                      routineIntervalHours: Number(
+                        data.get('weatherRoutineHours') ||
+                          current.notifications?.weather?.routineIntervalHours ||
+                          6,
+                      ),
+                    }
+                  : current.notifications?.weather,
                 eventReminders: data.has('morningMode')
                   ? data.has('eventReminders')
                   : current.notifications?.eventReminders || false,
@@ -351,7 +365,7 @@ export function ProfileEditor({
             <AlertDialogTitle>{t('¿Aplicar las notificaciones de este perfil?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                'El resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero escuchará sus cambios en Home Assistant.',
+                'Los avisos del tiempo, el resumen, los recordatorios y la nueva sesión diaria seguirán estas preferencias. El reinicio diario limpia el contexto de conversación. Si has elegido una entidad, Zero escuchará sus cambios en Home Assistant.',
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

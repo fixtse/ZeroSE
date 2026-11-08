@@ -1,3 +1,4 @@
+import type { WeatherDeliveryState } from '../../domain/weather-notifications.js';
 import { accumulateWeather, reportedWeather } from '../../domain/weather-baseline.js';
 import type { WeatherChange } from '../../domain/weather-change.js';
 import { and, count, desc, eq, getTableColumns, inArray, isNull, ne, sql } from 'drizzle-orm';
@@ -286,7 +287,13 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
       return true;
     });
   }
-  async weatherEvidence(id: string, generation: number, change: WeatherChange, delivered = false) {
+  async weatherEvidence(
+    id: string,
+    generation: number,
+    change: WeatherChange,
+    delivered = false,
+    deliveryState?: WeatherDeliveryState,
+  ) {
     return this.db.transaction(async (client) => {
       const [row] = await client.select().from(rules).where(eq(rules.id, id)).for('update');
       if (!row || row.value.generation !== generation) return undefined;
@@ -298,6 +305,7 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
         : accumulateWeather(pending, change, this.now().getTime());
       if (!next) return undefined;
       rule.weather_pending = { ...rule.weather_pending, [kind]: next };
+      if (delivered && deliveryState) rule.weather_delivery = deliveryState;
       await client
         .update(rules)
         .set({ value: rule, version: sql`${rules.version} + 1` })
