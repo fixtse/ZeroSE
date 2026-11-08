@@ -1,4 +1,5 @@
 'use client';
+import { PageSkeleton } from '../components/page-skeleton';
 import { MotionContent } from '../components/motion-content';
 import { LanguageSelector } from '../components/language-selector';
 import { useTranslations } from '../i18n/provider';
@@ -200,12 +201,7 @@ export default function Home() {
       const data = new FormData(event.currentTarget);
       void run(() => work(data));
     };
-  if (checking)
-    return (
-      <div className="page-loading" role="status">
-        {t('Cargando tu espacio…')}
-      </div>
-    );
+  if (checking) return <PageSkeleton label={t('Cargando tu espacio…')} />;
   return (
     <div
       key={authenticated ? 'workspace' : 'authentication'}

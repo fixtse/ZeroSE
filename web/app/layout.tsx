@@ -19,8 +19,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           body { margin: 0; visibility: hidden; }
           [data-ui-shell] { visibility: hidden; }
           .page-loading {
-            visibility: visible; min-height: 100svh; display: grid; place-items: center;
-            color: #94a3b8; font: 14px system-ui, sans-serif;
+            visibility: visible; min-height: 100svh;
+          }
+          .page-loading [data-slot="skeleton"] {
+            background: #1e293b; border-radius: 0.375rem;
           }
         `}</style>
       </head>
