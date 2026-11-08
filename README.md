@@ -137,6 +137,23 @@ conditions change. Ask for a notice when a reading crosses a threshold, someone
 enters or leaves a zone, or a forecast changes. These features require the unified
 Zero integration and the relevant permissions.
 
+Telegram profiles have a **Weather notifications** preference: off, important weather
+only, important weather plus occasional updates, or all changes. Existing owner
+weather monitoring defaults to occasional updates; other profiles opt in. New rain,
+storms, snow, hail, fog, strong winds and extreme temperatures bypass the routine
+interval (six hours by default, configurable from 1–24 hours). Zero remembers sent
+weather episodes across daily/hourly forecasts and restarts, suppresses small
+revisions, and alerts again for material worsening or timing changes. Rain starting
+at least an hour earlier or extending at least three hours merits another alert;
+a daily alert can receive one hourly reminder within six hours of onset. Routine
+updates require meaningful changes, such as a temperature shift of at least 3 °C,
+a UV risk threshold crossing, or clearing hazardous weather. Minor changes remain
+in the morning briefing if enabled. These preferences govern the profile's managed
+weather monitoring; independently requested custom weather rules keep their own
+settings. Forecasts cover the configured Home Assistant area, and the existing
+owner sleep suppression is retained. Delivery history advances only after a
+successful send; an uncertain send is never automatically replayed.
+
 Optional Telegram morning briefings bring together weather, agenda and tasks.
 Choose a clock time or a Home Assistant wake-up condition. Wake-up reminders can
 join that briefing, so “remind me when I wake up” does not need a guessed time.

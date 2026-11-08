@@ -58,6 +58,12 @@ const profileSchema = z.object({
   respondToReplies: z.boolean().optional(),
   notifications: z
     .object({
+      weather: z
+        .object({
+          mode: z.enum(['off', 'important', 'updates', 'all']),
+          routineIntervalHours: z.number().int().min(1).max(24),
+        })
+        .optional(),
       eventReminders: z.boolean(),
       eventReminderMinutes: z.number().int().min(1).max(1440).optional(),
       reset: z.object({
@@ -957,6 +963,7 @@ export class Admin {
           notifications: input.notifications
             ? {
                 ...input.notifications,
+                weather: input.notifications.weather ?? previous?.notifications?.weather,
                 eventReminderMinutes:
                   input.notifications.eventReminderMinutes ??
                   previous?.notifications?.eventReminderMinutes ??
@@ -1011,6 +1018,19 @@ export class Admin {
           });
           return true;
         }
+        if (
+          input.notifications?.weather &&
+          input.notifications.weather.mode !== 'off' &&
+          (profile.chatId.startsWith('ha:') ||
+            !profile.capabilities.includes('homeAssistant') ||
+            !scopedConfig(this.config, profile).homeAssistant.token)
+        ) {
+          send(400, {
+            error:
+              'Configura Home Assistant en un perfil con Telegram antes de activar los avisos del tiempo.',
+          });
+          return true;
+        }
         const changedLocations = [
           profile.homeAssistant?.locationEntity,
           profile.homeAssistant?.geocodedLocationEntity,
@@ -1034,6 +1054,26 @@ export class Admin {
           }
         }
         await this.repository.saveProfile(profile);
+        if (
+          input.notifications?.weather &&
+          input.notifications.weather.mode !== 'off' &&
+          profile.enabled &&
+          this.notificationRules
+        ) {
+          try {
+            await this.notificationRules.ensureOwnerWeather(
+              telegramSession(bot, chatId),
+              profile.owner ? 'input_boolean.dormir' : null,
+            );
+          } catch {
+            send(502, {
+              saved: true,
+              error:
+                'Preferencias guardadas, pero no se pudo confirmar el registro meteorológico. Revisa la regla en notificaciones; no se ha reintentado automáticamente.',
+            });
+            return true;
+          }
+        }
         if (this.commands && !chatId.startsWith('ha:') && (profile.enabled || previous?.enabled)) {
           try {
             await this.commands.configure(profile);

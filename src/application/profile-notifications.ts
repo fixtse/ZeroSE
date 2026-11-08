@@ -7,6 +7,10 @@ export function profileNotifications(profile?: AccessProfile): ProfileNotificati
     eventReminders: false,
     morning: { mode: 'off', time: '08:30', entity: '', state: 'off' },
     ...profile?.notifications,
+    weather: profile?.notifications?.weather || {
+      mode: profile?.owner ? 'updates' : 'off',
+      routineIntervalHours: 6,
+    },
     eventReminderMinutes:
       typeof minutes === 'number' && Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440
         ? minutes

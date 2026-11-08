@@ -1,3 +1,4 @@
+import type { WeatherDeliveryState } from '../domain/weather-notifications.js';
 import { replyText, type ReplyLanguage } from '../domain/language.js';
 import {
   isLocationCondition,
@@ -63,6 +64,7 @@ export interface RuleRepository {
     generation: number,
     change: WeatherChange,
     delivered?: boolean,
+    deliveryState?: WeatherDeliveryState,
   ): Promise<WeatherChange | undefined>;
 }
 export interface RuleScope {
@@ -79,10 +81,10 @@ export class NotificationRules {
     ) => Promise<RuleScope>,
     readonly wakeProfile?: (session: string) => Promise<{ enabled: boolean; date: string }>,
   ) {}
-  async ensureOwnerWeather(session: string) {
+  async ensureOwnerWeather(session: string, sleepEntity: string | null = 'input_boolean.dormir') {
     const scope = await this.scope(session, 'alert');
     if (!scope.enabled || !scope.scheduler)
-      throw new Error('Owner weather alerts require an enabled chat and Home Assistant connection');
+      throw new Error('Weather alerts require an enabled chat and Home Assistant connection');
     await scope.scheduler.ready();
     const hourly = (await scope.scheduler.supportsHourlyUpdates?.()) === true;
     const result = await this.repository.ownerWeather({
@@ -101,9 +103,9 @@ export class NotificationRules {
         conditions: [],
         horizon_hours: 24,
         minimum_probability: 30,
-        sleep_entity: 'input_boolean.dormir',
+        ...(sleepEntity ? { sleep_entity: sleepEntity } : {}),
       },
-      cooldown_seconds: 1800,
+      cooldown_seconds: 0,
       recurring: true,
       matched_since: null,
       last_checked: null,
@@ -115,14 +117,14 @@ export class NotificationRules {
     });
     if (result.created) await this.install(result.rule, scope.scheduler);
     else if (
-      hourly &&
       result.rule.status === 'active' &&
       result.rule.scheduler_state === 'installed' &&
       result.rule.condition?.source === 'weather' &&
-      !result.rule.condition.hourly_updates
+      ((hourly && !result.rule.condition.hourly_updates) || result.rule.cooldown_seconds !== 0)
     ) {
       const rule = result.rule;
-      rule.condition = { ...result.rule.condition, hourly_updates: true };
+      rule.condition = { ...result.rule.condition, ...(hourly ? { hourly_updates: true } : {}) };
+      rule.cooldown_seconds = 0;
       rule.generation++;
       rule.scheduler_state = 'installing';
       rule.scheduler_key = scope.scheduler.identity;
@@ -403,8 +405,14 @@ export class NotificationRules {
     await this.install(rule, scope.scheduler, signal);
     return { id: rule.id, status: rule.status, scheduler_state: 'installed' };
   }
-  async weatherDelivered(job: Job, change: WeatherChange) {
-    await this.repository.weatherEvidence(job.payload.ruleId, job.payload.generation, change, true);
+  async weatherDelivered(job: Job, change: WeatherChange, state?: WeatherDeliveryState) {
+    await this.repository.weatherEvidence(
+      job.payload.ruleId,
+      job.payload.generation,
+      change,
+      true,
+      state,
+    );
   }
   /** One-time upgrade only. Claim before the remote write; interrupted installs are never replayed. */
   async migrateLegacy() {
@@ -440,7 +448,10 @@ export class NotificationRules {
   }
   async notification(
     job: Job,
-    explainWeather?: (change?: WeatherChange) => Promise<string | JobResult>,
+    explainWeather?: (
+      change?: WeatherChange,
+      rule?: NotificationRule,
+    ) => Promise<string | JobResult>,
     language?: ReplyLanguage,
     runAssistant?: (request: string) => Promise<JobResult>,
   ): Promise<JobResult> {
@@ -463,7 +474,7 @@ export class NotificationRules {
       const pending = job.payload.weather
         ? await this.repository.weatherEvidence(rule.id, rule.generation, job.payload.weather)
         : undefined;
-      const result = await explainWeather(pending);
+      const result = await explainWeather(pending, rule);
       return typeof result === 'string'
         ? { output: result, voice: false }
         : { voice: false, ...result };

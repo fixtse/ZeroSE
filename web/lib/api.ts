@@ -73,6 +73,7 @@ export interface Profile {
   speech?: SpeechSettings;
   notificationsMigrationPending?: boolean;
   notifications?: {
+    weather?: { mode: 'off' | 'important' | 'updates' | 'all'; routineIntervalHours: number };
     eventReminders: boolean;
     eventReminderMinutes?: number;
     reset: { enabled: boolean; time: string };

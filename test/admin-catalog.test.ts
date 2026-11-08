@@ -512,7 +512,10 @@ test('profile notification preferences round trip without exposing the compatibi
   });
   assert.equal(saved.status, 200);
   const result = await request(admin, 'helper/123');
-  assert.deepEqual(result.value.notifications, notifications);
+  assert.deepEqual(result.value.notifications, {
+    ...notifications,
+    weather: { mode: 'off', routineIntervalHours: 6 },
+  });
   for (const eventReminderMinutes of [0, 1441, 1.5]) {
     await assert.rejects(
       request(admin, 'helper/123', 'PUT', {
@@ -660,4 +663,48 @@ test('profile location assignment waits for explicit global Assist exposure conf
   assert.deepEqual(f.profile.homeAssistant?.sensorEntities, ['sensor.retired']);
   const visible = await request(admin, 'helper/123');
   assert.equal(visible.value.homeAssistant.sensorEntities, undefined);
+});
+
+test('weather preferences round trip, survive older clients and reject invalid intervals', async () => {
+  const f = setup();
+  const admin = new Admin(f.config, f.repository, async () => {});
+  const notifications = {
+    eventReminders: false,
+    reset: { enabled: false, time: '04:00' },
+    morning: { mode: 'off', time: '08:30', entity: '', state: 'off' },
+    weather: { mode: 'updates', routineIntervalHours: 6 },
+  };
+  const input = {
+    kind: 'user',
+    label: 'Weather',
+    enabled: true,
+    capabilities: ['homeAssistant'],
+    notifications,
+  };
+  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 200);
+  assert.deepEqual(
+    (await request(admin, 'helper/123')).value.notifications.weather,
+    notifications.weather,
+  );
+  const { weather: _weather, ...older } = notifications;
+  assert.equal(
+    (await request(admin, 'helper/123', 'PUT', { ...input, notifications: older })).status,
+    200,
+  );
+  assert.deepEqual(
+    (await request(admin, 'helper/123')).value.notifications.weather,
+    notifications.weather,
+  );
+  for (const routineIntervalHours of [0, 25, 1.5]) {
+    await assert.rejects(
+      request(admin, 'helper/123', 'PUT', {
+        ...input,
+        notifications: { ...notifications, weather: { mode: 'updates', routineIntervalHours } },
+      }),
+    );
+  }
+  assert.equal(
+    (await request(admin, 'helper/123', 'PUT', { ...input, capabilities: [] })).status,
+    400,
+  );
 });

@@ -1,3 +1,4 @@
+import type { WeatherPreferences } from './weather-notifications.js';
 import type { ReplyLanguage } from './language.js';
 import type { MemoryPolicy } from './assistant-definition.js';
 import type { SpeechSettings } from './speech.js';
@@ -18,6 +19,7 @@ export const capabilities = [
 ] as const;
 export type Capability = (typeof capabilities)[number];
 export interface ProfileNotifications {
+  weather?: WeatherPreferences;
   eventReminders: boolean;
   eventReminderMinutes?: number;
   reset: { enabled: boolean; time: string };
