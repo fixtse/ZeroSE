@@ -40,11 +40,12 @@ export interface NutritionPort {
     query: string,
     limit: number,
     meal: Meal | undefined,
+    since: string | undefined,
     signal?: AbortSignal,
   ): Promise<unknown>;
   goals(signal?: AbortSignal): Promise<unknown>;
   setGoals(
-    goals: MacroTargets & { caloriePeriod?: 'day' | 'week' },
+    goals: MacroTargets & { caloriePeriod?: 'day' | 'week'; recommendSince?: string },
     signal?: AbortSignal,
   ): Promise<unknown>;
   log(entry: FoodLogRequest, signal?: AbortSignal): Promise<unknown>;

@@ -29,16 +29,21 @@ export class HomeAssistantNutrition implements NutritionPort {
     query: string,
     limit: number,
     meal: string | undefined,
+    since: string | undefined,
     signal?: AbortSignal,
   ) {
-    return this.read('recommend_foods', { ...targets, kind, query, limit, meal }, signal);
+    const data = defined({ ...targets, kind, query, limit, meal });
+    if (since !== undefined) data.since = since; // '' disables the saved date filter
+    return this.ha.serviceResponse(`${DOMAIN}.recommend_foods`, data, signal);
   }
   goals(signal?: AbortSignal) {
     return this.read('get_goals', {}, signal);
   }
   setGoals(goals: Parameters<NutritionPort['setGoals']>[0], signal?: AbortSignal) {
-    const { caloriePeriod, ...values } = goals;
-    return this.read('set_goals', { ...values, calorie_period: caloriePeriod }, signal);
+    const { caloriePeriod, recommendSince, ...values } = goals;
+    const data = defined({ ...values, calorie_period: caloriePeriod });
+    if (recommendSince !== undefined) data.recommend_since = recommendSince; // '' clears it
+    return this.ha.serviceResponse(`${DOMAIN}.set_goals`, data, signal);
   }
   log(entry: Parameters<NutritionPort['log']>[0], signal?: AbortSignal) {
     return this.read(

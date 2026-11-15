@@ -47,10 +47,11 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
   );
   tools.add(
     'food_recommend',
-    "Suggest the user's registered foods with portions. Without targets (\"what should I eat?\"): options that stay within this meal's share of today's remaining protein/carb/fat goals and the weekly calorie budget; none need to use them fully; pass meal. With calories/protein/carbohydrates/fat targets (any subset): closest portions that still stay within the remaining goals. Present options with portion and macros (mention when weekly calorie flexibility was used), let the user choose, then food_log with its food_id and servings.",
+    "Suggest the user's registered foods with portions. Without targets (\"what should I eat?\"): options that stay within this meal's share of today's remaining protein/carb/fat goals and the weekly calorie budget; none need to use them fully; pass meal. With calories/protein/carbohydrates/fat targets (any subset): closest portions that still stay within the remaining goals. Present options with portion and macros (mention when weekly calorie flexibility was used), let the user choose, then food_log with its food_id and servings. Uses the user's saved 'only foods eaten since' date unless since is given; since '' searches all history.",
     z.object({
       ...macros,
       meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+      since: z.union([day, z.literal('')]).optional(),
       kind,
       query: z.string().trim().max(200).default(''),
       limit: z.number().int().min(1).max(10).default(5),
@@ -64,6 +65,7 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
           a.query,
           a.limit,
           a.meal,
+          a.since,
           c.signal,
         ),
         a.result_offset,
@@ -77,9 +79,13 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
   );
   tools.add(
     'food_goals_set',
-    "Set the user's daily goals when they ask. Omitted values keep their goal; 0 removes one. Calories balance across the week (Monday-Sunday) unless calorie_period is day.",
+    "Set the user's daily goals when they ask. Omitted values keep their goal; 0 removes one. Calories balance across the week (Monday-Sunday) unless calorie_period is day. recommend_since (YYYY-MM-DD) limits recommendations to foods eaten on or after that date, e.g. since moving country; '' removes it.",
     z
-      .object({ ...macros, calorie_period: z.enum(['week', 'day']).optional() })
+      .object({
+        ...macros,
+        calorie_period: z.enum(['week', 'day']).optional(),
+        recommend_since: z.union([day, z.literal('')]).optional(),
+      })
       .refine(
         (a) => Object.values(a).some((v) => v !== undefined),
         'Give at least one goal or calorie_period',
@@ -92,6 +98,7 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
           carbohydrates: a.carbohydrates,
           fat: a.fat,
           caloriePeriod: a.calorie_period,
+          recommendSince: a.recommend_since,
         },
         c.signal,
       ),
