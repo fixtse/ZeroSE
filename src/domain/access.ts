@@ -113,7 +113,7 @@ export function telegramMentions(message: any): string[] {
   return mentions;
 }
 export function toolCapability(name: string): Capability | undefined {
-  if (name.startsWith('ha_')) return 'homeAssistant';
+  if (name.startsWith('ha_') || name.startsWith('food_')) return 'homeAssistant';
   if (name.startsWith('calendar_')) return 'calendar';
   if (name.startsWith('task')) return 'tasks';
   if (name === 'document_create') return 'documents';

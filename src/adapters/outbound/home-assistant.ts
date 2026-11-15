@@ -98,6 +98,16 @@ export class HomeAssistant {
       signal,
     );
   }
+  /** Call a service that returns data (HA `return_response`). */
+  async serviceResponse(service: string, data: Record<string, unknown>, signal?: AbortSignal) {
+    if (!/^[a-z_]+\.[a-z_]+$/.test(service)) throw new Error('Invalid service');
+    const result = await this.request(
+      'services/' + service.replace('.', '/') + '?return_response',
+      data,
+      signal,
+    );
+    return result?.service_response;
+  }
   async location(signal?: AbortSignal) {
     const entities = [this.config.locationEntity, this.config.geocodedLocationEntity];
     if (!entities.some(Boolean)) throw new Error('Location entities are not configured');

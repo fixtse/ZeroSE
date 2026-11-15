@@ -90,8 +90,7 @@ import { OpenStreetMapPlaces } from './adapters/outbound/places.js';
 import { registerNotificationTools } from './adapters/inbound/notification-tools.js';
 import { registerPlacesTools } from './adapters/inbound/places-tools.js';
 import { registerNutritionTools } from './adapters/inbound/nutrition-tools.js';
-import { PostgresNutrition } from './adapters/outbound/postgres-nutrition.js';
-import { NutritionCatalogSync } from './application/nutrition-catalog.js';
+import { HomeAssistantNutrition } from './adapters/outbound/home-assistant-nutrition.js';
 import { registerPersonalDataTools } from './adapters/inbound/personal-data-tools.js';
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
 import { createHttpServer } from './adapters/inbound/http-server.js';
@@ -354,14 +353,6 @@ const assistantTelegram = new AssistantTelegram(
   (id) => bots.reconfigure(id),
 );
 
-// Owner-only calorie tracking. The MyFitnessPal exporter writes this file; changes are imported on use.
-const NUTRITION_PROFILE = 'owner';
-const nutrition = new PostgresNutrition(store.db);
-const nutritionCatalog = new NutritionCatalogSync(
-  nutrition,
-  join(config.dataDir, 'nutrition', 'mfp-export.json'),
-  NUTRITION_PROFILE,
-);
 const personalData = withMem0PersonalData(memoryRepository, new PostgresPersonalData(store.db));
 const rules = new NotificationRules(
   ruleRepository,
@@ -582,14 +573,8 @@ async function services(context: ToolContext) {
       : undefined,
   );
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
-  if (profile?.owner)
-    registerNutritionTools(
-      tools,
-      nutrition,
-      nutritionCatalog,
-      NUTRITION_PROFILE,
-      () => profile.timezone || config.timezone,
-    );
+  // Calorie tracking lives in the HA calorie_tracker integration; owner only.
+  if (profile?.owner) registerNutritionTools(tools, new HomeAssistantNutrition(ha));
   registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey, scoped.reader, scoped.imageSearch);
   registerNotificationTools(

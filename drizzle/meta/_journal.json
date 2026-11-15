@@ -57,13 +57,6 @@
       "when": 1793841542965,
       "tag": "0007_profile_approval",
       "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1794777578409,
-      "tag": "0008_nutrition_tracking",
-      "breakpoints": true
     }
   ]
 }
