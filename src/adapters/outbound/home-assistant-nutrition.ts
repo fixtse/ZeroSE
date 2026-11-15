@@ -28,9 +28,17 @@ export class HomeAssistantNutrition implements NutritionPort {
     kind: string | undefined,
     query: string,
     limit: number,
+    meal: string | undefined,
     signal?: AbortSignal,
   ) {
-    return this.read('recommend_foods', { ...targets, kind, query, limit }, signal);
+    return this.read('recommend_foods', { ...targets, kind, query, limit, meal }, signal);
+  }
+  goals(signal?: AbortSignal) {
+    return this.read('get_goals', {}, signal);
+  }
+  setGoals(goals: Parameters<NutritionPort['setGoals']>[0], signal?: AbortSignal) {
+    const { caloriePeriod, ...values } = goals;
+    return this.read('set_goals', { ...values, calorie_period: caloriePeriod }, signal);
   }
   log(entry: Parameters<NutritionPort['log']>[0], signal?: AbortSignal) {
     return this.read(

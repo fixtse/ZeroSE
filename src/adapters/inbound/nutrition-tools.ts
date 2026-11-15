@@ -47,19 +47,15 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
   );
   tools.add(
     'food_recommend',
-    "Suggest the user's registered foods with a portion close to target calories, protein, carbohydrates and/or fat (any subset). Present the options with portion and macros, let the user choose, then food_log with the chosen food_id and servings. Optional kind and name words filter candidates.",
-    z
-      .object({
-        ...macros,
-        kind,
-        query: z.string().trim().max(200).default(''),
-        limit: z.number().int().min(1).max(10).default(5),
-        result_offset: resultOffset,
-      })
-      .refine(
-        (a) => [a.calories, a.protein, a.carbohydrates, a.fat].some((v) => v !== undefined),
-        'Give at least one target',
-      ),
+    "Suggest the user's registered foods with portions. Without targets (\"what should I eat?\"): options that stay within this meal's share of today's remaining protein/carb/fat goals and the weekly calorie budget; none need to use them fully; pass meal. With calories/protein/carbohydrates/fat targets (any subset): closest portions that still stay within the remaining goals. Present options with portion and macros (mention when weekly calorie flexibility was used), let the user choose, then food_log with its food_id and servings.",
+    z.object({
+      ...macros,
+      meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+      kind,
+      query: z.string().trim().max(200).default(''),
+      limit: z.number().int().min(1).max(10).default(5),
+      result_offset: resultOffset,
+    }),
     async (a, c) =>
       jsonPage(
         await nutrition.recommend(
@@ -67,9 +63,37 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
           a.kind,
           a.query,
           a.limit,
+          a.meal,
           c.signal,
         ),
         a.result_offset,
+      ),
+  );
+  tools.add(
+    'food_goals',
+    "Read the user's daily calorie/protein/carbohydrate/fat goals, today's progress and the weekly calorie budget (today's allowance, week remaining, per day after today).",
+    z.object({}),
+    async (_a, c) => nutrition.goals(c.signal),
+  );
+  tools.add(
+    'food_goals_set',
+    "Set the user's daily goals when they ask. Omitted values keep their goal; 0 removes one. Calories balance across the week (Monday-Sunday) unless calorie_period is day.",
+    z
+      .object({ ...macros, calorie_period: z.enum(['week', 'day']).optional() })
+      .refine(
+        (a) => Object.values(a).some((v) => v !== undefined),
+        'Give at least one goal or calorie_period',
+      ),
+    async (a, c) =>
+      nutrition.setGoals(
+        {
+          calories: a.calories,
+          protein: a.protein,
+          carbohydrates: a.carbohydrates,
+          fat: a.fat,
+          caloriePeriod: a.calorie_period,
+        },
+        c.signal,
       ),
   );
   tools.add(

@@ -34,7 +34,14 @@ test('nutrition tools call the Home Assistant calorie_tracker services', async (
   await call('food_diary', {});
   assert.deepEqual(calls.at(-1), ['calorie_tracker.get_diary', {}]);
 
-  await assert.rejects(call('food_recommend', {}), /at least one target/);
+  await call('food_recommend', { meal: 'dinner' });
+  assert.deepEqual(calls.at(-1), ['calorie_tracker.recommend_foods', { limit: 5, meal: 'dinner' }]);
+  await call('food_goals_set', { protein: 140, fat: 60, calorie_period: 'week' });
+  assert.deepEqual(calls.at(-1), [
+    'calorie_tracker.set_goals',
+    { protein: 140, fat: 60, calorie_period: 'week' },
+  ]);
+  await assert.rejects(call('food_goals_set', {}), /at least one goal/);
   await assert.rejects(call('food_log', { meal: 'lunch' }), /food_id or name/);
   await assert.rejects(
     call('food_log', { meal: 'lunch', food_id: 'x', servings: 1, quantity: 2 }),

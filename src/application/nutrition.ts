@@ -39,6 +39,12 @@ export interface NutritionPort {
     kind: FoodKind | undefined,
     query: string,
     limit: number,
+    meal: Meal | undefined,
+    signal?: AbortSignal,
+  ): Promise<unknown>;
+  goals(signal?: AbortSignal): Promise<unknown>;
+  setGoals(
+    goals: MacroTargets & { caloriePeriod?: 'day' | 'week' },
     signal?: AbortSignal,
   ): Promise<unknown>;
   log(entry: FoodLogRequest, signal?: AbortSignal): Promise<unknown>;
