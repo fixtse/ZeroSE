@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  doublePrecision,
   boolean,
   integer,
   jsonb,
@@ -410,5 +411,61 @@ export const groupMembers = pgTable(
       columns: [table.bot, table.chat_id],
       foreignColumns: [accessProfiles.bot, accessProfiles.chat_id],
     }).onDelete('cascade'),
+  ],
+);
+
+const nutrientColumns = () => ({
+  calories: doublePrecision(),
+  protein: doublePrecision(),
+  carbohydrates: doublePrecision(),
+  fat: doublePrecision(),
+  fiber: doublePrecision(),
+  sugar: doublePrecision(),
+  sodium: doublePrecision(),
+});
+export const nutritionFoods = pgTable(
+  'nutrition_foods',
+  {
+    id: bigint({ mode: 'bigint' }).primaryKey().generatedByDefaultAsIdentity(),
+    profile: text().notNull(),
+    source: text().notNull(),
+    external_id: text().notNull(),
+    kind: text().notNull().default('food'),
+    name: text().notNull(),
+    brand: text().notNull().default(''),
+    serving_amount: doublePrecision().notNull().default(1),
+    serving_unit: text().notNull().default('serving'),
+    ...nutrientColumns(),
+    ingredients: jsonb().$type<string[]>().notNull().default([]),
+    created: created(),
+    updated: timestamp('updated', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nutrition_foods_identity_key').on(table.profile, table.source, table.external_id),
+    index('nutrition_foods_profile_name_idx').on(table.profile, table.name),
+    check('nutrition_foods_kind_check', sql`${table.kind} in ('food', 'recipe', 'meal')`),
+    check('nutrition_foods_serving_check', sql`${table.serving_amount} > 0`),
+  ],
+);
+export const nutritionEntries = pgTable(
+  'nutrition_entries',
+  {
+    id: bigint({ mode: 'bigint' }).primaryKey().generatedByDefaultAsIdentity(),
+    profile: text().notNull(),
+    food_id: bigint({ mode: 'bigint' }).references(() => nutritionFoods.id, {
+      onDelete: 'set null',
+    }),
+    name: text().notNull(),
+    meal: text().notNull().default('snack'),
+    servings: doublePrecision().notNull().default(1),
+    serving_label: text().notNull().default(''),
+    day: text().notNull(),
+    eaten_at: timestamp('eaten_at', { withTimezone: true }).notNull(),
+    ...nutrientColumns(),
+    created: created(),
+  },
+  (table) => [
+    index('nutrition_entries_profile_day_idx').on(table.profile, table.day),
+    check('nutrition_entries_servings_check', sql`${table.servings} > 0`),
   ],
 );

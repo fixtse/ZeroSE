@@ -13,7 +13,7 @@ Start with Telegram on its own. Add Google services, Home Assistant and other
 connections when you want more. Each person or group gets its own permissions,
 conversation and memory.
 
-[Get started](#get-started) · [Home Assistant integration](https://github.com/fixtse/ha-zero-assistant) · [Technical guide](docs/technical-guide.md)
+[Get started](#get-started) · [Home Assistant integration](https://github.com/fixtse/ha-zero-assistant) · [Technical guide](docs/technical-guide.md) · [Calorie tracking](docs/nutrition.md)
 
 ## A conversation that can do things
 
