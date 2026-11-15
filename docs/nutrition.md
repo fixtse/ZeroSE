@@ -1,7 +1,7 @@
 # Calorie tracking
 
 The owner profile can track food through the Home Assistant
-[Calorie Tracker integration](../integrations/calorie_tracker/README.md). That integration
+[Calorie Tracker integration](https://github.com/fixtse/ha-calorie-tracker). That integration
 holds the food catalog (synced from MyFitnessPal) and the diary. Zero calls its services
 using the owner's Home Assistant connection.
 
