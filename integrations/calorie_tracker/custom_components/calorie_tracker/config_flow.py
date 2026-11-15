@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlowWithReload
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
@@ -19,15 +19,19 @@ from .mfp import AuthError, MyFitnessPal
 TOKEN = selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
 
 
-async def _check(token: str) -> str | None:
-    """Return an error key, or None when the cookie works."""
+async def _check(token: str) -> tuple[str | None, str]:
+    """Return (error key or None, cookie to store).
+
+    Validating can rotate the cookie; the old value must never be used again or MyFitnessPal
+    revokes the session, so the rotated value is what gets stored.
+    """
     try:
-        async with MyFitnessPal(token):
-            return None
+        async with MyFitnessPal(token) as client:
+            return None, client.session_token
     except AuthError:
-        return "invalid_auth"
+        return "invalid_auth", token
     except Exception:  # network, Cloudflare, site changes
-        return "cannot_connect"
+        return "cannot_connect", token
 
 
 class CalorieTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -37,7 +41,10 @@ class CalorieTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             token = user_input.get(CONF_SESSION_TOKEN, "").strip()
-            if token and (error := await _check(token)):
+            error = None
+            if token:
+                error, token = await _check(token)
+            if error:
                 errors["base"] = error
             else:
                 return self.async_create_entry(title="Calorie Tracker", data={CONF_SESSION_TOKEN: token})
@@ -50,8 +57,8 @@ class CalorieTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            token = user_input[CONF_SESSION_TOKEN].strip()
-            if not (error := await _check(token)):
+            error, token = await _check(user_input[CONF_SESSION_TOKEN].strip())
+            if not error:
                 entry = self._get_reauth_entry()
                 return self.async_update_reload_and_abort(entry, data={**entry.data, CONF_SESSION_TOKEN: token})
             errors["base"] = error
@@ -62,8 +69,8 @@ class CalorieTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            token = user_input[CONF_SESSION_TOKEN].strip()
-            if not (error := await _check(token)):
+            error, token = await _check(user_input[CONF_SESSION_TOKEN].strip())
+            if not error:
                 entry = self._get_reconfigure_entry()
                 return self.async_update_reload_and_abort(entry, data={**entry.data, CONF_SESSION_TOKEN: token})
             errors["base"] = error
@@ -73,11 +80,11 @@ class CalorieTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlowWithReload:
         return CalorieTrackerOptionsFlow()
 
 
-class CalorieTrackerOptionsFlow(OptionsFlow):
+class CalorieTrackerOptionsFlow(OptionsFlowWithReload):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             if user_input.get(CONF_SYNC_TIME):

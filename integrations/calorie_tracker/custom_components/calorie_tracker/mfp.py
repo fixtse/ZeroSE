@@ -15,7 +15,7 @@ from typing import Any, Awaitable, Callable
 import aiohttp
 from yarl import URL
 
-from .core import Catalog, nutrients
+from .core import Catalog, display_name, nutrients
 
 _LOGGER = logging.getLogger(__name__)
 BASE = URL("https://www.myfitnesspal.com/")
@@ -80,6 +80,31 @@ def food_from_mfp(food: dict[str, Any], uses: int = 0) -> dict[str, Any] | None:
     }
 
 
+MEAL_NAMES = {"breakfast": "breakfast", "lunch": "lunch", "dinner": "dinner", "snacks": "snack", "snack": "snack",
+              "desayuno": "breakfast", "almuerzo": "lunch", "comida": "lunch", "cena": "dinner", "merienda": "snack"}
+
+
+def entry_from_mfp(entry: dict[str, Any], food: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A MyFitnessPal diary line as a diary entry, with the nutrients MyFitnessPal recorded."""
+    raw = entry.get("food") or {}
+    if not entry.get("id") or not raw:
+        return None
+    contents = entry.get("nutritional_contents") or {}
+    values = {target: _number(contents.get(source)) for source, target in MFP_KEYS.items()
+              if contents.get(source) is not None}
+    values["calories"] = _energy(contents)
+    size = entry.get("serving_size") or {}
+    count = _number(entry.get("servings")) or 1
+    portion = f"{count * (_number(size.get('value')) or 1):g} {size.get('unit') or 'serving'}"
+    meal = MEAL_NAMES.get(str(entry.get("meal_name", "")).strip().lower(), "snack")
+    return {
+        "id": f"mfp:{entry['id']}", "food_id": food["id"] if food else None,
+        "name": display_name(food) if food else str(raw.get("description") or "Food"),
+        "meal": meal, "mfp_meal": entry.get("meal_name"), "portion": portion,
+        "eaten_at": f"{entry.get('date')}T12:00:00", "nutrients": nutrients(values),
+    }
+
+
 def meal_from_mfp(meal: dict[str, Any]) -> dict[str, Any] | None:
     foods = meal.get("foods") or []
     if not meal.get("meal_id") or not foods:
@@ -135,7 +160,11 @@ class MyFitnessPal:
             cookie_jar=jar, headers={"User-Agent": USER_AGENT},
             timeout=aiohttp.ClientTimeout(total=45),
         )
-        await self.authenticate()
+        try:
+            await self.authenticate()
+        except BaseException:
+            await self._session.close()
+            raise
         return self
 
     async def __aexit__(self, *exc) -> None:
@@ -228,12 +257,16 @@ async def sync_catalog(
 
     day = start
     while day <= end:
+        imported = []
         for entry in await client.diary(day):
-            raw = entry.get("food") or {}
-            if food := food_from_mfp(raw):
+            food = food_from_mfp(entry.get("food") or {})
+            if food:
                 food["mfp_uses"] = catalog.foods.get(food["id"], {}).get("mfp_uses", 0) + 1
-                catalog.upsert(food)
+                food = catalog.upsert(food)
+            if item := entry_from_mfp(entry, food):
+                imported.append(item)
                 counts["diary_entries"] += 1
+        catalog.replace_imported(day.isoformat(), "myfitnesspal", imported)
         counts["diary_days"] += 1
         catalog.sync["diary_scanned_through"] = day.isoformat()
         if progress and counts["diary_days"] % 30 == 0:

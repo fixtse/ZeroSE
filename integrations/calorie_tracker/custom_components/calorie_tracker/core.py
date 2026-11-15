@@ -80,6 +80,11 @@ def total(items: list[dict[str, float | None]]) -> dict[str, float | None]:
     return result
 
 
+def display_name(food: dict[str, Any]) -> str:
+    brand = (food.get("brand") or "").strip()
+    return food["name"] + (f" ({brand})" if brand and fold(brand) != fold(food["name"]) else "")
+
+
 def serving_label(amount: float, unit: str) -> str:
     return f"{amount:g} {unit}".strip()
 
@@ -240,7 +245,7 @@ class Catalog:
             if not food:
                 raise KeyError("Food not found; search the catalog first")
             factor, label = self.factor(food, servings, quantity, unit)
-            entry_name = name or (food["name"] + (f" ({food['brand']})" if food.get("brand") else ""))
+            entry_name = name or display_name(food)
             logged = scale(food["nutrients"], factor)
             food["uses"] = food.get("uses", 0) + 1
         else:
@@ -255,6 +260,23 @@ class Catalog:
         }
         self.entries.append(entry)
         return entry
+
+    def replace_imported(self, day: str, source: str, entries: list[dict[str, Any]]) -> None:
+        """Replace one day's entries from an external diary, so re-syncs never duplicate them."""
+        self.entries = [e for e in self.entries if not (e["day"] == day and e.get("source") == source)]
+        self.entries.extend({**entry, "source": source, "day": day} for entry in entries)
+
+    def history(self, days: list[str]) -> list[dict[str, Any]]:
+        """Daily totals for the given days (missing days included with zero calories)."""
+        wanted = set(days)
+        grouped: dict[str, list] = {d: [] for d in days}
+        for entry in self.entries:
+            if entry["day"] in wanted:
+                grouped[entry["day"]].append(entry["nutrients"])
+        return [{"day": d, **{k: v or 0 for k, v in total(grouped[d]).items()}} for d in days]
+
+    def entry_food(self, entry_id: str) -> str | None:
+        return next((e.get("food_id") for e in self.entries if e["id"] == entry_id), None)
 
     def delete(self, ids: list[str]) -> int:
         wanted = set(ids)
@@ -273,7 +295,7 @@ class Catalog:
             "meals": {meal: values for meal, values in by_meal.items() if values["calories"] is not None},
             "entries": [
                 {"entry_id": e["id"], "meal": e["meal"], "name": e["name"], "portion": e["portion"],
-                 "eaten_at": e["eaten_at"], **{k: e["nutrients"][k] for k in ("calories", "protein", "carbohydrates", "fat")}}
+                 "eaten_at": e["eaten_at"], "source": e.get("source", "zero"), **{k: e["nutrients"][k] for k in ("calories", "protein", "carbohydrates", "fat")}}
                 for e in items
             ],
         }
