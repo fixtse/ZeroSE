@@ -58,37 +58,16 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      packages: read
     outputs:
       image: ${{ steps.coordinates.outputs.image }}
-      package_api: ${{ steps.coordinates.outputs.package_api }}
       metadata: ${{ steps.metadata.outputs.json }}
       labels: ${{ steps.metadata.outputs.labels }}
     steps:
       - name: Image coordinates
         id: coordinates
-        env:
-          OWNER_TYPE: ${{ github.event.repository.owner.type }}
         run: |
           image="${GITHUB_REPOSITORY,,}"
-          owner_kind=users
-          if [[ "$OWNER_TYPE" == Organization ]]; then owner_kind=orgs; fi
           echo "image=ghcr.io/$image" >> "$GITHUB_OUTPUT"
-          echo "package_api=$owner_kind/${image%%/*}/packages/container/${image#*/}" >> "$GITHUB_OUTPUT"
-      - name: Refuse an existing public package
-        if: github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_API: ${{ steps.coordinates.outputs.package_api }}
-        run: |
-          status=$(curl --silent --show-error --output "$RUNNER_TEMP/package.json" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $GH_TOKEN" --header 'Accept: application/vnd.github+json' \
-            "$GITHUB_API_URL/$PACKAGE_API")
-          case "$status" in
-            200) test "$(jq -r '.visibility' "$RUNNER_TEMP/package.json")" = private ;;
-            404) echo 'A new GHCR package will be private by default.' ;;
-            *) echo "::error::Cannot verify package visibility (HTTP $status)"; exit 1 ;;
-          esac
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         id: metadata
         with:
@@ -203,25 +182,6 @@ jobs:
             [.manifests[].platform | select(.os == "linux") | .architecture] |
             (index("amd64") != null) and (index("arm64") != null)'
           docker buildx imagetools inspect "${tags[0]}" >> "$GITHUB_STEP_SUMMARY"
-      - name: Verify published package is private
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_API: ${{ needs.prepare.outputs.package_api }}
-          IMAGE: ${{ needs.prepare.outputs.image }}
-        run: |
-          for attempt in 1 2 3 4 5; do
-            status=$(curl --silent --show-error --output "$RUNNER_TEMP/package.json" --write-out '%{http_code}' \
-              --header "Authorization: Bearer $GH_TOKEN" --header 'Accept: application/vnd.github+json' \
-              "$GITHUB_API_URL/$PACKAGE_API")
-            if [[ "$status" == 200 ]]; then
-              test "$(jq -r '.visibility' "$RUNNER_TEMP/package.json")" = private
-              echo "Published private multi-platform image: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            sleep 3
-          done
-          echo '::error::Could not confirm private package visibility after publishing.'
-          exit 1
 
   notify:
     needs: [prepare, verify, image, publish]

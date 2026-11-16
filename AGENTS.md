@@ -23,7 +23,7 @@
   unrelated local changes or private runtime files.
 - Never commit or bake `config.json`, `data/`, `.codex`, tokens, or local `.env` files into images.
   Keep the Docker build context restricted to source, required static assets, and manifests.
-- Production Compose pulls private GHCR images. Use `compose.build.yaml` for local builds.
+- Production Compose pulls public GHCR images. Use `compose.build.yaml` for local builds.
 - This host runs the live assistant. Code-only changes must not restart it or mutate live
   Telegram, Google, or Home Assistant integrations. Keep runtime backups private.
 - Do not automatically replay interrupted jobs or retry uncertain mutating tool calls.

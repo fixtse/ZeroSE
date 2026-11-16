@@ -18,7 +18,7 @@ COPY web ./web
 RUN pnpm --filter @zero/admin build
 
 FROM node:26-bookworm-slim AS runtime
-LABEL org.opencontainers.image.source="https://github.com/fixtse/node-assistant"
+LABEL org.opencontainers.image.source="https://github.com/fixtse/zero-assistant"
 LABEL org.opencontainers.image.description="Fixt personal assistant with Codex and Home Assistant integrations"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg poppler-utils catdoc ca-certificates python3-venv util-linux \

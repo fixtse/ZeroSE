@@ -1,7 +1,7 @@
 name: fixt-assistant
 services:
   assistant:
-    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/node-assistant:latest}
+    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/zero-assistant:latest}
     pull_policy: always
     container_name: fixt-assistant
     restart: unless-stopped

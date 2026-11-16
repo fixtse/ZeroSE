@@ -168,19 +168,19 @@ The extraction service receives a multipart `file` upload. If no extraction URL 
 configured, video extraction uses local `ffmpeg`. Direct audio goes straight to STT.
 Tests use local HTTP fixtures and do not require the FFmpeg binary or live services.
 
-## Private images and deployment
+## Container images and deployment
 
 GitHub Actions runs formatting, type checks, tests, and compilation before building images.
 Pushes to `main`, version tags (`v*`), and manual runs publish AMD64 and ARM64 images to
-`ghcr.io/fixtse/node-assistant`. Pull requests validate and build without publishing.
+`ghcr.io/fixtse/zero-assistant`. Pull requests validate and build without publishing.
 Tags include `latest` for `main`, `sha-<full-commit>` for each build, and version/minor tags
 for semantic version releases. Actions use the repository's `GITHUB_TOKEN`; no registry
 password needs to be added to repository secrets.
 
-The workflow checks package privacy before and after publishing and refuses an existing
-public package. New GHCR packages are private by default, as documented by
-[GitHub](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
-If a package already exists, grant this repository Actions access to it in package settings.
+The published package is public, so `docker compose pull` works without a registry login.
+Forks publish to their own `ghcr.io/<owner>/<repository>` package, which GHCR creates as
+private; make it public in the package settings if others should pull it. If a package
+already exists, grant the repository Actions access to it in package settings.
 
 The optional `ASSISTANT_IMAGE_VALIDATION_CALLBACK` secret sends build completion notifications.
 Notification delivery failures appear as warnings and do not block automatic deployment;
@@ -220,7 +220,7 @@ step. Automatic deployment is optional and uses the signed host webhook describe
 
 The optional host worker receives signed GitHub `workflow_run` webhooks at
 `https://assistant.example.com/github/deploy`. It accepts only successful `main` builds from
-`fixtse/node-assistant` using `.github/workflows/images.yaml`. Pull requests, other
+`fixtse/zero-assistant` using `.github/workflows/images.yaml`. Pull requests, other
 repositories, other branches, failed runs, and older out-of-order runs are ignored.
 The existing image workflow needs no deployment credentials or Docker access on the host.
 
@@ -229,7 +229,7 @@ Build the TypeScript host worker with `pnpm build`. Create a private `.env.deplo
 
 ```dotenv
 ASSISTANT_DEPLOY_SECRET=replace-with-a-fresh-random-secret
-ASSISTANT_DEPLOY_REPOSITORY=fixtse/node-assistant
+ASSISTANT_DEPLOY_REPOSITORY=fixtse/zero-assistant
 ASSISTANT_DEPLOY_PORT=8790
 ASSISTANT_DEPLOY_NOTIFY_CHAT=replace-with-your-private-chat-id
 ASSISTANT_DEPLOY_NOTIFY_ASSISTANT=zero
