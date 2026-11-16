@@ -1,8 +1,11 @@
-<img src="assets/icon.png" alt="Zero Assistant" width="112" align="right">
+<img src="assets/icon.png" alt="ZeroSE" width="112" align="right">
 
-# Zero Assistant
+# ZeroSE
 
 **Your personal assistant in Telegram. Your voice assistant at home.**
+
+ZeroSE (“Zero”) is part of the [fixtSE](https://github.com/fixtse) smart-experience
+family, alongside ClipSE, ScribeSE and SchedulerSE.
 
 Zero brings conversation, memory and useful everyday tools together. Ask a question,
 send a voice message, plan your day or set a reminder—all from the same chat.
@@ -105,7 +108,7 @@ and model you choose.
 
 Connect Home Assistant to let Zero answer questions about your home and help with
 permitted actions. Add the unified
-[Zero Assistant integration](https://github.com/fixtse/ha-zero-assistant) for Assist
+[ZeroSE integration](https://github.com/fixtse/ha-zero-assistant) for Assist
 conversations and event-driven home features.
 
 ### Talk to Zero through Assist
@@ -231,7 +234,7 @@ vulnerabilities privately.
 
 ## License
 
-Zero Assistant is free software: you can redistribute it and/or modify it under the
+ZeroSE is free software: you can redistribute it and/or modify it under the
 terms of the [GNU Affero General Public License, version 3](LICENSE)
 (`AGPL-3.0-only`).
 
@@ -241,6 +244,6 @@ you to offer those users the corresponding source code of your modified version.
 The admin interface links to the source code for this purpose; update that link if
 you run a fork.
 
-Zero Assistant is distributed in the hope that it will be useful, but WITHOUT ANY
+ZeroSE is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the license for details.

@@ -43,7 +43,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = locale;
     document.title =
-      locale === 'en' ? 'Zero · Your connected assistant' : 'Zero · Tu asistente, conectado';
+      locale === 'en' ? 'ZeroSE · Your connected assistant' : 'ZeroSE · Tu asistente, conectado';
   }, [locale]);
   const value = useMemo(
     () => ({

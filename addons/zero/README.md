@@ -1,4 +1,4 @@
-# Zero Assistant add-on
+# ZeroSE add-on
 
 This is the Supervisor packaging for the Zero runtime. Build it against a published
 Zero image containing `start-home-assistant-addon.js` (override `BUILD_FROM` to pin

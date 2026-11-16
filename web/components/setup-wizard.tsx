@@ -43,7 +43,7 @@ type Step = 'channels' | 'ai' | 'telegram' | 'home-assistant' | 'voice' | 'done'
 
 const integrationUrl = 'https://github.com/fixtse/ha-zero-assistant';
 const clipseGuide =
-  'https://github.com/fixtse/zero-assistant/blob/main/docs/transcription.md#clipse-whisper';
+  'https://github.com/fixtse/ZeroSE/blob/main/docs/transcription.md#clipse-whisper';
 
 export function setupSteps(mode: SetupMode): Step[] {
   return [
@@ -155,7 +155,7 @@ function HomeAssistantStep({ connection }: { connection?: Connection }) {
       </div>
       <ol className="setup-list">
         <li>
-          <strong>{t('Instala la integración Zero Assistant desde HACS.')}</strong>
+          <strong>{t('Instala la integración ZeroSE desde HACS.')}</strong>
           <span>
             {t('Añade el repositorio como integración personalizada y reinicia Home Assistant.')}{' '}
             <a href={integrationUrl} target="_blank" rel="noreferrer" className="text-link">

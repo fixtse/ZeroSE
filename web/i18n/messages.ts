@@ -49,8 +49,7 @@ export const english: Record<string, string> = {
   'Home Assistant ya está conectado.': 'Home Assistant is already connected.',
   INICIO: 'HOME',
   Inicio: 'Home',
-  'Instala la integración Zero Assistant desde HACS.':
-    'Install the Zero Assistant integration from HACS.',
+  'Instala la integración ZeroSE desde HACS.': 'Install the ZeroSE integration from HACS.',
   'La transcripción convierte notas de voz y vídeos en texto. Es opcional. Las respuestas por voz y Assist no dependen de esta opción.':
     'Transcription turns voice notes and videos into text. It is optional. Spoken replies and Assist do not depend on it.',
   Listo: 'Done',

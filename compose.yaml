@@ -1,17 +1,17 @@
-name: fixt-assistant
+name: zerose
 services:
   assistant:
-    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/zero-assistant:latest}
+    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/zerose:latest}
     pull_policy: always
-    container_name: fixt-assistant
+    container_name: zerose
     restart: unless-stopped
     init: true
     stop_grace_period: 20s
     network_mode: host
-    user: "1000:1000"
+    user: '1000:1000'
     read_only: true
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
+    security_opt: ['no-new-privileges:true']
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,7 +40,13 @@ services:
         bind:
           create_host_path: false
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -53,13 +59,16 @@ services:
       POSTGRES_USER: assistant
       POSTGRES_PASSWORD: ${ASSISTANT_POSTGRES_PASSWORD:?Set ASSISTANT_POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:${ASSISTANT_POSTGRES_PORT:-55432}:5432"
+      - '127.0.0.1:${ASSISTANT_POSTGRES_PORT:-55432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U assistant -d assistant"]
+      test: ['CMD-SHELL', 'pg_isready -U assistant -d assistant']
       interval: 5s
       timeout: 3s
       retries: 12
 volumes:
   postgres-data:
+    # Installs created before the ZeroSE rename keep their data by setting
+    # ASSISTANT_POSTGRES_VOLUME=fixt-assistant_postgres-data in .env.
+    name: ${ASSISTANT_POSTGRES_VOLUME:-zerose_postgres-data}

@@ -18,7 +18,7 @@ COPY web ./web
 RUN pnpm --filter @zero/admin build
 
 FROM node:26-bookworm-slim AS runtime
-LABEL org.opencontainers.image.source="https://github.com/fixtse/zero-assistant"
+LABEL org.opencontainers.image.source="https://github.com/fixtse/ZeroSE"
 LABEL org.opencontainers.image.description="Fixt personal assistant with Codex and Home Assistant integrations"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg poppler-utils catdoc ca-certificates python3-venv util-linux \
@@ -31,7 +31,7 @@ RUN npm install --global pnpm@11.28.6
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json ./web/package.json
 RUN --mount=type=cache,id=assistant-pnpm,target=/pnpm/store \
-    pnpm install --prod --frozen-lockfile --filter fixt-assistant --store-dir=/pnpm/store
+    pnpm install --prod --frozen-lockfile --filter zerose --store-dir=/pnpm/store
 COPY --from=backend /app/dist ./dist
 COPY --from=frontend /app/web/out ./web/out
 COPY assets/icon.png ./assets/icon.png

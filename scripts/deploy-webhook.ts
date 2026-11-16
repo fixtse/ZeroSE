@@ -17,7 +17,7 @@ import { DeployBuild } from '../src/application/deploy-build.js';
 process.umask(0o077);
 const root = resolve(process.env.ASSISTANT_DEPLOY_ROOT || process.cwd());
 process.loadEnvFile(resolve(root, '.env'));
-const repository = process.env.ASSISTANT_DEPLOY_REPOSITORY || 'fixtse/zero-assistant';
+const repository = process.env.ASSISTANT_DEPLOY_REPOSITORY || 'fixtse/ZeroSE';
 if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repository))
   throw new Error('Invalid deployment repository');
 const secret = process.env.ASSISTANT_DEPLOY_SECRET || '';
@@ -54,7 +54,12 @@ const store = new PostgresDeployments(createDatabase(pool));
 await store.initialize();
 const worker = new DeployBuild(
   store,
-  new DockerDeployment(root, `ghcr.io/${repository.toLowerCase()}`),
+  new DockerDeployment(
+    root,
+    `ghcr.io/${repository.toLowerCase()}`,
+    undefined,
+    process.env.ASSISTANT_DEPLOY_CONTAINER || 'zerose',
+  ),
   {
     async send(text) {
       const bot = (await access.bots()).find((bot) => bot.id === notificationAssistant);

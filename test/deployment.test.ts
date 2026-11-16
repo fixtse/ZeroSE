@@ -20,7 +20,7 @@ import {
 import { createHttpServer } from '../src/adapters/inbound/http-server.js';
 import { fixture, until } from './helpers.js';
 
-const repository = 'fixtse/node-assistant';
+const repository = 'fixtse/ZeroSE';
 const secret = 'test-webhook-secret-at-least-32-characters';
 const sha = 'a'.repeat(40);
 const release = (number: number): BuildRelease => ({
@@ -275,7 +275,7 @@ test('deployment receipts deduplicate, reject stale builds, serialize jobs, and 
 test('Docker deployment validates the revision, pins the digest, preserves private config, and only recreates the assistant', async () => {
   const f = await fixture();
   const commands: string[][] = [];
-  const imageRepository = 'ghcr.io/fixtse/node-assistant';
+  const imageRepository = 'ghcr.io/fixtse/zerose';
   const pinned = imageRepository + '@sha256:' + 'b'.repeat(64);
   const env =
     'ASSISTANT_IMAGE=' +

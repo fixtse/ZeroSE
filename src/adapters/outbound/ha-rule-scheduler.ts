@@ -44,7 +44,7 @@ export class HomeAssistantRuleScheduler implements RuleSchedulerPort {
   async ready(signal?: AbortSignal) {
     const response = await this.request('', 'GET', undefined, signal);
     if (response?.protocol !== 2 || response?.ready !== true)
-      throw new Error('Install/start the unified Zero Assistant Home Assistant integration');
+      throw new Error('Install/start the unified ZeroSE Home Assistant integration');
   }
   async supportsLocationAlerts(signal?: AbortSignal) {
     return (await this.request('', 'GET', undefined, signal))?.location_alerts === true;

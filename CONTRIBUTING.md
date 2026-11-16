@@ -1,4 +1,4 @@
-# Contributing to Zero Assistant
+# Contributing to ZeroSE
 
 Thanks for helping. Zero is licensed under the [AGPL-3.0](LICENSE); by contributing
 you agree that your contribution is released under the same license.

@@ -4,7 +4,7 @@ import { I18nProvider } from '../i18n/provider';
 import { Toaster } from '../components/ui/sonner';
 import { AdminQueryProvider } from '../components/query-provider';
 export const metadata: Metadata = {
-  title: 'Zero · Your connected assistant',
+  title: 'ZeroSE · Your connected assistant',
   description: 'Configure Zero connections and permissions.',
   icons: { icon: '/icon.png' },
   robots: { index: false, follow: false },

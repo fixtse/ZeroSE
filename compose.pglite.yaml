@@ -1,10 +1,10 @@
 # Standalone alternative: docker compose -f compose.pglite.yaml ...
-name: fixt-assistant-pglite
+name: zerose-pglite
 services:
   assistant:
-    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/zero-assistant:latest}
+    image: ${ASSISTANT_IMAGE:-ghcr.io/fixtse/zerose:latest}
     pull_policy: always
-    container_name: fixt-assistant-pglite
+    container_name: zerose-pglite
     restart: unless-stopped
     init: true
     stop_grace_period: 20s

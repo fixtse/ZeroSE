@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/fixtse/zero-assistant:latest
+ARG BUILD_FROM=ghcr.io/fixtse/zerose:latest
 FROM ${BUILD_FROM}
 # Supervisor supplies /data and SUPERVISOR_TOKEN. No host ports are published.
 USER root

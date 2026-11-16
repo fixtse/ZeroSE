@@ -66,7 +66,7 @@ test('notification failure logs identify the build and preserve the successful d
         throw new RemoteError('Telegram', 403);
       },
     },
-    'fixtse/zero-assistant',
+    'fixtse/ZeroSE',
   );
   worker.start();
   await worker.close();

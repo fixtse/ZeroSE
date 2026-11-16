@@ -72,7 +72,7 @@ const navigation = [
   ...navigationGroups.flatMap((group) => group.items),
   { id: 'setup', label: 'Configuración inicial', Icon: Rocket },
 ];
-const sourceUrl = 'https://github.com/fixtse/zero-assistant';
+const sourceUrl = 'https://github.com/fixtse/ZeroSE';
 function ZeroBrand() {
   return (
     <a className="brand" href={adminPath('/admin/')}>
@@ -85,7 +85,7 @@ function ZeroBrand() {
         alt=""
       />
       <span>
-        zero<span className="brand-dot">.</span>
+        zero<span className="brand-dot">SE</span>
       </span>
     </a>
   );
@@ -824,7 +824,7 @@ export default function Home() {
             </>
           )}
           <footer>
-            ZERO ASSISTANT <span>{t('Hecho para tu día a día.')}</span>
+            ZEROSE · BY FIXTSE <span>{t('Hecho para tu día a día.')}</span>
             <span>
               <a href={sourceUrl} target="_blank" rel="noreferrer">
                 AGPL-3.0

@@ -5,7 +5,7 @@ export class OpenFoodFacts implements FoodCatalog {
   constructor(private readonly request: typeof fetch = fetch) {}
   private async read(url: URL, signal?: AbortSignal) {
     const response = await this.request(url, {
-      headers: { 'User-Agent': 'ZeroAssistant/1.0 (https://github.com/fixtse/zero-assistant)' },
+      headers: { 'User-Agent': 'ZeroSE/1.0 (https://github.com/fixtse/ZeroSE)' },
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
         : AbortSignal.timeout(15000),

@@ -14,7 +14,7 @@ export async function fixture(dimensions = 2) {
   // Install the extension outside the disposable schemas used by concurrent tests.
   await admin.query('CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public');
   await admin.query(`CREATE SCHEMA ${schema}`);
-  const dir = mkdtempSync(join(tmpdir(), 'fixt-assistant-'));
+  const dir = mkdtempSync(join(tmpdir(), 'zerose-'));
   const config = ConfigSchema.parse({
     apiKey: 'test-key-that-is-long-enough',
     dataDir: dir,

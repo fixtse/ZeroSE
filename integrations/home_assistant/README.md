@@ -1,4 +1,4 @@
-# Zero Assistant integration
+# ZeroSE integration
 
 `fixtse/ha-zero-assistant` now packages conversation, shared settings, reminders,
 sensor alerts and weather alerts in one `assistant_zero` component. The old
@@ -38,7 +38,7 @@ not loaded as active configuration or exposed in the admin panel.
 
 ## Android and Home Assistant user identity
 
-In **Settings → Devices & services → Zero Assistant → Configure → Home Assistant
+In **Settings → Devices & services → ZeroSE → Configure → Home Assistant
 user bindings**, select your Home Assistant account and enter its enabled private
 Zero user chat ID from Zero's `/admin` page. This includes administrator accounts:
 a phone's device ID does not identify a Zero user. Save once per user; current

@@ -1,6 +1,6 @@
 services:
   assistant:
-    image: fixt-assistant:local
+    image: zerose:local
     pull_policy: build
     build:
       context: .

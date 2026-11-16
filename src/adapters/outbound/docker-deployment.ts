@@ -23,6 +23,7 @@ export class DockerDeployment implements DeploymentRunner {
     private root: string,
     private imageRepository: string,
     private run: DeploymentCommand = docker,
+    private container = 'zerose',
   ) {}
   async deploy(release: BuildRelease): Promise<string> {
     if (
@@ -35,7 +36,7 @@ export class DockerDeployment implements DeploymentRunner {
         'inspect',
         '--format',
         '{{index .Config.Labels "org.opencontainers.image.revision"}} {{if .State.Health}}{{.State.Health.Status}}{{end}}',
-        'fixt-assistant',
+        this.container,
       ],
       this.root,
     ).catch(() => '');
@@ -83,7 +84,7 @@ export class DockerDeployment implements DeploymentRunner {
         'inspect',
         '--format',
         '{{index .Config.Labels "org.opencontainers.image.revision"}} {{if .State.Health}}{{.State.Health.Status}}{{end}}',
-        'fixt-assistant',
+        this.container,
       ],
       this.root,
     );

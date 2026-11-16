@@ -1,8 +1,8 @@
-> [Back to Zero Assistant](../README.md) · Installation, administration and developer reference.
+> [Back to ZeroSE](../README.md) · Installation, administration and developer reference.
 
-<img src="../assets/icon.png" alt="Zero assistant icon" width="112" align="right">
+<img src="../assets/icon.png" alt="ZeroSE icon" width="112" align="right">
 
-# Zero Assistant
+# ZeroSE
 
 A personal TypeScript assistant with Home Assistant, Google services, Telegram,
 and semantic memory. It uses Codex app-server and a shared Codex login.
@@ -168,11 +168,30 @@ The extraction service receives a multipart `file` upload. If no extraction URL 
 configured, video extraction uses local `ffmpeg`. Direct audio goes straight to STT.
 Tests use local HTTP fixtures and do not require the FFmpeg binary or live services.
 
+## Migrating from the `fixt-assistant` names
+
+Releases before the ZeroSE rename used the Compose project and container name
+`fixt-assistant`, the image `ghcr.io/fixtse/zero-assistant` and the repository
+`fixtse/zero-assistant`. The database lives in the Docker volume
+`fixt-assistant_postgres-data`; keep it by pointing the renamed project at it.
+
+```sh
+docker compose -p fixt-assistant down          # stop the old stack; volumes are kept
+echo 'ASSISTANT_POSTGRES_VOLUME=fixt-assistant_postgres-data' >> .env
+sed -i 's#^ASSISTANT_IMAGE=.*#ASSISTANT_IMAGE=ghcr.io/fixtse/zerose:latest#' .env
+docker compose up -d                           # starts project "zerose" with the old data
+```
+
+For signed auto-deployment, set `ASSISTANT_DEPLOY_REPOSITORY=fixtse/ZeroSE` in
+`.env.deploy` (it must match GitHub's repository name exactly), rebuild with
+`pnpm build` and restart the deployment service. Set `ASSISTANT_DEPLOY_CONTAINER`
+only if you renamed the assistant container yourself.
+
 ## Container images and deployment
 
 GitHub Actions runs formatting, type checks, tests, and compilation before building images.
 Pushes to `main`, version tags (`v*`), and manual runs publish AMD64 and ARM64 images to
-`ghcr.io/fixtse/zero-assistant`. Pull requests validate and build without publishing.
+`ghcr.io/fixtse/zerose`. Pull requests validate and build without publishing.
 Tags include `latest` for `main`, `sha-<full-commit>` for each build, and version/minor tags
 for semantic version releases. Actions use the repository's `GITHUB_TOKEN`; no registry
 password needs to be added to repository secrets.
@@ -220,7 +239,7 @@ step. Automatic deployment is optional and uses the signed host webhook describe
 
 The optional host worker receives signed GitHub `workflow_run` webhooks at
 `https://assistant.example.com/github/deploy`. It accepts only successful `main` builds from
-`fixtse/zero-assistant` using `.github/workflows/images.yaml`. Pull requests, other
+`fixtse/ZeroSE` using `.github/workflows/images.yaml`. Pull requests, other
 repositories, other branches, failed runs, and older out-of-order runs are ignored.
 The existing image workflow needs no deployment credentials or Docker access on the host.
 
@@ -229,7 +248,7 @@ Build the TypeScript host worker with `pnpm build`. Create a private `.env.deplo
 
 ```dotenv
 ASSISTANT_DEPLOY_SECRET=replace-with-a-fresh-random-secret
-ASSISTANT_DEPLOY_REPOSITORY=fixtse/zero-assistant
+ASSISTANT_DEPLOY_REPOSITORY=fixtse/ZeroSE
 ASSISTANT_DEPLOY_PORT=8790
 ASSISTANT_DEPLOY_NOTIFY_CHAT=replace-with-your-private-chat-id
 ASSISTANT_DEPLOY_NOTIFY_ASSISTANT=zero
@@ -463,7 +482,7 @@ late is skipped in the same way. Interrupted/uncertain installations are not ret
 automatically. Existing Home Assistant rules retain their backend identity and are
 not silently copied to Zero's scheduler, even if HA becomes unavailable.
 
-Install [Zero Assistant](https://github.com/fixtse/ha-zero-assistant) through its
+Install [ZeroSE](https://github.com/fixtse/ha-zero-assistant) through its
 README's HACS button for sensor, location and weather alerts, wake-up briefings and
 other HA features. The single `assistant_zero` integration retains its conversation,
 shared settings and existing reminders; do not install a separate `assistant_rules`
@@ -1055,7 +1074,7 @@ automatically repeated. Idle operation uses no model tokens or heartbeat; each
 spoken request is a normal Zero model turn. Status polling uses no model tokens.
 
 Home Assistant and Android Assist users can be bound to enabled private Zero user
-profiles under **Zero Assistant → Configure → Home Assistant user bindings**.
+profiles under **ZeroSE → Configure → Home Assistant user bindings**.
 See [user binding setup](../integrations/home_assistant/README.md#android-and-home-assistant-user-identity).
 
 ### Guided Home Assistant setup
@@ -1082,7 +1101,7 @@ Connection and security settings use provider tabs. Profile settings are grouped
 
 Home Assistant is optional. Shared Home Assistant permissions are managed only in the Home Assistant integration; direct Google and Telegram connections remain available in the admin. Each profile may explicitly select Home Assistant to-do as its task provider and choose one `todo.*` entity (local lists, Google Tasks exposed by HA, or another to-do integration). The setup discovers lists on demand and requires confirmation before switching providers. Existing task tools keep their names, credentials are retained, and selecting a provider does not migrate tasks or silently fail over. HA voice requests do not require a Telegram bot token.
 
-Configure the shared Home Assistant access switch in **Zero Assistant → Configure**. Manage entity access in **Settings → Voice assistants → Expose**, selecting **Assist**. Zero uses Assist’s effective exposure settings directly, including default exposure and individual overrides; there is no separate service allowlist or Assist/Frigate service switch. Owner tools `ha_entities` and `ha_entity` discover and read exposed entities on demand. `ha_services` discovers entity actions, and `ha_service_call` checks current exposure and the connected HA user’s permissions immediately before dispatch. Use explicit entity IDs or an exposed named script; area/device/all targets and untargeted administrative services are rejected. Sensor, history, location, distance, shopping, weather and HA to-do tools use this same Assist exposure policy. Profiles no longer have separate sensor/location permission lists; saved entity assignments identify a preferred source. When assigning a location or address not yet exposed, Zero asks for confirmation to add it to Assist for the whole HA instance; this requires an HA administrator. Existing exposed locations need no exposure change. Clearing an assignment never unexposes it globally. Retired list values remain private only to preserve scheduler identities. Alerts check exposure at installation and before delivery, and morning state triggers check before enqueueing a briefing. Upgrade the `assistant_zero` integration alongside the server; generic control fails closed if the exposure commands are unavailable.
+Configure the shared Home Assistant access switch in **ZeroSE → Configure**. Manage entity access in **Settings → Voice assistants → Expose**, selecting **Assist**. Zero uses Assist’s effective exposure settings directly, including default exposure and individual overrides; there is no separate service allowlist or Assist/Frigate service switch. Owner tools `ha_entities` and `ha_entity` discover and read exposed entities on demand. `ha_services` discovers entity actions, and `ha_service_call` checks current exposure and the connected HA user’s permissions immediately before dispatch. Use explicit entity IDs or an exposed named script; area/device/all targets and untargeted administrative services are rejected. Sensor, history, location, distance, shopping, weather and HA to-do tools use this same Assist exposure policy. Profiles no longer have separate sensor/location permission lists; saved entity assignments identify a preferred source. When assigning a location or address not yet exposed, Zero asks for confirmation to add it to Assist for the whole HA instance; this requires an HA administrator. Existing exposed locations need no exposure change. Clearing an assignment never unexposes it globally. Retired list values remain private only to preserve scheduler identities. Alerts check exposure at installation and before delivery, and morning state triggers check before enqueueing a briefing. Upgrade the `assistant_zero` integration alongside the server; generic control fails closed if the exposure commands are unavailable.
 
 Telegram connection settings now live under **Asistentes**. Each assistant can have its own saved avatar; uploading/importing and saving an avatar does not modify Telegram. For assistants with a Telegram connection, the editor can explicitly fetch the configured bot’s current photo and separately publish the saved avatar after confirmation. Custom assistants without a bot connection keep a local avatar.
 
@@ -1215,7 +1234,7 @@ requested and sends the same recovery code to **all** assigned, active Companion
 notification destinations. Replacing or removing a device in Home Assistant changes the
 next request automatically; saved legacy device selections are ignored. Existing verified
 account links remain in PostgreSQL, and account names are never used to guess a HA identity.
-This requires Zero Assistant integration **1.5.2** or later. Its private commands use the
+This requires the ZeroSE integration (formerly Zero Assistant) **1.5.2** or later. Its private commands use the
 linked user's own token, validate the authenticated HA identity, and resolve destinations
 from registry identities and the current mobile notification map, rather than device names.
 
