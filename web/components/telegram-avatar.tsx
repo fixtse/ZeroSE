@@ -1,29 +1,17 @@
 'use client';
 import { adminPath } from '../lib/admin-path';
-import { useEffect, useState } from 'react';
-import { api, type Profile } from '../lib/api';
+import { type Profile } from '../lib/api';
+import { useProfilePhoto } from '../hooks/use-cached-image';
+
 export function TelegramAvatar({ profile }: { profile: Profile }) {
-  const [image, setImage] = useState<string>();
-  useEffect(() => {
-    let active = true;
-    setImage(undefined);
-    void api<{ image?: string }>(
-      '/v1/admin/profiles/' + profile.bot + '/' + encodeURIComponent(profile.chatId) + '/photo',
-    )
-      .then((result) => {
-        if (active) setImage(result.image);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [profile.bot, profile.chatId, profile.kind]);
+  const image = useProfilePhoto(profile.bot, profile.chatId);
   return (
     <span className="avatar">
       {image ? (
         <img
           src={adminPath(image)}
           alt=""
+          decoding="async"
           style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
         />
       ) : (

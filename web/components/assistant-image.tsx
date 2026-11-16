@@ -4,6 +4,7 @@ import { adminPath } from '../lib/admin-path';
 import { Bot, Download, ImagePlus, Save, Send, Sparkles, Upload, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { useAssistantImage } from '../hooks/use-cached-image';
 import { useAdminTask } from '../hooks/use-admin-task';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -40,26 +41,7 @@ const notify = (id: string) =>
   window.dispatchEvent(new CustomEvent('assistant-image-changed', { detail: id }));
 
 export function AssistantAvatar({ id }: { id: string }) {
-  const [image, setImage] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    const load = () => {
-      void api<ImageState>(endpoint(id))
-        .then((value) => {
-          if (active) setImage(value.image);
-        })
-        .catch(() => {});
-    };
-    const changed = (event: Event) => {
-      if ((event as CustomEvent).detail === id) load();
-    };
-    load();
-    window.addEventListener('assistant-image-changed', changed);
-    return () => {
-      active = false;
-      window.removeEventListener('assistant-image-changed', changed);
-    };
-  }, [id]);
+  const image = useAssistantImage(id);
   return image || id === 'zero' ? (
     <img src={adminPath(image || '/icon.png')} alt="" className="assistant-photo" />
   ) : (

@@ -333,6 +333,18 @@ const bots = new TelegramBots(
   access,
   async (id) => (await assistantDefinitions.get(id))?.name || 'Assistant',
 );
+// Admin avatars. Browsers cache them; when another assistant's bot cannot provide a
+// photo (a slow or failing bot), Zero's bot is tried for the same person once.
+async function profilePhoto(bot: string, chatId: string) {
+  const attempt = async (id: string) => {
+    try {
+      return await (await bots.get(id)).profilePhoto(chatId);
+    } catch {
+      return undefined;
+    }
+  };
+  return (await attempt(bot)) || (bot === 'zero' ? undefined : await attempt('zero'));
+}
 const ruleRepository = new PostgresRules(store.db);
 await ruleRepository.initialize();
 const localRuleScheduler = new LocalRuleScheduler(ruleRepository);
@@ -803,8 +815,7 @@ const codex = new AIAgent(
       };
     },
     rules.repository,
-    async (bot, chatId) =>
-      chatId.startsWith('ha:') ? undefined : (await bots.get(bot))?.profilePhoto(chatId),
+    async (bot, chatId) => (chatId.startsWith('ha:') ? undefined : profilePhoto(bot, chatId)),
     userContext,
     discoverHomeAssistantUsers,
     new AIAdmin(
