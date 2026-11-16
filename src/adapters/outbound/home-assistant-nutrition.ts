@@ -1,5 +1,5 @@
 import type { HomeAssistant } from './home-assistant.js';
-import type { NutritionPort } from '../../application/nutrition.js';
+import type { FoodEntryUpdate, NutritionPort } from '../../application/nutrition.js';
 
 const DOMAIN = 'calorie_tracker';
 const defined = (value: Record<string, unknown>) =>
@@ -79,5 +79,28 @@ export class HomeAssistantNutrition implements NutritionPort {
   }
   deleteEntries(ids: string[], signal?: AbortSignal) {
     return this.read('delete_entries', { entry_ids: ids }, signal);
+  }
+  updateEntry(change: FoodEntryUpdate, signal?: AbortSignal) {
+    return this.read(
+      'update_entry',
+      {
+        entry_id: change.entryId,
+        meal: change.meal,
+        name: change.name,
+        servings: change.servings,
+        quantity: change.quantity,
+        unit: change.unit,
+        eaten_at: change.eatenAt,
+        ...change.nutrients,
+      },
+      signal,
+    );
+  }
+  copyDay(copy: Parameters<NutritionPort['copyDay']>[0], signal?: AbortSignal) {
+    return this.read(
+      'copy_day',
+      { from: copy.from, to: copy.to, meals: copy.meals, to_meal: copy.toMeal },
+      signal,
+    );
   }
 }

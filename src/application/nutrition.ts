@@ -61,4 +61,20 @@ export interface NutritionPort {
     signal?: AbortSignal,
   ): Promise<unknown>;
   deleteEntries(ids: string[], signal?: AbortSignal): Promise<unknown>;
+  updateEntry(change: FoodEntryUpdate, signal?: AbortSignal): Promise<unknown>;
+  copyDay(
+    copy: { from: string; to?: string; meals?: Meal[]; toMeal?: Meal },
+    signal?: AbortSignal,
+  ): Promise<unknown>;
 }
+
+export type FoodEntryUpdate = {
+  entryId: string;
+  meal?: Meal;
+  name?: string;
+  servings?: number;
+  quantity?: number;
+  unit?: string;
+  nutrients?: Partial<Nutrients>;
+  eatenAt?: string;
+};

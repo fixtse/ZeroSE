@@ -56,5 +56,17 @@ test('nutrition tools call the Home Assistant calorie_tracker services', async (
     call('food_log', { meal: 'lunch', food_id: 'x', servings: 1, quantity: 2 }),
     /not both/,
   );
+  await call('food_log_update', { entry_id: 'mfp:9', meal: 'lunch', nutrients: { protein: 30 } });
+  assert.deepEqual(calls.at(-1), [
+    'calorie_tracker.update_entry',
+    { entry_id: 'mfp:9', meal: 'lunch', protein: 30 },
+  ]);
+  await assert.rejects(call('food_log_update', { entry_id: 'x' }), /at least one field/);
+  await call('food_copy_day', { from: '2026-11-13', meals: ['dinner'] });
+  assert.deepEqual(calls.at(-1), [
+    'calorie_tracker.copy_day',
+    { from: '2026-11-13', meals: ['dinner'] },
+  ]);
   assert.equal(toolCapability('food_log'), 'homeAssistant');
+  assert.equal(toolCapability('food_copy_day'), 'homeAssistant');
 });

@@ -5,6 +5,7 @@ import type { NutritionPort } from '../../application/nutrition.js';
 
 const foodId = z.string().trim().min(1).max(80);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const meal = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
 const kind = z.enum(['food', 'recipe', 'meal']).optional();
 const amount = z.number().finite().min(0).max(100_000);
 const macros = {
@@ -169,5 +170,51 @@ export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
     'Delete diary entries only when the user asks to remove or correct them. Read food_diary first and pass exact entry IDs.',
     z.object({ entry_ids: z.array(z.string().trim().min(1).max(40)).min(1).max(20) }),
     async (a, c) => nutrition.deleteEntries(a.entry_ids, c.signal),
+  );
+  tools.add(
+    'food_log_update',
+    'Correct one diary entry when the user asks (wrong portion, meal, time, name or values), including MyFitnessPal entries; edits survive re-syncs. Read food_diary first for the entry ID. servings or quantity+unit recompute nutrients from its catalog food; nutrients set values directly (only those given change). Returns the entry and affected day totals.',
+    z
+      .object({
+        entry_id: z.string().trim().min(1).max(40),
+        meal: meal.optional(),
+        name: z.string().trim().min(1).max(200).optional(),
+        servings: z.number().finite().positive().max(100).optional(),
+        quantity: z.number().finite().positive().max(100_000).optional(),
+        unit: z.string().trim().max(50).optional(),
+        nutrients: nutrients.partial().optional(),
+        eaten_at: z.iso.datetime({ offset: true }).optional(),
+      })
+      .refine((a) => !(a.servings && a.quantity), 'Use servings or quantity, not both')
+      .refine(
+        (a) => Object.keys(a).some((k) => k !== 'entry_id'),
+        'Give at least one field to change',
+      ),
+    async (a, c) =>
+      nutrition.updateEntry(
+        {
+          entryId: a.entry_id,
+          meal: a.meal,
+          name: a.name,
+          servings: a.servings,
+          quantity: a.quantity,
+          unit: a.unit,
+          nutrients: a.nutrients,
+          eatenAt: a.eaten_at,
+        },
+        c.signal,
+      ),
+  );
+  tools.add(
+    'food_copy_day',
+    'Log a copy of a past day\'s entries on another day (default today), e.g. "repite lo que comí el martes" or "copia la cena de ayer". meals limits which meals; to_meal puts every copy in one meal. Do not repeat after an uncertain failure; check food_diary.',
+    z.object({
+      from: day,
+      to: day.optional(),
+      meals: z.array(meal).min(1).max(4).optional(),
+      to_meal: meal.optional(),
+    }),
+    async (a, c) =>
+      nutrition.copyDay({ from: a.from, to: a.to, meals: a.meals, toMeal: a.to_meal }, c.signal),
   );
 }
