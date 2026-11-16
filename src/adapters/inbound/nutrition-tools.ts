@@ -138,7 +138,7 @@ export function registerNutritionTools(
   );
   tools.add(
     'food_log',
-    'Record food the user ate. meal: breakfast (desayuno), lunch (almuerzo), dinner (cena) or snack. Prefer food_id from food_search/food_recommend with servings (multiples of its serving) or quantity+unit (e.g. 250 g). Without a catalog match pass name and nutrients for the whole portion and say they are estimates. Returns the entry and day totals. Do not repeat after an uncertain failure; check food_diary.',
+    'Record food the user ate. meal: breakfast (desayuno), lunch (almuerzo), dinner (cena) or snack. Prefer food_id from food_search/food_recommend. For an exact amount the user states (30 g, 50 g, 2 oz, 150 ml, 0.5 kg) always pass quantity+unit, never servings; any weight or volume converts from the serving size. Use servings only for whole multiples of the listed serving ("two portions"). If a food has no weight (a unit error says so), check food_get for its serving sizes or ask. Without a catalog match pass name and nutrients for the whole portion and say they are estimates. Returns the entry and day totals. Do not repeat after an uncertain failure; check food_diary.',
     z
       .object({
         meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
@@ -205,7 +205,7 @@ export function registerNutritionTools(
   );
   tools.add(
     'food_log_update',
-    'Correct one diary entry when the user asks (wrong portion, meal, time, name or values), including MyFitnessPal entries; edits survive re-syncs. Read food_diary first for the entry ID. servings or quantity+unit recompute nutrients from its catalog food; nutrients set values directly (only those given change). Returns the entry and affected day totals.',
+    'Correct one diary entry when the user asks (wrong portion, meal, time, name or values), including MyFitnessPal entries; edits survive re-syncs. Read food_diary first for the entry ID. quantity+unit (exact amount such as 30 g) or servings recompute nutrients from its catalog food; nutrients set values directly (only those given change). Returns the entry and affected day totals.',
     z
       .object({
         entry_id: z.string().trim().min(1).max(40),
