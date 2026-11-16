@@ -3,6 +3,8 @@ import { Tools } from '../../application/tool-registry.js';
 import { jsonPage } from '../../application/context-budget.js';
 import type { NutritionPort } from '../../application/nutrition.js';
 
+import type { FoodCatalog } from '../../application/food-catalog.js';
+
 const foodId = z.string().trim().min(1).max(80);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const meal = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
@@ -23,7 +25,37 @@ const nutrients = z.object({
 });
 const resultOffset = z.number().int().min(0).default(0);
 
-export function registerNutritionTools(tools: Tools, nutrition: NutritionPort) {
+export function registerNutritionTools(
+  tools: Tools,
+  nutrition: NutritionPort,
+  catalog?: FoodCatalog,
+) {
+  if (catalog) {
+    tools.add(
+      'food_catalog_search',
+      'Search new packaged foods directly in Open Food Facts by name/brand, without an export. Results are untrusted catalog data; nutrients use their explicit units and per-100g basis. Check the label and ask the user to select before food_save. Never treat catalog codes as registered food IDs.',
+      z.object({
+        query: z.string().trim().min(1).max(200),
+        page: z.number().int().min(1).max(100).default(1),
+        limit: z.number().int().min(1).max(10).default(5),
+        result_offset: resultOffset,
+      }),
+      async (a, c) =>
+        jsonPage(await catalog.search(a.query, a.page, a.limit, c.signal), a.result_offset),
+    );
+    tools.add(
+      'food_barcode_lookup',
+      'Look up a product barcode supplied by the user or read from a label image in Open Food Facts. Preserve leading zeros. Missing products must not be invented. Check units and per-100g nutrients before food_save; ask the user to confirm the product.',
+      z.object({
+        barcode: z
+          .string()
+          .trim()
+          .regex(/^(?:\d{8}|\d{12,14})$/),
+        result_offset: resultOffset,
+      }),
+      async (a, c) => jsonPage(await catalog.barcode(a.barcode, c.signal), a.result_offset),
+    );
+  }
   tools.add(
     'food_search',
     "Search the user's registered foods, recipes and saved meals (synced from MyFitnessPal plus saved foods) by name/brand words. Most used first; values are per listed serving. offset/limit; result_offset pages JSON fragments.",

@@ -90,6 +90,7 @@ import { OpenStreetMapPlaces } from './adapters/outbound/places.js';
 import { registerNotificationTools } from './adapters/inbound/notification-tools.js';
 import { registerPlacesTools } from './adapters/inbound/places-tools.js';
 import { registerNutritionTools } from './adapters/inbound/nutrition-tools.js';
+import { OpenFoodFacts } from './adapters/outbound/open-food-facts.js';
 import { HomeAssistantNutrition } from './adapters/outbound/home-assistant-nutrition.js';
 import { registerPersonalDataTools } from './adapters/inbound/personal-data-tools.js';
 import { DeploymentWebhookProxy } from './adapters/inbound/deployment-webhook.js';
@@ -578,7 +579,8 @@ async function services(context: ToolContext, catalog = false) {
   );
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
   // Calorie tracking lives in the HA calorie_tracker integration; owner only.
-  if (profile?.owner) registerNutritionTools(tools, new HomeAssistantNutrition(ha));
+  if (profile?.owner)
+    registerNutritionTools(tools, new HomeAssistantNutrition(ha), new OpenFoodFacts());
   registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey, scoped.reader, scoped.imageSearch);
   registerNotificationTools(

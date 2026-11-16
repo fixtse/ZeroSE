@@ -14,3 +14,10 @@ Tools: `food_search`, `food_get`, `food_recommend`, `food_log`, `food_diary`, `f
 `food_log_delete`, `food_log_update` (correct an entry's portion, meal, time or values) and
 `food_copy_day` (repeat a past day or some of its meals). They require the `homeAssistant` capability and the integration installed
 in that Home Assistant instance.
+
+Zero can discover new packaged foods directly from Open Food Facts using
+`food_catalog_search` (name/brand, paginated) and `food_barcode_lookup` (EAN/UPC).
+Supply the barcode digits or a readable label photo. Coverage and label completeness
+vary; a missing result is not evidence that the food does not exist. Check the
+product and nutrient units before saving with `food_save`. Catalog barcodes are
+not local food IDs. These lookups do not import an export or change the diary.
