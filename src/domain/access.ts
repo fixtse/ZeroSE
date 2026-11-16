@@ -33,6 +33,8 @@ export interface AccessProfile {
   enabled: boolean;
   approved?: boolean;
   capabilities: Capability[];
+  /** Tool names hidden from the assistant for this profile. */
+  disabledTools?: string[];
   owner: boolean;
   context?: string;
   contextRevision?: number;

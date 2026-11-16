@@ -113,6 +113,7 @@ import { Admin } from './adapters/inbound/admin.js';
 import { GroupMembers } from './application/group-members.js';
 import { PostgresGroupMembers } from './adapters/outbound/postgres-group-members.js';
 import { GroupMembersAdmin } from './adapters/inbound/group-members-admin.js';
+import { ProfileToolsAdmin } from './adapters/inbound/profile-tools-admin.js';
 import { ProfileMemoryAdmin } from './adapters/inbound/profile-memory-admin.js';
 import { ProfileMemories, memoryProfile } from './application/profile-memories.js';
 import { localClock } from './domain/time.js';
@@ -457,10 +458,11 @@ async function canRespond(job: Job, result?: JobResult) {
       (await bots.isEnabled(address.bot)))
   );
 }
-async function services(context: ToolContext) {
+/** catalog lists every tool the profile could use, ignoring its disabled list and enabled state. */
+async function services(context: ToolContext, catalog = false) {
   const address = sessionAddress(context.session);
   const profile = await access.forSession(context.session);
-  if (address && !profile?.enabled) throw new Error('Chat is not permitted');
+  if (address && !profile?.enabled && !catalog) throw new Error('Chat is not permitted');
   const scoped = profile ? scopedConfig(config, profile) : config;
   context.capabilities = profile?.capabilities;
   context.memoryMode = scoped.memory.mode || 'advanced';
@@ -479,6 +481,7 @@ async function services(context: ToolContext) {
     )
       return false;
     if (isMemoryTool(name) && scoped.memory.mode === 'none') return false;
+    if (!catalog && profile?.disabledTools?.includes(name)) return false;
     const capability = toolCapability(name);
     return !profile || !capability || profile.capabilities.includes(capability);
   };
@@ -517,6 +520,7 @@ async function services(context: ToolContext) {
       return (
         !!current?.enabled &&
         !(isMemoryTool(name) && current.memoryMode === 'none') &&
+        !current.disabledTools?.includes(name) &&
         ((context.source === 'home_assistant_voice' && address.bot === 'zero') ||
           (await bots.isEnabled(address.bot))) &&
         (!capability || current.capabilities.includes(capability))
@@ -893,6 +897,19 @@ const codex = new AIAgent(
     ),
     rules,
   )
+    .withProfileTools(
+      new ProfileToolsAdmin(accessRepository, async (bot, chatId) => {
+        const { tools } = await services(
+          {
+            session: telegramSession(bot, chatId),
+            jobId: 'admin-tool-catalog',
+            signal: AbortSignal.timeout(10000),
+          },
+          true,
+        );
+        return tools.definitions().map(({ name, description }) => ({ name, description }));
+      }),
+    )
     .withLocationExposure(exposeLocationEntities)
     .withHomeAssistantConnection(homeAssistantConnection)
     .withHomeAssistantConnections(

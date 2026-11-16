@@ -126,6 +126,7 @@ export class PostgresAccess implements AccessRepository {
       enabled: false,
       approved: !!value.enabled,
       capabilities: ['web', 'transcription'],
+      disabled_tools: [],
       owner: false,
       credentials: null,
       linked_chat_id: null,
@@ -169,6 +170,7 @@ export class PostgresAccess implements AccessRepository {
       enabled: row.enabled,
       approved: row.approved || row.enabled,
       capabilities: row.capabilities,
+      ...(row.disabled_tools?.length ? { disabledTools: row.disabled_tools } : {}),
       owner: row.owner,
       context: row.context || '',
       contextRevision: row.context_revision || 0,
@@ -180,6 +182,14 @@ export class PostgresAccess implements AccessRepository {
       ...(row.prompt_preset ? { memoryPolicy: row.prompt_preset } : {}),
       ...(row.credentials ? this.decrypt(row.credentials, `${row.bot}:${row.chat_id}`) : {}),
     };
+  }
+  async setDisabledTools(bot: BotId, chatId: string, names: string[]) {
+    const rows = await this.db
+      .update(profiles)
+      .set({ disabled_tools: [...new Set(names)].sort() })
+      .where(and(eq(profiles.bot, bot), eq(profiles.chat_id, chatId)))
+      .returning({ bot: profiles.bot });
+    return rows.length > 0;
   }
   async profile(bot: BotId, chatId: string, database: SqlExecutor = this.db) {
     const [row] = await database

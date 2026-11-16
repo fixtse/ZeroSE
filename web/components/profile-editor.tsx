@@ -20,6 +20,7 @@ import {
   UserRound,
   Users,
   Workflow,
+  Wrench,
 } from 'lucide-react';
 import { HomeAssistantIcon } from './home-assistant-icon';
 import { useUrlState } from '../hooks/use-url-state';
@@ -28,6 +29,7 @@ import { GoogleDestinationPicker } from './google-destination-picker';
 import { ProfileModels } from './ai-settings';
 import { ProfileContext } from './profile-context';
 import { ProfileMemory } from './profile-memory';
+import { ProfileTools } from './profile-tools';
 import { GroupMembers } from './group-members';
 import { AssistantConnectionField } from './assistant-connection';
 import { HATaskListPicker } from './ha-task-list-picker';
@@ -458,6 +460,12 @@ export function ProfileEditor({
                       {t('Memoria')}
                     </TabsTrigger>
                   )}
+                  {current && (
+                    <TabsTrigger value="tools">
+                      <Wrench aria-hidden="true" />
+                      {t('Herramientas')}
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="google">
                     <Workflow aria-hidden="true" />
                     Google
@@ -666,6 +674,15 @@ export function ProfileEditor({
                       key={current.bot + ':' + current.chatId}
                       profile={current}
                       active={provider === 'memory'}
+                    />
+                  </TabsContent>
+                )}
+                {current && (
+                  <TabsContent value="tools" forceMount data-settings-provider="tools">
+                    <ProfileTools
+                      key={current.bot + ':' + current.chatId}
+                      profile={current}
+                      active={provider === 'tools'}
                     />
                   </TabsContent>
                 )}

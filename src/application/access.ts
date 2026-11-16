@@ -28,6 +28,7 @@ export interface AccessRepository {
     total: number;
   }>;
   saveProfile(profile: AccessProfile): Promise<void>;
+  setDisabledTools?(bot: BotId, chatId: string, names: string[]): Promise<boolean>;
   removeProfile(bot: BotId, chatId: string): Promise<void>;
   discover(bot: BotId, chatId: string, label: string, kind?: 'user' | 'group'): Promise<void>;
   migrateGroup(bot: BotId, from: string, to: string): Promise<void>;

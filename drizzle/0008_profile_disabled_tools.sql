@@ -1,0 +1,1 @@
+ALTER TABLE "access_profiles" ADD COLUMN "disabled_tools" jsonb DEFAULT '[]'::jsonb NOT NULL;

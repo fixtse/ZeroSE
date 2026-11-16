@@ -157,6 +157,7 @@ export const accessProfiles = pgTable(
       .$type<AccessProfile['capabilities']>()
       .notNull()
       .default(['web', 'transcription']),
+    disabled_tools: jsonb().$type<string[]>().notNull().default([]),
     owner: boolean().notNull().default(false),
     credentials: text(),
     linked_chat_id: text(),

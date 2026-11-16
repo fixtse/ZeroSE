@@ -1,3 +1,4 @@
+import type { ProfileToolsAdmin } from './profile-tools-admin.js';
 import { replyLanguages } from '../../domain/language.js';
 import { profileNotifications } from '../../application/profile-notifications.js';
 import type { HomeAssistantConnections } from '../../application/home-assistant-connections.js';
@@ -195,6 +196,12 @@ function publicProfile(
   };
 }
 export class Admin {
+  private profileTools?: ProfileToolsAdmin;
+  withProfileTools(tools: ProfileToolsAdmin) {
+    this.profileTools = tools;
+    return this;
+  }
+
   private exposeLocations?: LocationExposure;
   withLocationExposure(expose: LocationExposure) {
     this.exposeLocations = expose;
@@ -251,6 +258,7 @@ export class Admin {
   ): Promise<boolean> {
     if (!path.startsWith('/v1/admin/')) return false;
     if (await this.groupMembers?.handle(req, path, read, send)) return true;
+    if (await this.profileTools?.handle(req, path, read, send)) return true;
 
     if (
       ['PUT', 'DELETE'].includes(req.method || '') &&
