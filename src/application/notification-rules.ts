@@ -44,6 +44,7 @@ export interface RuleRepository {
   ownerWeather(
     rule: Omit<NotificationRule, 'id' | 'version' | 'generation'>,
   ): Promise<{ rule: NotificationRule; created: boolean }>;
+  profileWeather(session: string): Promise<NotificationRule | undefined>;
   read(session: string, id: string): Promise<NotificationRule | undefined>;
   byId(id: string): Promise<NotificationRule | undefined>;
   list(
@@ -88,9 +89,38 @@ export class NotificationRules {
   }
   async ensureProfileWeather(session: string, sleepEntity: string | null = null) {
     const rule = await this.ensureWeather(session, sleepEntity, true);
-    if (rule?.scheduler_state !== 'installed')
+    if (rule?.scheduler_state !== 'installed' || rule.status !== 'active')
       throw new Error('Weather subscription setup is uncertain; inspect before changing it.');
+    const health = await this.profileWeatherStatus(session);
+    if (health.state !== 'active' && health.state !== 'muted')
+      throw new Error('Weather subscription is not active in Home Assistant.');
     return rule;
+  }
+  /** Read-only remote verification: an enabled preference is not proof of a working subscription. */
+  async profileWeatherStatus(session: string, signal?: AbortSignal) {
+    const rule = await this.repository.profileWeather(session);
+    if (!rule) return { state: 'missing' as const };
+    const scope = await this.scope(session, 'alert', rule.scheduler_key);
+    if (!scope.enabled || !scope.scheduler || scope.scheduler.identity !== rule.scheduler_key)
+      return { state: 'unavailable' as const };
+    try {
+      const observed = await scope.scheduler.inspect(rule.id, signal);
+      if (
+        observed.generation !== rule.generation ||
+        rule.scheduler_state !== 'installed' ||
+        observed.status !== rule.status
+      )
+        return {
+          state: observed.status === 'paused' ? ('paused' as const) : ('unconfirmed' as const),
+        };
+      if (observed.status !== 'active') return { state: 'paused' as const };
+      return { state: observed.muted ? ('muted' as const) : ('active' as const) };
+    } catch (error) {
+      return {
+        state:
+          error instanceof SchedulerRuleNotFound ? ('missing' as const) : ('unavailable' as const),
+      };
+    }
   }
   private async ensureWeather(session: string, sleepEntity: string | null, activate: boolean) {
     const scope = await this.scope(session, 'alert');
@@ -128,6 +158,9 @@ export class NotificationRules {
     });
     if (result.rule.scheduler_key && result.rule.scheduler_key !== scope.scheduler.identity)
       throw new Error('Weather subscription belongs to another Home Assistant connection.');
+    // Only a confirmed existing installation may be reconciled. Never retry an uncertain write.
+    if (activate && !result.created && result.rule.scheduler_state === 'installed')
+      result.rule = (await this.observe(result.rule)).rule;
     if (result.created) await this.install(result.rule, scope.scheduler);
     else if (
       (result.rule.status === 'active' ||

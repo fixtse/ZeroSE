@@ -562,6 +562,30 @@ export class Admin {
       }
       return true;
     }
+    const weatherStatusMatch = new RegExp(
+      '^/v1/admin/profiles/(' +
+        assistantIdPattern +
+        ')/(-?\\d{1,16}|ha:[a-f0-9]{32})/weather-status$',
+    ).exec(path);
+    if (weatherStatusMatch && req.method === 'GET') {
+      const profile = await this.repository.profile(
+        weatherStatusMatch[1] as BotId,
+        weatherStatusMatch[2],
+      );
+      if (!profile) send(404, { error: 'Chat no encontrado.' });
+      else if (profileNotifications(profile).weather?.mode === 'off') send(200, { state: 'off' });
+      else
+        send(
+          200,
+          this.notificationRules
+            ? await this.notificationRules.profileWeatherStatus(
+                telegramSession(profile.bot, profile.chatId),
+                AbortSignal.timeout(10000),
+              )
+            : { state: 'unavailable' },
+        );
+      return true;
+    }
     const catalogMatch = new RegExp(
       '^/v1/admin/profiles/(' +
         assistantIdPattern +

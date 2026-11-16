@@ -5,7 +5,7 @@ import type { IncomingMessage } from 'node:http';
 import { Admin } from '../src/adapters/inbound/admin.js';
 import { ConfigSchema } from '../src/adapters/outbound/config-schema.js';
 import type { AccessRepository } from '../src/application/access.js';
-import type { RuleRepository } from '../src/application/notification-rules.js';
+import type { NotificationRules, RuleRepository } from '../src/application/notification-rules.js';
 import type { AccessProfile } from '../src/domain/access.js';
 
 function setup() {
@@ -707,4 +707,55 @@ test('weather preferences round trip, survive older clients and reject invalid i
     (await request(admin, 'helper/123', 'PUT', { ...input, capabilities: [] })).status,
     400,
   );
+});
+
+test('weather health endpoint checks the saved profile session and never provisions on a read', async () => {
+  const f = setup();
+  const calls: string[] = [];
+  const rules = {
+    async profileWeatherStatus(session: string, signal: AbortSignal) {
+      calls.push(session);
+      assert(signal instanceof AbortSignal);
+      return { state: 'paused' };
+    },
+    async ensureProfileWeather() {
+      assert.fail('GET must not provision');
+    },
+  } as unknown as NotificationRules;
+  const admin = new Admin(
+    f.config,
+    f.repository,
+    async () => {},
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    rules,
+  );
+  assert.deepEqual(await request(admin, 'helper/123/weather-status'), {
+    status: 200,
+    value: { state: 'off' },
+  });
+  assert.equal(calls.length, 0);
+  f.profile.notifications = {
+    eventReminders: false,
+    reset: { enabled: false, time: '04:00' },
+    morning: { mode: 'off', time: '08:30', entity: '', state: 'off' },
+    weather: { mode: 'all', routineIntervalHours: 6 },
+  };
+  assert.deepEqual(await request(admin, 'helper/123/weather-status'), {
+    status: 200,
+    value: { state: 'paused' },
+  });
+  assert.deepEqual(calls, ['helper:123']);
+  assert.equal((await request(admin, 'helper/456/weather-status')).status, 404);
 });

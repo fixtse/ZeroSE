@@ -74,6 +74,14 @@ export class PostgresRules implements RuleRepository, LocalDeadlineRepository, R
       .where(and(eq(rules.session, session), eq(rules.id, id)));
     return row ? this.decode(row) : undefined;
   }
+  async profileWeather(session: string) {
+    const [row] = await this.db
+      .select()
+      .from(rules)
+      .where(and(eq(rules.session, session), eq(sql`${rules.value}->>'managed'`, 'owner_weather')))
+      .limit(1);
+    return row ? this.decode(row) : undefined;
+  }
   async list(
     session: string,
     kind: NotificationRule['kind'] | undefined,

@@ -1590,3 +1590,70 @@ test('profile weather reports uncertain setup without automatically replaying it
     await f.close();
   }
 });
+
+test('profile weather detects HA-only pauses and reactivates the existing subscription once', async () => {
+  const f = await setup();
+  try {
+    const original = (await f.rules.ensureProfileWeather('telegram:1'))!;
+    const inspect = f.scheduler.inspect;
+    f.scheduler.inspect = async (id) => {
+      const observed = await inspect(id);
+      return f.configurations.length === 1 ? { ...observed, status: 'paused' } : observed;
+    };
+    assert.deepEqual(await f.rules.profileWeatherStatus('telegram:1'), { state: 'paused' });
+    assert.equal(f.configurations.length, 1); // Health reads never reinstall anything.
+    const recovered = (await f.rules.ensureProfileWeather('telegram:1'))!;
+    assert.equal(recovered.id, original.id);
+    assert.equal(recovered.generation, original.generation + 1);
+    assert.equal(recovered.status, 'active');
+    assert.equal(f.configurations.length, 2);
+    assert.deepEqual(await f.rules.profileWeatherStatus('telegram:1'), { state: 'active' });
+    await f.rules.ensureProfileWeather('telegram:1');
+    assert.equal(f.configurations.length, 2);
+  } finally {
+    await f.close();
+  }
+});
+
+test('weather health distinguishes sleep, missing and unreachable subscriptions without writes', async () => {
+  const f = await setup();
+  try {
+    assert.deepEqual(await f.rules.profileWeatherStatus('telegram:2'), { state: 'missing' });
+    const original = (await f.rules.ensureProfileWeather('telegram:1'))!;
+    f.scheduler.inspect = async () => ({
+      generation: original.generation,
+      status: 'active',
+      next_at: null,
+      muted: true,
+    });
+    assert.deepEqual(await f.rules.profileWeatherStatus('telegram:1'), { state: 'muted' });
+    f.scheduler.inspect = async () => {
+      throw new SchedulerRuleNotFound();
+    };
+    assert.deepEqual(await f.rules.profileWeatherStatus('telegram:1'), { state: 'missing' });
+    await assert.rejects(f.rules.ensureProfileWeather('telegram:1'), /uncertain/);
+    f.scheduler.inspect = async () => {
+      throw new Error('offline');
+    };
+    assert.deepEqual(await f.rules.profileWeatherStatus('telegram:1'), { state: 'unavailable' });
+    assert.equal(f.configurations.length, 1);
+  } finally {
+    await f.close();
+  }
+});
+
+test('profile weather refuses success when HA remains paused after configuration', async () => {
+  const f = await setup();
+  try {
+    const original = (await f.rules.ensureProfileWeather('telegram:1'))!;
+    f.scheduler.inspect = async () => ({
+      generation: f.configurations.at(-1)!.generation,
+      status: 'paused',
+      next_at: null,
+    });
+    await assert.rejects(f.rules.ensureProfileWeather('telegram:1'), /not active/);
+    assert.equal(f.configurations.at(-1)!.id, original.id);
+  } finally {
+    await f.close();
+  }
+});

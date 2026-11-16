@@ -1429,6 +1429,15 @@ textarea:focus-visible {
   margin-top: 24px;
   font-weight: 600;
 }
+.weather-subscription-warning {
+  padding: 0.75rem;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 0.875rem;
+}
+
 .settings-help {
   margin: 24px 0 0;
 }

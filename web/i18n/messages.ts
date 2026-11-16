@@ -1,5 +1,14 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Comprobando los avisos en Home Assistant…': 'Checking notifications in Home Assistant…',
+  'Avisos activos y confirmados en Home Assistant.':
+    'Notifications are active and confirmed in Home Assistant.',
+  'Avisos activos. Silenciados temporalmente mientras duermes.':
+    'Notifications are active. Temporarily muted while you sleep.',
+  'Los avisos están activados en tus preferencias, pero Home Assistant los ha pausado. No recibirás avisos. Guarda el perfil para intentar reactivarlos.':
+    'Notifications are enabled in your preferences, but Home Assistant has paused them. You will not receive notifications. Save the profile to try reactivating them.',
+  'No se puede confirmar que los avisos estén activos en Home Assistant. Comprueba su conexión y guarda el perfil. No se ha reintentado ningún cambio incierto.':
+    'Cannot confirm that notifications are active in Home Assistant. Check its connection and save the profile. No uncertain change has been retried.',
   'Avisos del tiempo': 'Weather notifications',
   'Notificaciones meteorológicas': 'Weather notifications',
   'Solo tiempo importante': 'Important weather only',
