@@ -13,3 +13,6 @@ __pycache__/
 web/.next/
 web/out/
 *.tsbuildinfo
+
+# Local rollback copies (deployment worker)
+*.old/
