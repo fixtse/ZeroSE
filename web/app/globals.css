@@ -3866,3 +3866,32 @@ footer span + span {
     transition: none;
   }
 }
+
+/* Sidebar rhythm: compact items, labelled groups (older rules hid labels and forced 44px rows). */
+.shell > aside nav {
+  gap: 20px;
+  margin-top: 28px;
+}
+.shell .nav-group {
+  gap: 2px;
+}
+.shell .nav-group .workspace-label {
+  display: block;
+  margin: 0 12px 6px;
+}
+.shell nav .nav {
+  height: 38px;
+  padding-left: 12px;
+}
+@media (max-width: 900px) {
+  .shell > aside nav {
+    gap: 2px;
+    margin-top: 10px;
+  }
+  .shell .nav-group .workspace-label {
+    display: none;
+  }
+  .shell nav .nav {
+    height: auto;
+  }
+}
