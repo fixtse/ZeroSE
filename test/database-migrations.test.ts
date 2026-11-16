@@ -64,7 +64,7 @@ test('existing pre-cleanup database upgrades without losing saved assistant data
     const {
       rows: [history],
     } = await f.pool.query('SELECT count(*)::int AS count FROM __drizzle_migrations');
-    assert.equal(history.count, 8);
+    assert.equal(history.count, 9);
   } finally {
     await f.close();
   }
