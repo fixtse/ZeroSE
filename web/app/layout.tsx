@@ -19,10 +19,30 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           body { margin: 0; visibility: hidden; }
           [data-ui-shell] { visibility: hidden; }
           .page-loading {
-            visibility: visible; min-height: 100svh;
+            visibility: visible; min-height: 100svh; display: grid; place-items: center;
+            font: 15px ui-sans-serif, system-ui, sans-serif; color: #94a3b8;
+            animation: page-loading-in 200ms ease-out 150ms both;
           }
-          .page-loading [data-slot="skeleton"] {
-            background: #1e293b; border-radius: 0.375rem;
+          .page-loading-mark { display: grid; justify-items: center; gap: 14px; padding: 16px; }
+          .page-loading-mark img { width: 56px; height: 56px; border-radius: 16px; }
+          .page-loading-word {
+            color: #f8fafc; font-size: 28px; font-weight: 700; letter-spacing: -1.5px; line-height: 1;
+          }
+          .page-loading-word span { color: #f97316; }
+          .page-loading-bar {
+            position: relative; width: 120px; height: 3px; margin-top: 6px;
+            overflow: hidden; border-radius: 3px; background: #1e293b;
+          }
+          .page-loading-bar span {
+            position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit;
+            background: #f97316; animation: page-loading-bar 1.1s ease-in-out infinite;
+          }
+          .page-loading-label { font-size: 13px; }
+          @keyframes page-loading-bar { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+          @keyframes page-loading-in { from { opacity: 0; } to { opacity: 1; } }
+          @media (prefers-reduced-motion: reduce) {
+            .page-loading { animation: none; }
+            .page-loading-bar span { animation: none; width: 100%; opacity: 0.6; }
           }
         `}</style>
       </head>
