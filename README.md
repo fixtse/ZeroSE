@@ -13,7 +13,7 @@ Start with Telegram on its own. Add Google services, Home Assistant and other
 connections when you want more. Each person or group gets its own permissions,
 conversation and memory.
 
-[Get started](#get-started) · [Home Assistant integration](https://github.com/fixtse/ha-zero-assistant) · [Technical guide](docs/technical-guide.md) · [Calorie tracking](docs/nutrition.md)
+[Get started](#get-started) · [Audio transcription](docs/transcription.md) · [Home Assistant integration](https://github.com/fixtse/ha-zero-assistant) · [Technical guide](docs/technical-guide.md) · [Calorie tracking](docs/nutrition.md)
 
 ## A conversation that can do things
 
@@ -64,8 +64,10 @@ note, or reply to an audio/video message to request its transcription. Direct
 voice and audio messages are treated as spoken requests; forwarded recordings
 and video transcripts are returned as text rather than executed as instructions.
 
-Transcription needs a configured speech-to-text service, with support for ClipSE
-Whisper and per-profile Home Assistant speech engines. Optional spoken replies
+Transcription is optional. Leave it off, pick a Home Assistant speech-to-text
+engine for each profile, or run one or more self-hosted
+[ClipSE Whisper](docs/transcription.md#clipse-whisper-as-a-standalone-service)
+servers—Zero load balances them and fails over automatically. Optional spoken replies
 let you listen to answers; you can turn them off while keeping transcription.
 Scanned PDFs currently need their pages sent as images.
 
@@ -201,10 +203,13 @@ original image. Search errors do not switch providers automatically.
    [HACS integration](https://github.com/fixtse/ha-zero-assistant). Supervisor
    [add-on source packaging](addons/zero/README.md) is also available for advanced
    setups; it is not a published add-on release.
-2. **Open the web interface.** Create your administrator account and configure an
-   AI provider. Optional integrations can be added later.
-3. **Connect your first channel.** Add a Telegram bot to an assistant and approve
-   your chat, or pair Home Assistant and select Zero in Assist.
+2. **Open the web interface.** Create your administrator account. The **setup
+   wizard** then asks where you will use Zero—**Telegram only**, **Home Assistant
+   only** or **both**—and walks you through the AI model, your Telegram bot, the
+   Home Assistant pairing and (optionally) audio transcription. You can skip any
+   step and reopen the wizard later from the sidebar.
+3. **Connect your first channel.** Message your bot and approve your chat in
+   **Users**, or pair Home Assistant and select Zero in Assist.
 4. **Make it yours.** Choose your assistant’s personality, memory mode and tools.
    Connect Google, speech services or Home Assistant features as needed.
 
@@ -217,3 +222,25 @@ moving to Mem0 should follow the
 For Home Assistant, use the single
 [`assistant_zero` HACS integration](https://github.com/fixtse/ha-zero-assistant).
 It brings conversation, shared settings and home alerts together in one package.
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development workflow and checks, and [SECURITY.md](SECURITY.md) to report
+vulnerabilities privately.
+
+## License
+
+Zero Assistant is free software: you can redistribute it and/or modify it under the
+terms of the [GNU Affero General Public License, version 3](LICENSE)
+(`AGPL-3.0-only`).
+
+If you modify Zero and let other people interact with it over a network (for
+example, through Telegram, Home Assistant or the web interface), the AGPL requires
+you to offer those users the corresponding source code of your modified version.
+The admin interface links to the source code for this purpose; update that link if
+you run a fork.
+
+Zero Assistant is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the license for details.

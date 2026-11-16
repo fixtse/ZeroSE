@@ -8,6 +8,11 @@ import ExcelJS from 'exceljs';
 import mammoth from 'mammoth';
 import { Config } from '../../domain/config.js';
 import { jsonRequest, boundedBody, RemoteError } from './http.js';
+import {
+  balanced,
+  transcriptionSources,
+  TranscriptionUnavailableError,
+} from './transcription-pool.js';
 
 const exec = promisify(execFile);
 export class Media {
@@ -55,10 +60,11 @@ export class Media {
         await rm(dir, { recursive: true, force: true });
       }
     }
-    if (!this.config.media.asrUrl)
-      throw new Error('Speech transcription endpoint is not configured');
-    const form = new FormData();
-    const clipse = this.config.media.asrProvider === 'clipse-whisper';
+    const media = this.config.media;
+    if (media.asrProvider === 'none') throw new TranscriptionUnavailableError();
+    const sources = transcriptionSources(media.asrUrl, media.asrUrls);
+    if (!sources.length) throw new TranscriptionUnavailableError();
+    const clipse = media.asrProvider === 'clipse-whisper';
     const extensions: Record<string, string> = {
       'audio/ogg': 'ogg',
       'audio/webm': 'webm',
@@ -67,22 +73,32 @@ export class Media {
       'audio/flac': 'flac',
     };
     const extension = extensions[mime.split(';')[0]!.trim()] || 'wav';
-    form.set(
-      clipse ? 'file' : 'audio_file',
-      new Blob([new Uint8Array(buffer)], { type: mime }),
-      clipse ? `audio.${extension}` : 'audio.wav',
-    );
-    if (clipse && this.config.media.asrModel) form.set('model', this.config.media.asrModel);
-    if (clipse && this.config.media.asrWhisperProvider)
-      form.set('provider', this.config.media.asrWhisperProvider);
-    if (clipse && speech?.sttLanguage) {
-      const language = speech.sttLanguage.split('-')[0]!.toLowerCase();
-      if (language !== 'auto') form.set('language', language);
-    }
-    const result = await jsonRequest(
-      this.config.media.asrUrl,
-      { method: 'POST', body: form, signal },
-      'Speech transcription',
+    const form = () => {
+      const body = new FormData();
+      body.set(
+        clipse ? 'file' : 'audio_file',
+        new Blob([new Uint8Array(buffer)], { type: mime }),
+        clipse ? `audio.${extension}` : 'audio.wav',
+      );
+      if (clipse && media.asrModel) body.set('model', media.asrModel);
+      if (clipse && media.asrWhisperProvider) body.set('provider', media.asrWhisperProvider);
+      if (clipse && speech?.sttLanguage) {
+        const language = speech.sttLanguage.split('-')[0]!.toLowerCase();
+        if (language !== 'auto') body.set('language', language);
+      }
+      return body;
+    };
+    // Transcription is read-only, so trying the next interchangeable source is safe.
+    const result = await balanced(sources, signal, (url) =>
+      jsonRequest(
+        url,
+        {
+          method: 'POST',
+          body: form(),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]),
+        },
+        'Speech transcription',
+      ),
     );
     if (typeof result?.text !== 'string') throw new Error('Transcription service returned no text');
     return result.text;

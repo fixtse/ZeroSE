@@ -67,6 +67,7 @@ const fieldNames: Record<string, string> = {
   enabled: 'Activado',
   ffmpegCommand: 'Ejecutable de FFmpeg',
   asrUrl: 'URL de transcripción de audio',
+  asrUrls: 'Fuentes adicionales de ClipSE Whisper',
   asrModel: 'Modelo Whisper',
   asrWhisperProvider: 'Motor Whisper',
   audioExtractionUrl: 'URL del servicio de extracción de audio de vídeos',
@@ -196,7 +197,11 @@ function SettingsForm({
       ? get('media.speech.stt')
       : get('media.asrProvider') === 'clipse-whisper'
         ? 'clipse-whisper'
-        : 'default',
+        : get('media.asrProvider') === 'none' ||
+            (!get('media.asrUrl') &&
+              !settings.fields.find((f) => f.path === 'media.asrUrl')?.configured)
+          ? 'none'
+          : 'default',
   );
   const [whisperProvider, setWhisperProvider] = useState(get('media.asrWhisperProvider'));
   const [whisperModel, setWhisperModel] = useState(get('media.asrModel'));
@@ -305,9 +310,10 @@ function SettingsForm({
             ? ''
             : new FormData(event.currentTarget).get('media.audioExtractionUrl');
         extra['media.speech.tts'] = tts;
-        extra['media.speech.stt'] = stt === 'clipse-whisper' ? 'default' : stt;
-        if (stt === 'default' || stt === 'clipse-whisper') {
-          extra['media.asrProvider'] = stt === 'clipse-whisper' ? 'clipse-whisper' : 'legacy';
+        extra['media.speech.stt'] = ['clipse-whisper', 'none'].includes(stt) ? 'default' : stt;
+        if (['default', 'clipse-whisper', 'none'].includes(stt)) {
+          extra['media.asrProvider'] =
+            stt === 'clipse-whisper' ? 'clipse-whisper' : stt === 'none' ? 'none' : 'legacy';
         }
         if (stt === 'clipse-whisper') {
           extra['media.asrWhisperProvider'] = whisperProvider;
@@ -435,8 +441,9 @@ function SettingsForm({
                       value={stt}
                       onChange={(event) => setStt(event.target.value)}
                     >
-                      <option value="default">{t('Servicio externo')}</option>
+                      <option value="none">{t('Sin transcripción')}</option>
                       <option value="clipse-whisper">ClipSE Whisper</option>
+                      <option value="default">{t('Servicio compatible (audio_file)')}</option>
                       {get('media.speech.stt') && get('media.speech.stt') !== 'default' && (
                         <option value={get('media.speech.stt')}>
                           Home Assistant · {get('media.speech.stt')}
@@ -444,6 +451,7 @@ function SettingsForm({
                       )}
                     </SelectField>
                     {(stt === 'default' || stt === 'clipse-whisper') && field('media.asrUrl')}
+                    {stt === 'clipse-whisper' && field('media.asrUrls')}
                     {stt === 'clipse-whisper' && (
                       <>
                         <SelectField
@@ -491,6 +499,16 @@ function SettingsForm({
                     <p>
                       {t(
                         'Usa la URL completa de /transcribe. Selecciona un motor Whisper para elegir su modelo. El idioma se puede detectar automáticamente.',
+                      )}{' '}
+                      {t(
+                        'Añade más servidores ClipSE Whisper para repartir la carga: Zero los usa por turnos y, si uno falla, prueba el siguiente.',
+                      )}
+                    </p>
+                  )}
+                  {stt === 'none' && (
+                    <p>
+                      {t(
+                        'Zero no transcribirá audios ni vídeos y avisará en el chat. Puedes asignar un motor de Home Assistant a cada perfil en su pestaña de voz.',
                       )}
                     </p>
                   )}

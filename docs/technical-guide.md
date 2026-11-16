@@ -134,6 +134,11 @@ audio, video notes, and video attachments have native handling. Audio transcript
 uses the existing ASR service; image interpretation uses Codex local-image input.
 Scanned PDFs without a text layer currently require sending their pages as images.
 
+Transcription is optional. See [audio transcription](transcription.md) for the
+no-transcription mode, per-profile Home Assistant engines, running ClipSE Whisper as a
+standalone container, and load balancing several ClipSE Whisper servers
+(`media.asrUrls`).
+
 Telegram videos (including video notes) and forwarded audio/voice messages return the
 transcript from the configured `media.asrUrl` speech-to-text service as a text reply.
 In **Settings → Video and voice**, select **ClipSE Whisper** under audio transcription,

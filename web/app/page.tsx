@@ -10,11 +10,13 @@ import {
   ArrowRight,
   Check,
   Cpu,
+  House,
   KeyRound,
   LogIn,
   LogOut,
   Pencil,
   Plus,
+  Rocket,
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -45,14 +47,32 @@ import { ProfileEditor } from '../components/profile-editor';
 import { ServiceSettings } from '../components/service-settings';
 import { AccountSettings } from '../components/account-settings';
 import { CheckField } from '../components/settings-fields';
+import { Overview } from '../components/overview';
+import { SetupWizard } from '../components/setup-wizard';
 const base = '/v1/admin/setup';
-const navigation = [
-  { id: 'people', label: 'Usuarios', Icon: Users },
-  { id: 'settings', label: 'Asistentes', Icon: Sparkles },
-  { id: 'services', label: 'Ajustes', Icon: SettingsIcon },
-  { id: 'ai', label: 'Proveedores IA', Icon: Cpu },
-  { id: 'security', label: 'Seguridad', Icon: ShieldCheck },
+const navigationGroups = [
+  {
+    label: 'General',
+    items: [
+      { id: 'home', label: 'Inicio', Icon: House },
+      { id: 'people', label: 'Usuarios', Icon: Users },
+    ],
+  },
+  {
+    label: 'Configuración',
+    items: [
+      { id: 'settings', label: 'Asistentes', Icon: Sparkles },
+      { id: 'ai', label: 'Proveedores IA', Icon: Cpu },
+      { id: 'services', label: 'Ajustes', Icon: SettingsIcon },
+    ],
+  },
+  { label: 'Cuenta', items: [{ id: 'security', label: 'Seguridad', Icon: ShieldCheck }] },
 ];
+const navigation = [
+  ...navigationGroups.flatMap((group) => group.items),
+  { id: 'setup', label: 'Configuración inicial', Icon: Rocket },
+];
+const sourceUrl = 'https://github.com/fixtse/zero-assistant';
 function ZeroBrand() {
   return (
     <a className="brand" href={adminPath('/admin/')}>
@@ -76,7 +96,14 @@ export default function Home() {
   const [authenticated, setAuthenticated] = useState(false),
     [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useUrlState('page', 'people');
+  const [tab, setTab] = useUrlState('page', 'home');
+  function navigate(page: string, params: Record<string, string> = {}) {
+    const url = new URL(location.href);
+    url.searchParams.delete('setupStep');
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    history.replaceState(null, '', url);
+    setTab(page);
+  }
   const [profiles, setProfiles] = useState<Profile[]>([]),
     [total, setTotal] = useState(0),
     [offset, setOffset] = useState(0),
@@ -212,30 +239,40 @@ export default function Home() {
       {authenticated && (
         <aside>
           <ZeroBrand />
-          <div className="workspace-label">{t('TU ESPACIO')}</div>
           <nav aria-label={t('Administración')}>
-            {navigation.map(({ id, label, Icon }) => (
-              <Button
-                key={id}
-                className={tab === id ? 'nav active' : 'nav'}
-                aria-current={tab === id ? 'page' : undefined}
-                onClick={() => {
-                  setTab(id);
-                }}
-              >
-                <Icon size={18} />
-                <span>{t(label)}</span>
-              </Button>
+            {navigationGroups.map((group) => (
+              <div className="nav-group" key={group.label}>
+                <div className="workspace-label">{t(group.label)}</div>
+                {group.items.map(({ id, label, Icon }) => (
+                  <Button
+                    key={id}
+                    className={tab === id ? 'nav active' : 'nav'}
+                    aria-current={tab === id ? 'page' : undefined}
+                    onClick={() => navigate(id)}
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{t(label)}</span>
+                  </Button>
+                ))}
+              </div>
             ))}
           </nav>
           <div className="aside-bottom">
-            <span className="live-dot" /> {t('Zero, a tu manera')}
-            <p>
-              {t('Una identidad.')}
-              <br />
-              {t('Todas tus conversaciones.')}
-            </p>
-            <small>{t('Configuración de tus asistentes y conexiones.')}</small>
+            <Button
+              variant="outline"
+              className={tab === 'setup' ? 'setup-link active' : 'setup-link'}
+              aria-current={tab === 'setup' ? 'page' : undefined}
+              onClick={() => navigate('setup')}
+            >
+              <Rocket aria-hidden="true" /> {t('Configuración inicial')}
+            </Button>
+            <small>
+              <span className="live-dot" aria-hidden="true" />
+              {t('Software libre · AGPL-3.0')} ·{' '}
+              <a href={sourceUrl} target="_blank" rel="noreferrer">
+                {t('Código fuente')}
+              </a>
+            </small>
           </div>
         </aside>
       )}
@@ -244,36 +281,30 @@ export default function Home() {
           {authenticated ? (
             <span className="breadcrumb">
               {t('Tu espacio')} <span>/</span>{' '}
-              {tab === 'people'
-                ? t('Usuarios')
-                : tab === 'settings'
-                  ? t('Asistentes')
-                  : tab === 'services'
-                    ? t('Ajustes')
-                    : tab === 'ai'
-                      ? t('Proveedores IA')
-                      : t('Seguridad')}
+              {t(navigation.find((item) => item.id === tab)?.label || 'Inicio')}
             </span>
           ) : (
             <ZeroBrand />
           )}
-          <LanguageSelector />
-          {authenticated && !ingress && (
-            <Button
-              className="quiet"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await api('/api/auth/sign-out', 'POST', {});
-                  lock();
-                })
-              }
-              size="icon"
-              tooltip={t('Cerrar sesión ↗')}
-            >
-              <LogOut />
-            </Button>
-          )}
+          <div className="header-actions">
+            <LanguageSelector />
+            {authenticated && !ingress && (
+              <Button
+                className="quiet"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await api('/api/auth/sign-out', 'POST', {});
+                    lock();
+                  })
+                }
+                size="icon"
+                tooltip={t('Cerrar sesión ↗')}
+              >
+                <LogOut />
+              </Button>
+            )}
+          </div>
         </header>
         <MotionContent className="content" view={tab}>
           {setupRequired ? (
@@ -294,10 +325,8 @@ export default function Home() {
                     rememberMe: true,
                   });
                   await open(pairingId);
-                  setTab('services');
-                  setNotice(
-                    t('Cuenta creada. Puedes configurar tus servicios ahora o más adelante.'),
-                  );
+                  setTab('setup');
+                  setNotice(t('Cuenta creada. Vamos a configurar tu Zero.'));
                 })}
               >
                 <Label>
@@ -307,7 +336,7 @@ export default function Home() {
                     autoComplete="username"
                     minLength={3}
                     maxLength={32}
-                    pattern="[a-zA-Z0-9_][a-zA-Z0-9_.-]{2,31}"
+                    pattern="[a-zA-Z0-9_][a-zA-Z0-9_.\-]{2,31}"
                     required
                   />
                 </Label>
@@ -619,6 +648,10 @@ export default function Home() {
                   }}
                 />
               )}
+              {tab === 'home' && (
+                <Overview navigate={navigate} openSetup={() => navigate('setup')} />
+              )}
+              {tab === 'setup' && <SetupWizard onFinished={() => navigate('home')} />}
               {tab === 'people' && (
                 <>
                   <div className="page-heading">
@@ -792,6 +825,11 @@ export default function Home() {
           )}
           <footer>
             ZERO ASSISTANT <span>{t('Hecho para tu día a día.')}</span>
+            <span>
+              <a href={sourceUrl} target="_blank" rel="noreferrer">
+                AGPL-3.0
+              </a>
+            </span>
           </footer>
         </MotionContent>
       </main>

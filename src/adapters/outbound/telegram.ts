@@ -2,6 +2,7 @@ import type { GeneratedImage } from '../../domain/models.js';
 import { Config } from '../../domain/config.js';
 import { Media } from './media.js';
 import { jsonRequest, RemoteError } from './http.js';
+import { TranscriptionUnavailableError } from './transcription-pool.js';
 import telegramifyMarkdown from 'telegramify-markdown';
 
 export function chunks(text: string, limit = 3900): string[] {
@@ -221,13 +222,27 @@ export class Telegram {
     );
     const transcriptionOnly =
       !!repliedMedia || mime.startsWith('video/') || (forwarded && mime.startsWith('audio/'));
-    const result = await this.media.extract(
-      buffer,
-      media.file_name || info.file_path,
-      mime,
-      job,
-      signal,
-    );
+    let result: { text: string; images: string[] };
+    try {
+      result = await this.media.extract(
+        buffer,
+        media.file_name || info.file_path,
+        mime,
+        job,
+        signal,
+      );
+    } catch (error) {
+      if (!(error instanceof TranscriptionUnavailableError)) throw error;
+      // Without a speech-to-text service, explain instead of failing the job.
+      return {
+        text: '',
+        images: [],
+        transcriptionOnly: true,
+        serviceReply: ownText
+          ? 'No puedo escuchar audios todavía: la transcripción no está configurada. He ignorado el adjunto; escríbeme el mensaje.'
+          : 'No puedo escuchar audios todavía: la transcripción de voz no está configurada. Pide a la persona administradora que la active en Ajustes → Vídeo y voz, o escríbeme el mensaje.',
+      };
+    }
     if (result.text.length > 150_000)
       throw new Error('Extracted content is too large for one message');
     return {

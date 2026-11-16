@@ -1,5 +1,114 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Abrir repositorio': 'Open repository',
+  'Aprueba la conexión y elige el perfil.': 'Approve the connection and choose the profile.',
+  Atrás: 'Back',
+  'Añade el repositorio como integración personalizada y reinicia Home Assistant.':
+    'Add the repository as a custom integration and restart Home Assistant.',
+  'Añade la integración en Ajustes → Dispositivos y servicios.':
+    'Add the integration in Settings → Devices & services.',
+  'Añade una conexión (OpenAI, Anthropic, OpenRouter, Ollama, un endpoint compatible o Codex) y al menos un modelo. Guarda antes de continuar.':
+    'Add a connection (OpenAI, Anthropic, OpenRouter, Ollama, a compatible endpoint or Codex) and at least one model. Save before continuing.',
+  'Añade una conexión y un modelo': 'Add a connection and a model',
+  'Añadir servidor': 'Add server',
+  'Bot activo': 'Bot active',
+  'Bot sin configurar': 'Bot not configured',
+  'CONFIGURACIÓN INICIAL': 'INITIAL SETUP',
+  Canales: 'Channels',
+  'Cargando configuración…': 'Loading setup…',
+  'ClipSE Whisper · {count} servidor(es)': 'ClipSE Whisper · {count} server(s)',
+  'Comparte memoria y permisos entre el chat y la voz de tu casa.':
+    'Share memory and permissions between chat and your home voice assistant.',
+  'Comprobando…': 'Checking…',
+  Conectado: 'Connected',
+  'Conexión y modelo configurados': 'Connection and model configured',
+  Configuración: 'Configuration',
+  'Configuración inicial': 'Initial setup',
+  'Configuración inicial completada.': 'Initial setup completed.',
+  Continuar: 'Continue',
+  'Continuar configuración': 'Continue setup',
+  Copiado: 'Copied',
+  Copiar: 'Copy',
+  'Crea un bot con @BotFather, pega su token y guarda. Después escribe a tu bot: tu chat aparecerá pendiente en Usuarios para que lo apruebes.':
+    'Create a bot with @BotFather, paste its token and save. Then message your bot: your chat will appear as pending in Users for you to approve.',
+  Cuenta: 'Account',
+  'Cuenta creada. Vamos a configurar tu Zero.': "Account created. Let's set up your Zero.",
+  'Código fuente': 'Source code',
+  'Después, selecciona Zero como agente de conversación en tu canalización de Assist.':
+    'Then select Zero as the conversation agent in your Assist pipeline.',
+  'Elige dónde usarás Zero.': 'Choose where you will use Zero.',
+  'Elige tus canales, conecta un modelo de IA y decide si quieres transcribir audios.':
+    'Choose your channels, connect an AI model and decide whether to transcribe audio.',
+  'Estado de los canales, el modelo de IA y la voz.':
+    'Status of your channels, AI model and voice.',
+  General: 'General',
+  'Guardar transcripción': 'Save transcription',
+  'Home Assistant aún no está conectado.': 'Home Assistant is not connected yet.',
+  'Home Assistant conectado': 'Home Assistant connected',
+  'Home Assistant pendiente de conectar': 'Home Assistant not connected yet',
+  'Home Assistant ya está conectado.': 'Home Assistant is already connected.',
+  INICIO: 'HOME',
+  Inicio: 'Home',
+  'Instala la integración Zero Assistant desde HACS.':
+    'Install the Zero Assistant integration from HACS.',
+  'La transcripción convierte notas de voz y vídeos en texto. Es opcional. Las respuestas por voz y Assist no dependen de esta opción.':
+    'Transcription turns voice notes and videos into text. It is optional. Spoken replies and Assist do not depend on it.',
+  Listo: 'Done',
+  'Modelo de IA': 'AI model',
+  'Motor de Home Assistant': 'Home Assistant engine',
+  'Nada pendiente': 'Nothing pending',
+  Omitir: 'Skip',
+  Opcional: 'Optional',
+  'Paso {current} de {total}': 'Step {current} of {total}',
+  Pasos: 'Steps',
+  'Pendiente de conectar': 'Not connected yet',
+  'Pon en marcha tu Zero.': 'Get your Zero running.',
+  'Quitar fuente': 'Remove source',
+  'Repetir la configuración inicial': 'Run the initial setup again',
+  'Servicio Whisper autoalojado. Añade uno o varios servidores y Zero repartirá la carga entre ellos.':
+    'Self-hosted Whisper service. Add one or more servers and Zero will share the load between them.',
+  'Servicio de transcripción compatible': 'Compatible transcription service',
+  'Sin transcripción de audio': 'No audio transcription',
+  'Sin transcripción por ahora': 'No transcription for now',
+  'Software libre · AGPL-3.0': 'Free software · AGPL-3.0',
+  'Solicitudes pendientes': 'Pending requests',
+  'Solo Home Assistant': 'Home Assistant only',
+  'Solo Telegram': 'Telegram only',
+  'Telegram y Home Assistant': 'Telegram and Home Assistant',
+  'Termina la configuración inicial.': 'Finish the initial setup.',
+  Terminar: 'Finish',
+  'Todo listo. Revisa el resumen y termina.': 'All set. Review the summary and finish.',
+  Transcripción: 'Transcription',
+  'Transcripción guardada.': 'Transcription saved.',
+  'Tu Zero, de un vistazo.': 'Your Zero at a glance.',
+  'URL de ClipSE Whisper {count}': 'ClipSE Whisper URL {count}',
+  'URL de Zero': 'Zero URL',
+  'Un asistente personal en tu chat. No necesitas Home Assistant.':
+    'A personal assistant in your chat. No Home Assistant needed.',
+  'Unos pocos pasos. Todo se puede cambiar después en Ajustes.':
+    'Just a few steps. Everything can be changed later in Settings.',
+  'Usa Zero como agente de conversación en Assist, sin bot de Telegram.':
+    'Use Zero as the Assist conversation agent, without a Telegram bot.',
+  'Usa la URL completa de /transcribe. ¿Aún no tienes ClipSE Whisper? Sigue la guía para ejecutarlo con Docker.':
+    "Use the full /transcribe URL. Don't have ClipSE Whisper yet? Follow the guide to run it with Docker.",
+  'Ver guía': 'View guide',
+  'Ya hay {count} fuente(s) guardada(s). Deja la lista vacía para conservarlas o escribe la lista completa para sustituirlas.':
+    '{count} source(s) already saved. Leave the list empty to keep them, or enter the full list to replace them.',
+  'Zero responderá a texto, imágenes y documentos. Los audios recibirán un aviso. Puedes asignar un motor de Home Assistant a cada perfil.':
+    'Zero will answer text, images and documents. Audio messages get a notice. You can assign a Home Assistant engine to each profile.',
+  'Zero se anuncia en tu red local; si no aparece, usa esta dirección. Home Assistant te devolverá aquí para aprobar la conexión.':
+    'Zero announces itself on your local network; if it does not appear, use this address. Home Assistant will bring you back here to approve the connection.',
+  '{count} pendiente(s) de aprobar': '{count} awaiting approval',
+  '¿Dónde usarás Zero?': 'Where will you use Zero?',
+  '¿Dónde usarás Zero? Podrás añadir el otro canal más adelante.':
+    'Where will you use Zero? You can add the other channel later.',
+  'Fuentes adicionales de ClipSE Whisper': 'Additional ClipSE Whisper sources',
+  'Sin transcripción': 'No transcription',
+  'Servicio compatible (audio_file)': 'Compatible service (audio_file)',
+  'Añade más servidores ClipSE Whisper para repartir la carga: Zero los usa por turnos y, si uno falla, prueba el siguiente.':
+    'Add more ClipSE Whisper servers to share the load: Zero takes turns between them and tries the next one if one fails.',
+  'Zero no transcribirá audios ni vídeos y avisará en el chat. Puedes asignar un motor de Home Assistant a cada perfil en su pestaña de voz.':
+    'Zero will not transcribe audio or video and will say so in the chat. You can assign a Home Assistant engine to each profile in its voice tab.',
   'Comprobando los avisos en Home Assistant…': 'Checking notifications in Home Assistant…',
   'Avisos activos y confirmados en Home Assistant.':
     'Notifications are active and confirmed in Home Assistant.',

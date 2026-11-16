@@ -6,6 +6,7 @@ export interface GoogleCredential {
   clientSecret: string;
   refreshToken: string;
 }
+export type SetupMode = '' | 'telegram' | 'home_assistant' | 'both';
 export interface Config {
   host: string;
   port: number;
@@ -65,10 +66,12 @@ export interface Config {
   };
   media: {
     ffmpegCommand?: string;
-    asrProvider?: 'legacy' | 'clipse-whisper';
+    asrProvider?: 'none' | 'legacy' | 'clipse-whisper';
     asrWhisperProvider?: '' | 'faster-whisper' | 'hailo';
     asrModel?: string;
     asrUrl: string;
+    /** Additional interchangeable sources, load balanced with `asrUrl`. */
+    asrUrls?: string[];
     audioExtractionUrl: string;
     voice: string;
     maxBytes: number;
@@ -76,6 +79,8 @@ export interface Config {
   };
   reader?: { url: string; apiKey: string };
   places?: { photonUrl: string; osrmUrl: string };
+  /** First-run wizard state: which channels the owner chose and whether setup finished. */
+  setup?: { mode: SetupMode; completed: boolean };
   braveApiKey: string;
   imageSearch?: import('./image-search.js').ImageSearchSettings;
 }

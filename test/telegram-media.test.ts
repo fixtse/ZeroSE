@@ -337,3 +337,29 @@ test('Telegram model choices are tappable commands and selection removes the key
   await telegram.send('1', 'Selected Sol', undefined, 43, []);
   assert.deepEqual(calls[1].reply_markup, { remove_keyboard: true, selective: true });
 });
+
+test('Telegram explains missing transcription instead of failing voice messages', async () => {
+  const config = ConfigSchema.parse({
+    telegram: { token: 'test-only' },
+    media: { asrProvider: 'none' },
+  });
+  class TestMedia extends Media {
+    async download() {
+      return Buffer.from('test media');
+    }
+  }
+  class TestTelegram extends Telegram {
+    async call() {
+      return { file_path: 'media/file' };
+    }
+  }
+  const telegram = new TestTelegram(config, new TestMedia(config));
+  const result = await telegram.input(
+    { chat: { type: 'private' }, voice: { file_id: 'file' } },
+    'job-none',
+    new AbortController().signal,
+  );
+  assert.equal(result.text, '');
+  assert.equal(result.transcriptionOnly, true);
+  assert.match(result.serviceReply || '', /transcripción/);
+});

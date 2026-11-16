@@ -180,10 +180,14 @@ export const ServiceConfigSchema = z.object({
           voice: z.string(),
         })
         .optional(),
-      asrProvider: z.enum(['legacy', 'clipse-whisper']).default('legacy'),
+      asrProvider: z.enum(['none', 'legacy', 'clipse-whisper']).default('legacy'),
       asrWhisperProvider: z.enum(['', 'faster-whisper', 'hailo']).default(''),
       asrModel: z.string().trim().max(180).default(''),
       asrUrl: secret,
+      asrUrls: z
+        .array(z.url({ protocol: /^https?$/ }).max(500))
+        .max(16)
+        .default([]),
       audioExtractionUrl: secret,
       voice: z.string().default('es-ES-AlvaroNeural'),
       maxBytes: z.number().int().positive().default(20_000_000),
@@ -194,6 +198,7 @@ export const ServiceConfigSchema = z.object({
       asrWhisperProvider: '',
       asrModel: '',
       asrUrl: '',
+      asrUrls: [],
       audioExtractionUrl: '',
       voice: 'es-ES-AlvaroNeural',
       maxBytes: 20_000_000,
@@ -204,6 +209,12 @@ export const ServiceConfigSchema = z.object({
   places: z
     .object({ photonUrl: z.url(), osrmUrl: z.url() })
     .default({ photonUrl: 'https://photon.komoot.io', osrmUrl: 'https://router.project-osrm.org' }),
+  setup: z
+    .object({
+      mode: z.enum(['', 'telegram', 'home_assistant', 'both']).default(''),
+      completed: z.boolean().default(false),
+    })
+    .default({ mode: '', completed: false }),
   braveApiKey: secret,
   imageSearch: z
     .object({

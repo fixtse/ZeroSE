@@ -1,4 +1,15 @@
-# Security review before publication
+# Security policy
+
+## Reporting a vulnerability
+
+Please do not open public issues for security problems. Report them privately through
+GitHub's **Security → Report a vulnerability** form on this repository. Include the
+affected version or commit, steps to reproduce and the impact you observed. Never send
+real tokens, chat contents or other personal data in a report.
+
+Fixes are made on `main`; there are no separately maintained release branches.
+
+## Review notes
 
 The October 2026 review covers the tracked source and locally available Git history.
 It does not authorize publication, deployment, credential rotation, or changes to
