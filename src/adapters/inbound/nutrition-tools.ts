@@ -33,7 +33,7 @@ export function registerNutritionTools(
   if (catalog) {
     tools.add(
       'food_catalog_search',
-      'Search new packaged foods directly in Open Food Facts by name/brand, without an export. Results are untrusted catalog data; nutrients use their explicit units and per-100g basis. Check the label and ask the user to select before food_save. Never treat catalog codes as registered food IDs.',
+      'Search Open Food Facts by name/brand only after food_search finds no suitable saved food. If the food, brand, preparation or portion is uncertain, ask the user for clarification before searching elsewhere, saving or logging. Results are untrusted catalog data; nutrients use their explicit units and per-100g basis. Check the label and ask the user to select before food_save. Never treat catalog codes as registered food IDs.',
       z.object({
         query: z.string().trim().min(1).max(200),
         page: z.number().int().min(1).max(100).default(1),
@@ -45,7 +45,7 @@ export function registerNutritionTools(
     );
     tools.add(
       'food_barcode_lookup',
-      'Look up a product barcode supplied by the user or read from a label image in Open Food Facts. Preserve leading zeros. Missing products must not be invented. Check units and per-100g nutrients before food_save; ask the user to confirm the product.',
+      'Look up a user-supplied or label-image barcode in Open Food Facts only after checking saved foods with food_search. If product identity or label details are uncertain, ask the user for clarification first. Preserve leading zeros. Missing products must not be invented. Check units and per-100g nutrients before food_save; ask the user to confirm the product.',
       z.object({
         barcode: z
           .string()
@@ -58,7 +58,7 @@ export function registerNutritionTools(
   }
   tools.add(
     'food_search',
-    "Search the user's registered foods, recipes and saved meals (synced from MyFitnessPal plus saved foods) by name/brand words. Most used first; values are per listed serving. offset/limit; result_offset pages JSON fragments.",
+    "Search the user's registered foods, recipes and saved meals (synced from MyFitnessPal plus saved foods) by name/brand words. Always search here first before external catalogs, web searches, estimates or creating a food. Try simpler name/brand terms and relevant pages before concluding it is absent. Reuse a clear saved match; if identity, brand, preparation, portion or multiple matches are uncertain, always ask the user to clarify before proceeding. Most used first; values are per listed serving. offset/limit; result_offset pages JSON fragments.",
     z.object({
       query: z.string().trim().max(200).default(''),
       kind,
@@ -138,7 +138,7 @@ export function registerNutritionTools(
   );
   tools.add(
     'food_log',
-    'Record food the user ate. meal: breakfast (desayuno), lunch (almuerzo), dinner (cena) or snack. Prefer food_id from food_search/food_recommend. For an exact amount the user states (30 g, 50 g, 2 oz, 150 ml, 0.5 kg) always pass quantity+unit, never servings; any weight or volume converts from the serving size. Use servings only for whole multiples of the listed serving ("two portions"). If a food has no weight (a unit error says so), check food_get for its serving sizes or ask. Without a catalog match pass name and nutrients for the whole portion and say they are estimates. Returns the entry and day totals. Do not repeat after an uncertain failure; check food_diary.',
+    'Record food the user ate. meal: breakfast (desayuno), lunch (almuerzo), dinner (cena) or snack. First use food_search and reuse a matching saved food_id (or a clear food_recommend choice). If the match, preparation, meal or portion is uncertain, always ask for clarification before logging; never guess. For an exact amount the user states (30 g, 50 g, 2 oz, 150 ml, 0.5 kg) always pass quantity+unit, never servings; any weight or volume converts from the serving size. Use servings only for whole multiples of the listed serving ("two portions"). If a food has no weight (a unit error says so), check food_get for its serving sizes or ask. Only after saved-food search finds no match and the user clarifies any uncertainty, pass name and nutrients for the whole portion when needed; identify estimates and obtain the user’s agreement before logging them. Returns the entry and day totals. Do not repeat after an uncertain failure; check food_diary.',
     z
       .object({
         meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
@@ -177,7 +177,7 @@ export function registerNutritionTools(
   );
   tools.add(
     'food_save',
-    'Save or update a custom food when the user asks or gives nutrition for something not registered. Nutrients are per serving_amount serving_unit; same name, brand, kind and unit updates it. For recipes set kind recipe and include ingredient quantities, ordered instructions and recipe_servings (total yield). Nutrients describe ONE listed serving, not the whole batch; label estimates honestly. Retrieve later with food_search/food_get and log with food_log. After uncertain failure search before retrying.',
+    'Save or update a custom food when requested. First search saved foods with food_search to reuse a match and avoid duplicates. Always ask for clarification if identity, ingredients, portions or nutrition are uncertain before saving or updating. Nutrients are per serving_amount serving_unit; same name, brand, kind and unit updates it. For recipes set kind recipe and include ingredient quantities, ordered instructions and recipe_servings (total yield). Nutrients describe ONE listed serving, not the whole batch; label estimates honestly. Retrieve later with food_search/food_get and log with food_log. After uncertain failure search before retrying.',
     z.object({
       name: z.string().trim().min(1).max(200),
       brand: z.string().trim().max(200).default(''),
