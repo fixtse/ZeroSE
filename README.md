@@ -203,9 +203,10 @@ original image. Search errors do not switch providers automatically.
 
 1. **Install Zero.** Follow the [Docker Compose instructions](docs/technical-guide.md#run)
    for a standalone service. Home Assistant users connect that service through the
-   [HACS integration](https://github.com/fixtse/ha-zero-assistant). Supervisor
-   [add-on source packaging](addons/zero/README.md) is also available for advanced
-   setups; it is not a published add-on release.
+   [HACS integration](https://github.com/fixtse/ha-zero-assistant). Home Assistant
+   OS and Supervised users can instead run Zero as an [add-on](addons/zero/README.md):
+
+   [![Add the ZeroSE add-on repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ffixtse%2FZeroSE)
 2. **Open the web interface.** Create your administrator account. The **setup
    wizard** then asks where you will use Zero—**Telegram only**, **Home Assistant
    only** or **both**—and walks you through the AI model, your Telegram bot, the

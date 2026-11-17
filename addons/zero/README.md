@@ -1,9 +1,13 @@
 # ZeroSE add-on
 
-This is the Supervisor packaging for the Zero runtime. Build it against a published
-Zero image containing `start-home-assistant-addon.js` (override `BUILD_FROM` to pin
-a release). The GHCR image is private: the builder needs registry pull access.
-This source directory is not a published add-on repository or release.
+Runs the Zero runtime as a Home Assistant add-on with Ingress access.
+
+[![Add the ZeroSE add-on repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ffixtse%2FZeroSE)
+
+GitHub Actions publishes the prebuilt `ghcr.io/fixtse/zerose-addon` image (amd64 and
+aarch64) from `main`, tagged with the `version` in `config.yaml`. Bump that version
+to release an add-on update. To build locally instead, remove `image:` and override
+`BUILD_FROM` to pin a Zero release.
 
 The default `database_backend: postgres` requires `database_url` pointing to a
 dedicated PostgreSQL database supporting pgvector. For an embedded database, select
