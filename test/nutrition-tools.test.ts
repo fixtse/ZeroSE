@@ -31,6 +31,30 @@ test('nutrition tools call the Home Assistant calorie_tracker services', async (
   ]);
   await call('food_log', { meal: 'snack', name: 'Coffee', nutrients: { calories: 60 } });
   assert.deepEqual(calls.at(-1)?.[1], { meal: 'snack', name: 'Coffee', calories: 60 });
+  await call('food_save', {
+    name: 'Soup',
+    kind: 'recipe',
+    ingredients: ['400 g beans'],
+    instructions: ['Simmer.'],
+    recipe_servings: 4,
+    nutrients: { calories: 200 },
+  });
+  assert.deepEqual(calls.at(-1), [
+    'calorie_tracker.save_food',
+    {
+      name: 'Soup',
+      serving_amount: 1,
+      serving_unit: 'serving',
+      calories: 200,
+      kind: 'recipe',
+      ingredients: ['400 g beans'],
+      instructions: ['Simmer.'],
+      recipe_servings: 4,
+    },
+  ]);
+  await assert.rejects(
+    call('food_save', { name: 'Soup', nutrients: { calories: 200 }, recipe_servings: 0 }),
+  );
   await call('food_diary', {});
   assert.deepEqual(calls.at(-1), ['calorie_tracker.get_diary', {}]);
 

@@ -57,6 +57,10 @@ export interface NutritionPort {
       servingAmount: number;
       servingUnit: string;
       nutrients: Nutrients;
+      kind?: FoodKind;
+      ingredients?: string[];
+      instructions?: string[];
+      recipeServings?: number;
     },
     signal?: AbortSignal,
   ): Promise<unknown>;

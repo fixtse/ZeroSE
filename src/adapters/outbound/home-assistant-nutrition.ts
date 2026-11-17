@@ -73,6 +73,10 @@ export class HomeAssistantNutrition implements NutritionPort {
         serving_amount: food.servingAmount,
         serving_unit: food.servingUnit,
         ...food.nutrients,
+        kind: food.kind,
+        ingredients: food.ingredients,
+        instructions: food.instructions,
+        recipe_servings: food.recipeServings,
       },
       signal,
     );

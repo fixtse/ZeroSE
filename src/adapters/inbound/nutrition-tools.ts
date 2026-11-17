@@ -177,13 +177,17 @@ export function registerNutritionTools(
   );
   tools.add(
     'food_save',
-    'Save or update a custom food when the user asks or gives nutrition for something not registered. Nutrients are per serving_amount serving_unit; same name, brand and unit updates it.',
+    'Save or update a custom food when the user asks or gives nutrition for something not registered. Nutrients are per serving_amount serving_unit; same name, brand, kind and unit updates it. For recipes set kind recipe and include ingredient quantities, ordered instructions and recipe_servings (total yield). Nutrients describe ONE listed serving, not the whole batch; label estimates honestly. Retrieve later with food_search/food_get and log with food_log. After uncertain failure search before retrying.',
     z.object({
       name: z.string().trim().min(1).max(200),
       brand: z.string().trim().max(200).default(''),
       serving_amount: z.number().finite().positive().max(100_000).default(1),
       serving_unit: z.string().trim().min(1).max(50).default('serving'),
       nutrients,
+      kind,
+      ingredients: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+      instructions: z.array(z.string().trim().min(1).max(2000)).max(100).optional(),
+      recipe_servings: z.number().finite().positive().max(100_000).optional(),
     }),
     async (a, c) =>
       nutrition.save(
@@ -193,6 +197,10 @@ export function registerNutritionTools(
           servingAmount: a.serving_amount,
           servingUnit: a.serving_unit,
           nutrients: a.nutrients,
+          kind: a.kind,
+          ingredients: a.ingredients,
+          instructions: a.instructions,
+          recipeServings: a.recipe_servings,
         },
         c.signal,
       ),
