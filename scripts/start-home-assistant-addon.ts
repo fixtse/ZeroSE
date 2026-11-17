@@ -4,7 +4,8 @@ import { randomBytes } from 'node:crypto';
 // The add-on's /data directory is private and persistent across upgrades.
 process.umask(0o077);
 const options = JSON.parse(await readFile('/data/options.json', 'utf8'));
-const backend = options.database_backend || 'postgres';
+// Preserve legacy PostgreSQL installations that only saved a database URL.
+const backend = options.database_backend || (options.database_url ? 'postgres' : 'pglite');
 if (backend !== 'postgres' && backend !== 'pglite')
   throw new Error('database_backend must be postgres or pglite');
 if (

@@ -87,7 +87,8 @@ pnpm run doctor
 
 ### Optional embedded PGlite
 
-PostgreSQL remains the default. For a new single-instance installation, PGlite can
+PostgreSQL remains the default for standalone Docker Compose. For a new
+single-instance installation, PGlite can
 persist the same PostgreSQL schema and pgvector/Mem0 data in `data/pglite`, without
 a separate database container:
 
@@ -101,8 +102,10 @@ docker compose -f compose.pglite.yaml up -d --wait
 
 Outside Docker, install `util-linux` (for `flock`), leave `ASSISTANT_DATABASE_URL`
 unset, and run `ASSISTANT_DATABASE_BACKEND=pglite pnpm start` (or `pnpm dev`).
-The Home Assistant add-on exposes the same choice as `database_backend: pglite`;
-leave its `database_url` empty. Existing add-on options retain PostgreSQL by default.
+The Home Assistant add-on defaults to `database_backend: pglite` for new
+installations; leave its `database_url` empty. To use an external PostgreSQL database,
+select `database_backend: postgres` and provide its `database_url`. Existing saved
+PostgreSQL options are preserved, including older options with only a database URL.
 
 PGlite uses a private Unix socket and serializes transactions on one embedded
 engine. It is intended for one Linux Zero instance, not multiple replicas or an

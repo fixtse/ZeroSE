@@ -207,8 +207,11 @@ original image. Search errors do not switch providers automatically.
    OS and Supervised users can instead run Zero as an [add-on](addons/zero/README.md):
 
    [![Add the ZeroSE add-on repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ffixtse%2FZeroSE)
-2. **Open the web interface.** Create your administrator account. The **setup
-   wizard** then asks where you will use Zero—**Telegram only**, **Home Assistant
+
+2. **Open the web interface.** For the add-on, click **Open Web UI** while signed
+   in to Home Assistant as an administrator; the default PGlite database needs no
+   extra setup. For a standalone installation, create your administrator account.
+   The **setup wizard** then asks where you will use Zero—**Telegram only**, **Home Assistant
    only** or **both**—and walks you through the AI model, your Telegram bot, the
    Home Assistant pairing and (optionally) audio transcription. You can skip any
    step and reopen the wizard later from the sidebar.

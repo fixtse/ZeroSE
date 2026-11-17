@@ -14,7 +14,7 @@ ingress_entry: /admin/
 panel_admin: true
 homeassistant_api: true
 options:
-  database_backend: postgres
+  database_backend: pglite
   database_url: ''
 schema:
   database_backend: list(postgres|pglite)?

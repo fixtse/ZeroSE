@@ -1,32 +1,40 @@
 # ZeroSE add-on
 
-Runs the Zero runtime as a Home Assistant add-on with Ingress access.
+Your personal assistant for Telegram and Home Assistant. Chat with Zero, ask about
+your home, and set reminders—all from one assistant.
+
+## Set up Zero
+
+1. **Add the repository** using the button below, then install **ZeroSE** from the
+   Home Assistant add-on store.
+2. **Start the add-on.** Keep the default settings: PGlite saves your data locally,
+   so you do not need a separate database or a database URL.
+3. **Open Web UI** while signed in to Home Assistant as an administrator.
+4. **Follow the setup wizard.** Choose Telegram, Home Assistant, or both. Connect
+   an AI provider and follow the steps for your chosen channel. Optional steps can
+   be skipped and completed later.
 
 [![Add the ZeroSE add-on repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ffixtse%2FZeroSE)
 
-Every push to `main` publishes a new GitHub Release and the matching prebuilt
-`ghcr.io/fixtse/zerose-addon` image (amd64 and aarch64); the workflow writes the version
-into `config.yaml`. Releases bump the patch version unless a commit says `[minor]` or `[major]`. To build locally instead, remove `image:` and override
-`BUILD_FROM` to pin a Zero release.
+## Start using Zero
 
-The default `database_backend: postgres` requires `database_url` pointing to a
-dedicated PostgreSQL database supporting pgvector. For an embedded database, select
-`database_backend: pglite` and leave `database_url` empty. PGlite stores all database
-state (including Mem0 vectors) in `/data/zero/pglite`, with no separate database server.
-This is a backend choice for a new installation, not an automatic data migration.
-Do not switch an existing installation without an explicit, verified migration.
-Only one Zero process or administrative command may open a PGlite directory at a time.
-Stop Zero before offline database commands or copying its PGlite directory for backup.
-Zero keeps its bootstrap encryption key and Codex sessions privately in `/data/zero`;
-back up that directory together with the database (the entire directory for PGlite). Do not replace the key on upgrade.
-The Supervisor supplies `SUPERVISOR_TOKEN`; never put it in add-on options.
+- **Telegram:** message your bot, then approve your chat in **Users** in Zero.
+- **Home Assistant:** install the [ZeroSE integration](https://github.com/fixtse/ha-zero-assistant)
+  through HACS, follow the pairing steps, and choose **Zero** as your conversation
+  agent in Assist. The integration is installed separately from this add-on.
+- **Make it yours:** open Zero to adjust your assistant, permissions and memory,
+  or connect optional services such as Google Calendar.
 
-Open the panel from Home Assistant as an active administrator. Zero checks the
-Supervisor peer address and queries Home Assistant for the current user's admin
-membership on every authorized request. Missing identity, non-admin users, and
-unavailable HA authentication fail closed. No local password is required or created
-in this mode. Direct access to the port cannot use Ingress headers to sign in.
+Try “Remind me in 30 minutes to check the oven” or, after connecting Home Assistant,
+“What is the temperature at home?”
 
-Google accounts, Telegram connections, AI providers and personal HA integration
-pairings are configured in Zero after entry; Supervisor credentials are never copied
-into personal chat profiles. This does not install or upgrade `assistant_zero`.
+## Your data
+
+PGlite is the default for new installations. If you already use PostgreSQL, keep
+those settings: changing the database option does not transfer your existing data.
+
+Back up the add-on before making changes. Stop it before copying its data files,
+and keep the complete `/data/zero` folder together when backing up or restoring.
+For an external PostgreSQL database, back up that database too.
+
+For advanced database options, see the [technical guide](../../docs/technical-guide.md#optional-embedded-pglite).
