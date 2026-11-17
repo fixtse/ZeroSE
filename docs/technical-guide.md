@@ -440,7 +440,6 @@ use an authenticated HTTP action with no automatic retries. Reloading the automa
 - OpenStreetMap place/address lookup and driving distance/time estimates, with clickable Google Maps links. All place suggestions must include Maps links, including suggestions obtained through web search.
 - Saved memories are managed in **Usuarios → perfil → Memoria**, with scoped search, categories, full details, creation, corrections and confirmed deletion. Conversation search remains attributed and chat-scoped across daily resets.
 - Mem0 OSS long-term memory on the existing PostgreSQL/pgvector database, using Zero's configured embedding provider and category/date filters.
-  Existing installations require the explicit [offline memory migration](./mem0-migration.md) before starting this version.
 - Automatic Mem0 memory extraction after conversations, daily short-term reset, morning agenda, and optional event reminders.
   The original disabled 15-minute reminder routine remains disabled by default.
 - Mem0 automatically extracts durable context from each completed conversation in a separate queued job. It retains relevant user facts, advice and plans with explicit attribution, preserving the distinction between assistant suggestions, user decisions and completed actions. Important context can also be saved immediately with `memory_save`. Extraction uses the profile's configured AI model and does not depend on scheduled events.

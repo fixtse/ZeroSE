@@ -219,9 +219,7 @@ original image. Search errors do not switch providers automatically.
 
 For standalone installation, requirements, backups and administration, see the
 [technical guide](docs/technical-guide.md). Developers will also find architecture,
-HTTP API, tool discovery and deployment details there. Existing installations
-moving to Mem0 should follow the
-[offline memory migration guide](docs/mem0-migration.md).
+HTTP API, tool discovery and deployment details there.
 
 For Home Assistant, use the single
 [`assistant_zero` HACS integration](https://github.com/fixtse/ha-zero-assistant).
