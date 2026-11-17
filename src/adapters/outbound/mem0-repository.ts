@@ -76,18 +76,6 @@ export class Mem0Repository implements MemoryRepository, MemoryEmbeddingReposito
     );
   }
 
-  async assertMigrated() {
-    const { rows } = await execute(
-      this.db,
-      sql`SELECT EXISTS(SELECT 1 FROM memories) AS legacy,
-      EXISTS(SELECT 1 FROM imports WHERE key='mem0:v1') AS migrated`,
-    );
-    if (rows[0].legacy && !rows[0].migrated)
-      throw new Error(
-        'Long-term memory requires migration: run pnpm memory:migrate --apply with the assistant stopped',
-      );
-  }
-
   private async active(db: SqlExecutor, profile: string, handles: string[]) {
     if (!handles.length) return [];
     const { rows } = await execute<RecordRow>(

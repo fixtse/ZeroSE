@@ -25,8 +25,7 @@
     "dev:admin": "pnpm --filter @zero/admin dev",
     "db:generate": "tsx scripts/generate-migrations.ts",
     "db:check": "drizzle-kit check",
-    "db:migrate": "tsx scripts/run-with-database.ts ./migrate-database.ts",
-    "memory:migrate": "tsx scripts/run-with-database.ts ./migrate-mem0.ts"
+    "db:migrate": "tsx scripts/run-with-database.ts ./migrate-database.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.10",

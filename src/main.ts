@@ -175,7 +175,6 @@ const memoryReranker: ModelMemoryReranker = new ModelMemoryReranker(
   httpRerank,
 );
 const memoryRepository = new Mem0Repository(store.pool, config.memory.embeddingDimensions, store);
-await memoryRepository.assertMigrated();
 const tools = new Tools(store),
   google = taskServices(config),
   ha = new HomeAssistant(config.homeAssistant),

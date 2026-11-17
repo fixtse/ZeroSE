@@ -54,7 +54,6 @@ test('PGlite preserves durable state, serialized claims, rollback and scoped Mem
 
     const vector = Array.from({ length: 3072 }, (_, index) => (index === 0 ? 1 : 0));
     const repo = new Mem0Repository(store.pool, 3072, store);
-    await repo.assertMigrated();
     await repo.insertMemory(
       'alice',
       { text: 'Alice prefers coffee', category: 'Preferences', tags: ['coffee'] },
