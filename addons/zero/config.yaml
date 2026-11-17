@@ -12,6 +12,8 @@ ingress: true
 ingress_port: 8788
 ingress_entry: /admin/
 panel_admin: true
+panel_icon: mdi:robot-happy-outline
+panel_title: ZeroSE
 homeassistant_api: true
 options:
   database_backend: pglite
