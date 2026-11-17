@@ -183,53 +183,88 @@ jobs:
             (index("amd64") != null) and (index("arm64") != null)'
           docker buildx imagetools inspect "${tags[0]}" >> "$GITHUB_STEP_SUMMARY"
 
-  addon:
-    name: Home Assistant add-on image
+  release:
+    name: Release and Home Assistant add-on image
     needs: [prepare, publish]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
       packages: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Add-on coordinates
-        id: addon
-        env:
-          IMAGE: ${{ needs.prepare.outputs.image }}
+        with:
+          fetch-depth: 0
+      - name: Next version
+        id: version
         run: |
-          version=$(sed -n "s/^version: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1/p" addons/zero/config.yaml)
-          image=$(sed -n 's/^image: *//p' addons/zero/config.yaml)
+          # Patch by default; [minor] or [major] in any commit message since the last tag raises it.
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)
+          if [ -z "$last" ]; then
+            version=$(sed -n "s/^version: *['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1/p" addons/zero/config.yaml)
+          else
+            IFS=. read -r major minor patch <<< "${last#v}"
+            log=$(git log --format=%B "$last..HEAD")
+            if grep -qF '[major]' <<< "$log"; then version="$((major + 1)).0.0"
+            elif grep -qF '[minor]' <<< "$log"; then version="$major.$((minor + 1)).0"
+            else version="$major.$minor.$((patch + 1))"; fi
+          fi
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test -n "$image"
+          ! git rev-parse -q --verify "refs/tags/v$version" >/dev/null
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
-          echo "base=$IMAGE:sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "addon=$(sed -n 's/^image: *//p' addons/zero/config.yaml)" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the Zero image
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: docker buildx imagetools create -t "$IMAGE:$VERSION" "$IMAGE:sha-$GITHUB_SHA"
       # The add-on Dockerfile only changes metadata, so no emulation is needed.
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: addons/zero
           platforms: linux/amd64,linux/arm64
-          build-args: BUILD_FROM=${{ steps.addon.outputs.base }}
+          build-args: BUILD_FROM=${{ needs.prepare.outputs.image }}:sha-${{ github.sha }}
           labels: |
             io.hass.type=addon
-            io.hass.version=${{ steps.addon.outputs.version }}
+            io.hass.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.source=https://github.com/fixtse/ZeroSE
           tags: |
-            ${{ steps.addon.outputs.image }}:${{ steps.addon.outputs.version }}
-            ${{ steps.addon.outputs.image }}:latest
+            ${{ steps.version.outputs.addon }}:${{ steps.version.outputs.version }}
+            ${{ steps.version.outputs.addon }}:latest
           push: true
           provenance: mode=min
+      # Publish the version only after its add-on image exists.
+      - name: Commit version, tag and publish release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          sed -i "s/^version: .*/version: '$VERSION'/" addons/zero/config.yaml
+          if ! git diff --quiet; then
+            git commit -qam "Release v$VERSION"
+            for attempt in 1 2 3; do
+              git pull -q --rebase origin main && git push -q origin HEAD:main && break
+              [ "$attempt" -lt 3 ] || exit 1
+            done
+          fi
+          git tag "v$VERSION"
+          git push -q origin "v$VERSION"
+          gh release create "v$VERSION" --verify-tag --generate-notes --title "v$VERSION"
 
   notify:
-    needs: [prepare, verify, image, publish, addon]
+    needs: [prepare, verify, image, publish, release]
     if: always() && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 2

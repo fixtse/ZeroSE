@@ -28,6 +28,17 @@
   Telegram, Google, or Home Assistant integrations. Keep runtime backups private.
 - Do not automatically replay interrupted jobs or retry uncertain mutating tool calls.
 
+## Versioning and releases
+
+- GitHub Actions owns versions. Every push to `main` that passes CI publishes the next
+  `vX.Y.Z` tag, a GitHub Release, the versioned Zero and add-on images, and commits the
+  version into `addons/zero/config.yaml`. Never edit that version or create tags by hand.
+- The default bump is a patch. For a minor release (new features, backward compatible),
+  include `[minor]` in a commit message pushed since the last tag; for a major release
+  (breaking changes, such as incompatible config, storage or API changes), include `[major]`.
+  `[major]` wins over `[minor]`. Use them only when the user asks or the change clearly
+  warrants it, and say which bump you chose.
+
 ## Admin interface design
 
 - Never leave a saved API key or token field visually empty. Show the shared masked

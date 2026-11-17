@@ -4,9 +4,9 @@ Runs the Zero runtime as a Home Assistant add-on with Ingress access.
 
 [![Add the ZeroSE add-on repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ffixtse%2FZeroSE)
 
-GitHub Actions publishes the prebuilt `ghcr.io/fixtse/zerose-addon` image (amd64 and
-aarch64) from `main`, tagged with the `version` in `config.yaml`. Bump that version
-to release an add-on update. To build locally instead, remove `image:` and override
+Every push to `main` publishes a new GitHub Release and the matching prebuilt
+`ghcr.io/fixtse/zerose-addon` image (amd64 and aarch64); the workflow writes the version
+into `config.yaml`. Releases bump the patch version unless a commit says `[minor]` or `[major]`. To build locally instead, remove `image:` and override
 `BUILD_FROM` to pin a Zero release.
 
 The default `database_backend: postgres` requires `database_url` pointing to a
