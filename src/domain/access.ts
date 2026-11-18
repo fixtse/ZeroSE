@@ -54,6 +54,7 @@ export interface AccessProfile {
   assistantId?: string;
   google?: Config['google'];
   homeAssistant?: Config['homeAssistant'];
+  calorieTracker?: { userId: string; userName: string; serverUrl: string } | null;
   pairedHomeAssistant?: Config['homeAssistant'];
 }
 export interface BotSettings {

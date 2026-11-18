@@ -94,3 +94,68 @@ test('nutrition tools call the Home Assistant calorie_tracker services', async (
   assert.equal(toolCapability('food_log'), 'homeAssistant');
   assert.equal(toolCapability('food_copy_day'), 'homeAssistant');
 });
+
+test('every nutrition operation uses the profile-bound user, including direct service paths', async () => {
+  const calls: [string, Record<string, unknown>][] = [];
+  const ha = {
+    async serviceResponse(service: string, data: Record<string, unknown>) {
+      calls.push([service, data]);
+      return { ok: true };
+    },
+    async callService() {},
+  };
+  const nutrition = new HomeAssistantNutrition(ha, 'alice');
+  await nutrition.search('', undefined, 0, 10);
+  await nutrition.food('shared-food-id');
+  await nutrition.recommend({}, undefined, '', 5, 'lunch', '');
+  await nutrition.goals();
+  await nutrition.setGoals({ protein: 100, recommendSince: '' });
+  await nutrition.log({ meal: 'lunch', foodId: 'shared-food-id' });
+  await nutrition.diary(undefined, undefined);
+  await nutrition.save({
+    name: 'Soup',
+    brand: '',
+    servingAmount: 1,
+    servingUnit: 'serving',
+    nutrients: { calories: 200 },
+  });
+  await nutrition.deleteEntries(['entry']);
+  await nutrition.updateEntry({ entryId: 'entry', servings: 2 });
+  await nutrition.copyDay({ from: '2026-11-18' });
+  assert.equal(calls.length, 11);
+  for (const [, data] of calls) assert.equal(data.user_id, 'alice');
+  assert.equal(calls[2][1].since, '');
+  assert.equal(calls[4][1].recommend_since, '');
+  await new HomeAssistantNutrition(ha, 'bob').goals();
+  assert.equal(calls.at(-1)?.[1].user_id, 'bob');
+});
+
+test('tracker user discovery is bounded and skips absent services', async () => {
+  const query = { search: 'Alice', offset: 20, limit: 5 };
+  let available = false;
+  const ha = {
+    async serviceCatalog() {
+      return {
+        items: available ? [{ id: 'calorie_tracker.list_users', name: 'Users' }] : [],
+        total: available ? 1 : 0,
+      };
+    },
+    async serviceResponse(service: string, data: Record<string, unknown>) {
+      assert.equal(service, 'calorie_tracker.list_users');
+      assert.deepEqual(data, query);
+      return { items: [{ id: 'alice', name: 'Alice' }], total: 26 };
+    },
+  };
+  const signal = new AbortController().signal;
+  assert.deepEqual(await HomeAssistantNutrition.users(ha, query, signal), {
+    available: false,
+    items: [],
+    total: 0,
+  });
+  available = true;
+  assert.deepEqual(await HomeAssistantNutrition.users(ha, query, signal), {
+    available: true,
+    items: [{ id: 'alice', name: 'Alice' }],
+    total: 26,
+  });
+});

@@ -4,10 +4,19 @@ export interface AdminCatalogQuery {
   search: string;
   domains?: string;
   purpose?: 'location-assignment';
+  id?: string;
   offset: number;
   limit: number;
 }
 export interface AdminCatalogPort {
+  calorieUsers?(
+    query: AdminCatalogQuery,
+    signal: AbortSignal,
+  ): Promise<{
+    available: boolean;
+    items: { id: string; name: string }[];
+    total: number;
+  }>;
   entities(
     query: AdminCatalogQuery,
     signal: AbortSignal,

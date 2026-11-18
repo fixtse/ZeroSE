@@ -1,5 +1,18 @@
 /** Spanish source messages are stable lookup keys; never translate stored user content. */
 export const english: Record<string, string> = {
+  'Calorie Tracker no está disponible en esta conexión.':
+    'Calorie Tracker is not available on this connection.',
+  'No se pudieron cargar los usuarios de Calorie Tracker.': 'Could not load Calorie Tracker users.',
+  'Los alimentos, recetas, diario y objetivos se guardan para el usuario seleccionado.':
+    'Foods, recipes, diary and goals are stored for the selected user.',
+  'Recargar usuarios de Calorie Tracker': 'Reload Calorie Tracker users',
+  'Usuarios siguientes': 'Next users',
+  'Usuarios anteriores': 'Previous users',
+  'No hay usuarios que coincidan.': 'No matching users.',
+  'Buscar usuarios de Calorie Tracker': 'Search Calorie Tracker users',
+  'Buscar usuarios…': 'Search users\u2026',
+  'Sin usuario asignado': 'No user assigned',
+  'Usuario de Calorie Tracker': 'Calorie Tracker user',
   'Abrir repositorio': 'Open repository',
   'Aprueba la conexión y elige el perfil.': 'Approve the connection and choose the profile.',
   Atrás: 'Back',

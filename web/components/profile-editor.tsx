@@ -32,6 +32,7 @@ import { ProfileMemory } from './profile-memory';
 import { ProfileTools } from './profile-tools';
 import { GroupMembers } from './group-members';
 import { AssistantConnectionField } from './assistant-connection';
+import { CalorieUserPicker } from './calorie-user-picker';
 import { HATaskListPicker } from './ha-task-list-picker';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -215,6 +216,9 @@ export function ProfileEditor({
         memoryMode: data.get('memoryMode'),
         replyLanguage: data.get('replyLanguage') || current?.replyLanguage || 'es',
         speech,
+        ...(data.has('calorieTrackerUserId')
+          ? { calorieTrackerUserId: String(data.get('calorieTrackerUserId') || '') }
+          : {}),
         ...(current &&
         (data.has('morningMode') || data.has('dailyResetTime') || data.has('weatherMode'))
           ? {
@@ -737,6 +741,10 @@ export function ProfileEditor({
                   forceMount
                   data-settings-provider="home-assistant"
                 >
+                  {current?.kind === 'user' &&
+                    current.hasHomeAssistant &&
+                    current.capabilities.includes('homeAssistant') &&
+                    !clearHAConnection && <CalorieUserPicker key={version} profile={current} />}
                   {
                     <section className="ha-connection-settings">
                       <h3>{t('Conexión de Home Assistant')}</h3>

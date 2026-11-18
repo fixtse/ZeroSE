@@ -595,3 +595,27 @@ test('managed webhook uses chat permissions for both ordinary messages and the w
     await f.close();
   }
 });
+
+test('calorie tracker binding persists per profile without leaking to another user', async () => {
+  const f = await fixture();
+  try {
+    const repository = new PostgresAccess(f.store.db, f.config.apiKey);
+    await repository.saveProfile({
+      ...profile('12001'),
+      calorieTracker: { userId: 'alice', userName: 'Alice', serverUrl: 'https://ha.example' },
+    });
+    await repository.saveProfile({
+      ...profile('12002'),
+      calorieTracker: { userId: 'bob', userName: 'Bob', serverUrl: 'https://ha.example' },
+    });
+    const first = await repository.profile('helper', '12001');
+    const second = await repository.profile('helper', '12002');
+    assert.equal(first?.calorieTracker?.userId, 'alice');
+    assert.equal(second?.calorieTracker?.userId, 'bob');
+    await repository.saveProfile({ ...first!, calorieTracker: null });
+    assert.equal((await repository.profile('helper', '12001'))?.calorieTracker, null);
+    assert.equal((await repository.profile('helper', '12002'))?.calorieTracker?.userId, 'bob');
+  } finally {
+    await f.close();
+  }
+});

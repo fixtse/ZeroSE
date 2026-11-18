@@ -62,6 +62,7 @@ export interface Profile {
   owner: boolean;
   capabilities: string[];
   hasHomeAssistant: boolean;
+  calorieTracker?: { userId: string; userName: string; serverUrl: string } | null;
   assistantId?: string;
   replyLanguage?: 'en' | 'es';
   voiceReplies?: boolean;

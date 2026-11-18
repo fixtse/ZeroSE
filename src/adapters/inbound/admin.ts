@@ -51,6 +51,7 @@ const speechSchema = z.object({
   voice: z.string().max(200),
 });
 const profileSchema = z.object({
+  calorieTrackerUserId: z.string().trim().max(100).nullable().optional(),
   ...modelPermissionsSchema,
   kind: z.enum(['user', 'group']),
   label: z.string().trim().min(1).max(100),
@@ -162,6 +163,7 @@ function publicProfile(
       Object.values(p.google?.credentials || {}).some((c) => !!c?.refreshToken)
     ),
     hasHomeAssistant: !!homeAssistant?.token,
+    calorieTracker: p.calorieTracker,
     google: google
       ? {
           clientId: google.clientId,
@@ -589,7 +591,7 @@ export class Admin {
     const catalogMatch = new RegExp(
       '^/v1/admin/profiles/(' +
         assistantIdPattern +
-        ')/(-?\\d{1,16}|ha:[a-f0-9]{32})/(rules|entities|services)$',
+        ')/(-?\\d{1,16}|ha:[a-f0-9]{32})/(rules|entities|services|calorie-users)$',
     ).exec(path);
     if (catalogMatch && req.method === 'GET') {
       const profile = await this.repository.profile(catalogMatch[1] as BotId, catalogMatch[2]);
@@ -601,6 +603,7 @@ export class Admin {
       const query = z
         .object({
           search: z.string().max(200).default(''),
+          id: z.string().min(1).max(100).optional(),
           purpose: z.literal('location-assignment').optional(),
           domains: z
             .string()
@@ -655,9 +658,11 @@ export class Admin {
           signal = AbortSignal.timeout(10000);
         send(
           200,
-          await (catalogMatch[3] === 'entities'
-            ? catalog.entities(query, signal)
-            : catalog.services(query, signal)),
+          await (catalogMatch[3] === 'calorie-users'
+            ? (catalog.calorieUsers?.(query, signal) ?? { available: false, items: [], total: 0 })
+            : catalogMatch[3] === 'entities'
+              ? catalog.entities(query, signal)
+              : catalog.services(query, signal)),
         );
       } catch {
         send(502, {
@@ -1007,6 +1012,7 @@ export class Admin {
             : previous?.morningImportAutomation,
           morningCallbackDefault: previous?.morningCallbackDefault,
           morningCallbackTrigger: previous?.morningCallbackTrigger,
+          calorieTracker: previous?.calorieTracker,
           speech: input.speech ?? previous?.speech,
           replyLanguage: input.replyLanguage ?? previous?.replyLanguage ?? 'es',
           memoryPolicy: input.memoryPolicy ?? previous?.memoryPolicy,
@@ -1028,6 +1034,39 @@ export class Admin {
               (item) => item.id === telegramSession(bot, chatId),
             )?.connection,
         };
+        if (input.calorieTrackerUserId !== undefined) {
+          if (!input.calorieTrackerUserId) profile.calorieTracker = null;
+          else {
+            const scoped = scopedConfig(this.config, profile);
+            if (
+              profile.kind !== 'user' ||
+              !profile.capabilities.includes('homeAssistant') ||
+              !scoped.homeAssistant.token ||
+              !this.catalogs
+            ) {
+              send(400, {
+                error: 'Configura Home Assistant para seleccionar un usuario de Calorie Tracker.',
+              });
+              return true;
+            }
+            const users = await this.catalogs(scoped).calorieUsers?.(
+              { search: '', id: input.calorieTrackerUserId, offset: 0, limit: 1 },
+              AbortSignal.timeout(10000),
+            );
+            const selected =
+              users?.available &&
+              users.items.find((item) => item.id === input.calorieTrackerUserId);
+            if (!selected) {
+              send(400, { error: 'Selecciona un usuario disponible de Calorie Tracker.' });
+              return true;
+            }
+            profile.calorieTracker = {
+              userId: selected.id,
+              userName: selected.name,
+              serverUrl: scoped.homeAssistant.url,
+            };
+          }
+        }
         if (
           profile.speech &&
           (profile.speech.stt !== 'default' || profile.speech.tts !== 'default') &&

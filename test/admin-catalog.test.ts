@@ -759,3 +759,71 @@ test('weather health endpoint checks the saved profile session and never provisi
   assert.deepEqual(calls, ['helper:123']);
   assert.equal((await request(admin, 'helper/456/weather-status')).status, 404);
 });
+
+test('calorie tracker discovery and profile binding use the saved server and validate exact users', async () => {
+  const f = setup();
+  const queries: unknown[] = [];
+  const admin = new Admin(
+    f.config,
+    f.repository,
+    async () => {},
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    (scoped) => {
+      assert.equal(scoped.homeAssistant.url, 'https://ha.example');
+      assert.equal(scoped.homeAssistant.token, 'private-ha-token');
+      return {
+        async entities() {
+          return { items: [], total: 0 };
+        },
+        async services() {
+          return { items: [], total: 0 };
+        },
+        async calorieUsers(query) {
+          queries.push(query);
+          return {
+            available: true,
+            items: !query.id || query.id === 'alice' ? [{ id: 'alice', name: 'Alice' }] : [],
+            total: 1,
+          };
+        },
+      };
+    },
+  );
+  assert.equal(
+    (await request(admin, 'helper/123/calorie-users?search=Ali&offset=20&limit=5')).status,
+    200,
+  );
+  assert.deepEqual(queries[0], { search: 'Ali', offset: 20, limit: 5 });
+  assert.equal((await request(admin, 'helper/123/calorie-users?id=alice')).status, 200);
+  assert.deepEqual(queries[1], { search: '', id: 'alice', offset: 0, limit: 20 });
+  const input = {
+    kind: f.profile.kind,
+    label: 'Test',
+    enabled: true,
+    capabilities: ['homeAssistant'],
+    calorieTrackerUserId: 'alice',
+  };
+  assert.equal((await request(admin, 'helper/123', 'PUT', input)).status, 200);
+  assert.deepEqual(f.profile.calorieTracker, {
+    userId: 'alice',
+    userName: 'Alice',
+    serverUrl: 'https://ha.example',
+  });
+  assert.equal((await request(admin, 'helper/123')).value.calorieTracker.userName, 'Alice');
+  assert.equal(
+    (await request(admin, 'helper/123', 'PUT', { ...input, calorieTrackerUserId: 'missing' }))
+      .status,
+    400,
+  );
+  assert.equal(f.profile.calorieTracker?.userId, 'alice');
+  assert.equal(
+    (await request(admin, 'helper/123', 'PUT', { ...input, calorieTrackerUserId: '' })).status,
+    200,
+  );
+  assert.equal(f.profile.calorieTracker, null);
+  f.profile.capabilities = [];
+  assert.equal((await request(admin, 'helper/123/calorie-users')).status, 400);
+});

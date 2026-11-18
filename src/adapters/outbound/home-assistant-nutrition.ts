@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import type { AdminCatalogQuery } from '../../application/admin-catalog.js';
 import type { HomeAssistant } from './home-assistant.js';
 import type { FoodEntryUpdate, NutritionPort } from '../../application/nutrition.js';
 
@@ -7,9 +9,42 @@ const defined = (value: Record<string, unknown>) =>
 
 /** NutritionPort backed by the Home Assistant `calorie_tracker` integration's services. */
 export class HomeAssistantNutrition implements NutritionPort {
-  constructor(private ha: Pick<HomeAssistant, 'serviceResponse' | 'callService'>) {}
+  constructor(
+    private ha: Pick<HomeAssistant, 'serviceResponse' | 'callService'>,
+    private userId?: string,
+  ) {}
+  static async users(
+    ha: Pick<HomeAssistant, 'serviceCatalog' | 'serviceResponse'>,
+    query: AdminCatalogQuery,
+    signal: AbortSignal,
+  ) {
+    const services = await ha.serviceCatalog(
+      { search: 'calorie_tracker.list_users', offset: 0, limit: 1 },
+      signal,
+    );
+    if (!services.items.some((item) => item.id === 'calorie_tracker.list_users'))
+      return { available: false, items: [], total: 0 };
+    const response = await ha.serviceResponse(
+      'calorie_tracker.list_users',
+      defined({ search: query.search, offset: query.offset, limit: query.limit, id: query.id }),
+      signal,
+    );
+    const page = z
+      .object({
+        items: z
+          .array(z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(200) }))
+          .max(50),
+        total: z.number().int().nonnegative(),
+      })
+      .parse(response);
+    return { available: true, ...page };
+  }
   private read(service: string, data: Record<string, unknown>, signal?: AbortSignal) {
-    return this.ha.serviceResponse(`${DOMAIN}.${service}`, defined(data), signal);
+    return this.ha.serviceResponse(
+      `${DOMAIN}.${service}`,
+      defined({ ...data, user_id: this.userId }),
+      signal,
+    );
   }
   search(
     query: string,
@@ -34,7 +69,11 @@ export class HomeAssistantNutrition implements NutritionPort {
   ) {
     const data = defined({ ...targets, kind, query, limit, meal });
     if (since !== undefined) data.since = since; // '' disables the saved date filter
-    return this.ha.serviceResponse(`${DOMAIN}.recommend_foods`, data, signal);
+    return this.ha.serviceResponse(
+      `${DOMAIN}.recommend_foods`,
+      { ...data, ...(this.userId ? { user_id: this.userId } : {}) },
+      signal,
+    );
   }
   goals(signal?: AbortSignal) {
     return this.read('get_goals', {}, signal);
@@ -43,7 +82,11 @@ export class HomeAssistantNutrition implements NutritionPort {
     const { caloriePeriod, recommendSince, ...values } = goals;
     const data = defined({ ...values, calorie_period: caloriePeriod });
     if (recommendSince !== undefined) data.recommend_since = recommendSince; // '' clears it
-    return this.ha.serviceResponse(`${DOMAIN}.set_goals`, data, signal);
+    return this.ha.serviceResponse(
+      `${DOMAIN}.set_goals`,
+      { ...data, ...(this.userId ? { user_id: this.userId } : {}) },
+      signal,
+    );
   }
   log(entry: Parameters<NutritionPort['log']>[0], signal?: AbortSignal) {
     return this.read(

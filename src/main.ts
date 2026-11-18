@@ -512,6 +512,21 @@ async function services(context: ToolContext, catalog = false) {
       if (!address) return true;
       const current = await access.forSession(context.session);
       const capability = toolCapability(name);
+      if (name.startsWith('food_')) {
+        if (
+          !current ||
+          current.kind !== 'user' ||
+          JSON.stringify(current.calorieTracker) !== JSON.stringify(profile?.calorieTracker)
+        )
+          return false;
+        const currentHA = scopedConfig(config, current).homeAssistant;
+        if (
+          !currentHA.token ||
+          currentHA.token !== scoped.homeAssistant.token ||
+          currentHA.url !== scoped.homeAssistant.url
+        )
+          return false;
+      }
       if (capability === 'tasks' && current) {
         const currentHA = scopedConfig(config, current).homeAssistant;
         if (
@@ -589,9 +604,18 @@ async function services(context: ToolContext, catalog = false) {
       : undefined,
   );
   if (profile?.owner) registerHomeAssistantControl(tools, ha, zeroSettings);
-  // Calorie tracking lives in the HA calorie_tracker integration; owner only.
-  if (profile?.owner)
-    registerNutritionTools(tools, new HomeAssistantNutrition(ha), new OpenFoodFacts());
+  // The selected tracker user is server-owned profile state, never a model argument.
+  if (
+    profile?.kind === 'user' &&
+    scoped.homeAssistant.token &&
+    (profile.calorieTracker?.serverUrl === scoped.homeAssistant.url ||
+      (profile.owner && profile.calorieTracker === undefined))
+  )
+    registerNutritionTools(
+      tools,
+      new HomeAssistantNutrition(ha, profile.calorieTracker?.userId),
+      new OpenFoodFacts(),
+    );
   registerMemoryTools(tools, memory, scoped.memory.mode);
   registerSearch(tools, scoped.braveApiKey, scoped.reader, scoped.imageSearch);
   registerNotificationTools(
@@ -811,6 +835,7 @@ const codex = new AIAgent(
       return {
         entities: (query, signal) => homeAssistant.entityCatalog(query, signal),
         services: (query, signal) => homeAssistant.serviceCatalog(query, signal),
+        calorieUsers: (query, signal) => HomeAssistantNutrition.users(homeAssistant, query, signal),
       };
     },
     rules.repository,
