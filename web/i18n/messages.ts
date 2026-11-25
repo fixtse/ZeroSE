@@ -279,6 +279,8 @@ export const english: Record<string, string> = {
   'Buscar conexión': 'Search connections',
   'Buscar conexión…': 'Search connections…',
   'Buscar en modelos del proveedor': 'Search provider models',
+  'Buscar voz TTS': 'Search TTS voices',
+  'Buscar voz…': 'Search voices…',
   'Buscar idioma…': 'Search languages…',
   'Buscar integrante': 'Search members',
   'Buscar integrantes': 'Search members',
@@ -378,6 +380,7 @@ export const english: Record<string, string> = {
   'Confirmar nueva contraseña': 'Confirm new password',
   'Confirmar registro': 'Confirm registration',
   'Confirmar y activar': 'Confirm and enable',
+  'Consultando voces…': 'Loading voices…',
   'Consultando Edge TTS…': 'Fetching Edge TTS…',
   'Consultando modelos del proveedor…': 'Fetching provider models…',
   'Consultando recuerdos…': 'Fetching memories…',
@@ -698,6 +701,7 @@ export const english: Record<string, string> = {
     'Could not load profiles. Close and try again.',
   'No se pudieron cargar los perfiles. Comprueba que la solicitud no haya caducado.':
     'Could not load profiles. Check that the request has not expired.',
+  'No se pudieron cargar las voces.': 'Could not load voices.',
   'No se pudo abrir el recuerdo.': 'Could not open the memory.',
   'No se pudo completar la operación.': 'Could not complete the operation.',
   'No se pudo confirmar la generación. No se ha reintentado.':
