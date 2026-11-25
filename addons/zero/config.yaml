@@ -1,5 +1,5 @@
 name: ZeroSE
-version: '0.4.0'
+version: '0.4.1'
 slug: zero_assistant
 description: Zero with Home Assistant administrator access through Ingress
 url: https://github.com/fixtse/ZeroSE
