@@ -777,6 +777,7 @@ export const english: Record<string, string> = {
   'Recargar configuración guardada': 'Reload saved settings',
   'Recargar integrantes': 'Reload members',
   'Recargar métodos de acceso': 'Reload sign-in methods',
+  'Recargar motores de voz': 'Reload speech engines',
   'Recargar perfil': 'Reload profile',
   'Recargar voces TTS': 'Reload TTS voices',
   'Recibe un código en tu destino privado de Telegram o en el móvil verificado de Home Assistant.':
@@ -849,6 +850,7 @@ export const english: Record<string, string> = {
   'Selecciona una conexión': 'Select a connection',
   'Separadas por comas': 'Comma-separated',
   'Servicio externo': 'External service',
+  'Servidor Home Assistant del perfil': 'Home Assistant server for this profile',
   'Servidores que puedes seleccionar en los perfiles. Cambiar el nombre o el token actualiza los perfiles que usan esa conexión.':
     'Servers available for profiles. Changing the name or token updates profiles using that connection.',
   Siguiente: 'Next',

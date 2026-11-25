@@ -67,48 +67,82 @@ export function ProfileSpeech({
     if (!profile) throw new Error(t('Guarda primero el perfil y su conexión.'));
     return api<CatalogPage<T>>(path + 'catalog', 'POST', input);
   }
-  async function loadEngines(kind: 'stt' | 'tts', append = false) {
-    const previous = append ? engines[kind] : [];
-    const result = await catalog<Engine>({ kind, search: '', offset: previous.length, limit: 50 });
-    setEngines((current) => ({ ...current, [kind]: [...previous, ...result.items] }));
-    return result;
-  }
   const [engineTotals, setEngineTotals] = useState({ stt: 0, tts: 0 });
+  const [loadingEngines, setLoadingEngines] = useState(false);
+  const [engineRevision, setEngineRevision] = useState(0);
+  const engineRequest = useRef<AbortController | null>(null);
+  const canListEngines = Boolean(
+    profile?.hasHomeAssistant && profile.capabilities.includes('homeAssistant'),
+  );
+
+  const homeAssistantUrl = profile?.homeAssistant?.url ?? '';
+  const engineHost = URL.canParse(homeAssistantUrl) ? new URL(homeAssistantUrl).host : '';
+
+  async function loadMoreEngines(kind: 'stt' | 'tts') {
+    const signal = engineRequest.current?.signal;
+    if (!signal || signal.aborted) return;
+    const offset = engines[kind].length;
+    try {
+      const result = await api<CatalogPage<Engine>>(
+        path + 'catalog',
+        'POST',
+        { kind, search: '', offset, limit: 50 },
+        signal,
+      );
+      if (signal.aborted) return;
+      setEngines((current) => ({ ...current, [kind]: [...current[kind], ...result.items] }));
+      setEngineTotals((current) => ({ ...current, [kind]: result.total }));
+    } catch (error) {
+      if (!signal.aborted) throw error;
+    }
+  }
+
   useEffect(() => {
-    if (!active || !profile?.hasHomeAssistant || !profile.capabilities.includes('homeAssistant'))
+    if (!active || !canListEngines) return;
+    function refreshOnFocus() {
+      setEngineRevision((revision) => revision + 1);
+    }
+    window.addEventListener('focus', refreshOnFocus);
+    return () => window.removeEventListener('focus', refreshOnFocus);
+  }, [active, canListEngines]);
+
+  useEffect(() => {
+    setEngines({ stt: [], tts: [] });
+    setEngineTotals({ stt: 0, tts: 0 });
+  }, [path, canListEngines, homeAssistantUrl]);
+
+  useEffect(() => {
+    if (!active || !canListEngines) {
+      setLoadingEngines(false);
       return;
+    }
     const controller = new AbortController();
-    void Promise.all(
+    engineRequest.current = controller;
+    setLoadingEngines(true);
+    void Promise.allSettled(
       (['stt', 'tts'] as const).map(async (kind) => {
         const result = await api<CatalogPage<Engine>>(
           path + 'catalog',
           'POST',
-          {
-            kind,
-            search: '',
-            offset: 0,
-            limit: 50,
-          },
+          { kind, search: '', offset: 0, limit: 50 },
           controller.signal,
         );
-        return { kind, result };
-      }),
-    )
-      .then((results) => {
         if (controller.signal.aborted) return;
-        for (const { kind, result } of results) {
-          setEngines((current) => ({ ...current, [kind]: result.items }));
-          setEngineTotals((current) => ({ ...current, [kind]: result.total }));
-        }
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted)
-          void run(async () => {
-            throw error;
-          });
-      });
+        setEngines((current) => ({ ...current, [kind]: result.items }));
+        setEngineTotals((current) => ({ ...current, [kind]: result.total }));
+      }),
+    ).then((results) => {
+      if (controller.signal.aborted) return;
+      setLoadingEngines(false);
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) {
+        void run(async () => {
+          throw failure.reason;
+        });
+      }
+    });
     return () => controller.abort();
-  }, [active, path, profile?.hasHomeAssistant, profile?.capabilities.includes('homeAssistant')]);
+  }, [active, path, canListEngines, homeAssistantUrl, engineRevision]);
 
   async function loadVoices(append = false) {
     if (value.tts === 'default') {
@@ -179,12 +213,31 @@ export function ProfileSpeech({
   }
   return (
     <section className="settings-section">
-      <h3>{t('Voz · transcripción y síntesis')}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3>{t('Voz · transcripción y síntesis')}</h3>
+        {canListEngines && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={loadingEngines}
+            tooltip={t('Recargar motores de voz')}
+            onClick={() => setEngineRevision((revision) => revision + 1)}
+          >
+            <RefreshCw />
+          </Button>
+        )}
+      </div>
       <p>
         {t(
           'Predeterminado conserva la transcripción actual y Edge TTS. Para consultar motores de Home Assistant, guarda primero su conexión y habilita ese permiso.',
         )}
       </p>
+      {canListEngines && engineHost && (
+        <p>
+          {t('Servidor Home Assistant del perfil')} · {engineHost}
+        </p>
+      )}
       <div className="settings-grid">
         {(['stt', 'tts'] as const).map((kind) => (
           <div key={kind}>
@@ -235,12 +288,8 @@ export function ProfileSpeech({
                   variant="ghost"
                   size="icon"
                   tooltip={t('Más motores ') + kind.toUpperCase()}
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await loadEngines(kind, true);
-                    })
-                  }
+                  disabled={busy || loadingEngines}
+                  onClick={() => void run(() => loadMoreEngines(kind))}
                 >
                   <ArrowRight />
                 </Button>
