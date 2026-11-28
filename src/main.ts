@@ -988,7 +988,7 @@ const codex = new AIAgent(
     rules,
     new VoiceBridge(
       store,
-      [config.homeAssistant.voiceSatellite || '', ...(config.homeAssistant.voiceSatellites || [])],
+      config.homeAssistant.voiceSatellite || '',
       () =>
         voiceOwnerSession(
           config.telegram.allowedUsers[0] || config.telegram.notificationChatId,

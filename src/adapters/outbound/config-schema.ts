@@ -124,10 +124,6 @@ export const ServiceConfigSchema = z.object({
         .string()
         .regex(/^assist_satellite\.[a-z0-9_]+$|^$/)
         .default(''),
-      voiceSatellites: z
-        .array(z.string().regex(/^assist_satellite\.[a-z0-9_]+$/))
-        .max(20)
-        .optional(),
       url: z.string().default(''),
       token: secret,
       taskProvider: z.enum(['google', 'home_assistant']).optional(),

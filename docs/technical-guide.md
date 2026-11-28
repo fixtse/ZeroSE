@@ -1071,12 +1071,12 @@ therefore grants access to the owner's Zero tools; mute it when needed. The
 voice credential only permits bounded turn submission and reading that device's
 voice results, not the admin API, Telegram jobs or arbitrary session selection.
 
-More owner satellites (for example a Room Companion panel besides a Voice device)
-are listed on both sides: `homeAssistant.voiceSatellites` in Zero's settings and
-`satellite_ids` in the `assistant_zero` YAML (re-read on each Home Assistant
-start). Each turn reports the satellite that heard it; any other device without
-an authenticated HA user is refused. Every listed microphone grants the same
-owner access.
+More owner devices (for example a Room Companion panel besides a Voice device)
+are chosen in Home Assistant: ZeroSE → Configure → Voice devices. Home Assistant
+admits those satellites and submits their turns under the configured satellite
+identity; the device that heard a turn travels in its `origin`. Any other device
+without an authenticated HA user is refused. Every chosen microphone grants the
+same owner access.
 Requests are deduplicated by utterance ID. After one submission, the integration
 only reads status for up to 290 seconds; failed or uncertain actions are never
 automatically repeated. Idle operation uses no model tokens or heartbeat; each

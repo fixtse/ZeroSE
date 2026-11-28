@@ -56,9 +56,6 @@ class ZeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             additions = {key: data[key] for key in ("callback_url", "callback_token") if key in data and key not in existing.data}
             if additions:
                 self.hass.config_entries.async_update_entry(existing, data={**existing.data, **additions})
-            # satellite_ids exists only in YAML, so YAML stays its source of truth.
-            if "satellite_ids" in data and existing.data.get("satellite_ids") != data["satellite_ids"]:
-                self.hass.config_entries.async_update_entry(existing, data={**existing.data, "satellite_ids": data["satellite_ids"]})
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title="ZeroSE", data=data)
 
@@ -179,7 +176,21 @@ class ZeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class ZeroOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["assistant", "users", "delivery"])
+        return self.async_show_menu(step_id="init", menu_options=["assistant", "voice", "users", "delivery"])
+
+    async def async_step_voice(self, user_input=None):
+        """Assist satellites that use the owner's Zero session without an HA user."""
+        data = self.config_entry.data
+        if user_input is not None:
+            chosen = list(dict.fromkeys(user_input.get("satellite_ids", [])))
+            self.hass.config_entries.async_update_entry(self.config_entry, data={**data, "satellite_ids": chosen})
+            return self.async_create_entry(title="", data={})
+        current = list(dict.fromkeys(filter(None, [data.get("satellite_id"), *data.get("satellite_ids", [])])))
+        schema = vol.Schema({
+            vol.Optional("satellite_ids", default=current): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="assist_satellite", multiple=True)),
+        })
+        return self.async_show_form(step_id="voice", data_schema=schema)
 
     async def async_step_users(self, user_input=None):
         errors = {}

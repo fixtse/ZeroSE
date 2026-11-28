@@ -132,14 +132,15 @@ class ZeroConversation(conversation.ConversationEntity):
         response = intent.IntentResponse(language=user_input.language)
         conversation_id = user_input.conversation_id or str(uuid.uuid4())
         settings = self._entry.data
-        # The owner's Assist satellites: satellite_id plus the YAML satellite_ids.
+        # The owner's Assist satellites, chosen in Configure → Voice devices
+        # (satellite_ids; older entries have only satellite_id). Zero knows the
+        # owner voice route by satellite_id, so admitted turns are sent under it.
+        satellite_id = settings.get("satellite_id")
         registry = er.async_get(self.hass)
-        satellite_ids = list(dict.fromkeys([settings.get("satellite_id"), *settings.get("satellite_ids", [])]))
-        satellites = [entry for entry in (registry.async_get(entity) for entity in satellite_ids if entity) if entry]
-        # The satellite that heard this request (sent to Zero), else the primary one.
+        owner_ids = settings["satellite_ids"] if "satellite_ids" in settings else [satellite_id]
+        satellites = [entry for entry in (registry.async_get(entity) for entity in owner_ids if entity) if entry]
         heard = next((entry for entry in satellites if user_input.satellite_id == entry.entity_id
                       or (user_input.device_id is not None and user_input.device_id == entry.device_id)), None)
-        satellite_id = heard.entity_id if heard else settings.get("satellite_id")
         # HA authenticates the user; Zero resolves the binding and permissions.
         # A device-only satellite retains the legacy owner route.
         user_id = user_input.context.user_id

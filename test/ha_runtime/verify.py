@@ -250,24 +250,38 @@ async def main():
             origin = conversation_module.request_origin(hass, speaker.id, admin_user)
             assert origin == {"device": "Bedroom speaker", "area": "Origin bedroom", "entities": [shown.entity_id]}, origin
             assert conversation_module.request_origin(hass, "android-phone", admin_user) is None
-            # YAML satellite_ids add more owner satellites; each turn names the one that heard it.
+            # Configure → Voice devices admits more owner satellites; their turns
+            # use the configured satellite identity Zero knows.
             voice_sat = reg.async_get_or_create("assist_satellite", "assistant_zero", "owner-voice", device_id=speaker.id, suggested_object_id="owner_voice")
             panel_sat = reg.async_get_or_create("assist_satellite", "assistant_zero", "owner-panel", device_id=panel.id, suggested_object_id="owner_panel")
-            imported = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "import"}, data={**connection, "satellite_id": voice_sat.entity_id, "satellite_ids": [panel_sat.entity_id]})
-            assert imported["type"] == "abort", imported
-            assert entry.data["satellite_ids"] == [panel_sat.entity_id], entry.data
-            owners = conversation_module.ZeroConversation(SimpleNamespace(data={**entry.data, "satellite_id": voice_sat.entity_id}))
+            hass.config_entries.async_update_entry(entry, data={**entry.data, "satellite_id": voice_sat.entity_id})
+            await hass.async_block_till_done()
+            flow = await hass.config_entries.options.async_init(entry.entry_id)
+            assert "voice" in flow["menu_options"], flow
+            flow = await hass.config_entries.options.async_configure(flow["flow_id"], {"next_step_id": "voice"})
+            assert flow["type"] == "form" and flow["step_id"] == "voice", flow
+            flow = await hass.config_entries.options.async_configure(flow["flow_id"], {"satellite_ids": [voice_sat.entity_id, panel_sat.entity_id]})
+            assert flow["type"] == "create_entry", flow
+            await hass.async_block_till_done()
+            assert entry.data["satellite_ids"] == [voice_sat.entity_id, panel_sat.entity_id], entry.data
+            owners = conversation_module.ZeroConversation(entry)
             owners.hass = hass
             spoken = lambda satellite, device: SimpleNamespace(language="es", conversation_id=None, device_id=device,
                 satellite_id=satellite, text="Show the lamp", context=Context())
             with patch.object(conversation_module, "converse", new=AsyncMock(return_value="Shown")) as converse:
                 result = await owners.async_process(spoken(panel_sat.entity_id, panel.id))
                 assert result.response.speech["plain"]["speech"] == "Shown", result
-                assert converse.call_args.args[2] == panel_sat.entity_id
-                await owners.async_process(spoken(voice_sat.entity_id, speaker.id))
                 assert converse.call_args.args[2] == voice_sat.entity_id
+                assert converse.call_args.kwargs["origin"]["device"] == "Bedroom panel"
+                await owners.async_process(spoken(voice_sat.entity_id, speaker.id))
                 refused = await owners.async_process(spoken("assist_satellite.kitchen", "kitchen-device"))
                 assert refused.response.error_code is not None and converse.await_count == 2
+            # Removing a device from the list revokes it, including the primary one.
+            hass.config_entries.async_update_entry(entry, data={**entry.data, "satellite_ids": [panel_sat.entity_id]})
+            with patch.object(conversation_module, "converse", new=AsyncMock(return_value="Shown")) as converse:
+                refused = await owners.async_process(spoken(voice_sat.entity_id, speaker.id))
+                assert refused.response.error_code is not None and converse.await_count == 0
+            hass.config_entries.async_update_entry(entry, data={key: value for key, value in entry.data.items() if key != "satellite_ids"})
             # An authenticated Android user works without a physical satellite;
             # an anonymous device never gains the owner fallback from its absence.
             without_satellite = conversation_module.ZeroConversation(SimpleNamespace(data={key: value for key, value in entry.data.items() if key != 'satellite_id'}))

@@ -71,7 +71,8 @@
         "menu_options": {
           "assistant": "Prompt and Home Assistant access",
           "delivery": "Reminder and alert delivery",
-          "users": "Home Assistant user bindings"
+          "users": "Home Assistant user bindings",
+          "voice": "Voice devices"
         }
       },
       "delivery": {
@@ -88,6 +89,13 @@
         "data": {
           "user_id": "Home Assistant user",
           "chat_id": "Zero user chat ID (empty to unlink)"
+        }
+      },
+      "voice": {
+        "title": "Voice devices",
+        "description": "Assist devices that may talk to Zero as you without a signed-in Home Assistant user, such as a Voice satellite or a Room Companion panel. Anyone who can speak to a chosen device can use your Zero tools, memory and Home Assistant control. Requests from other devices need a signed-in user bound to Zero.",
+        "data": {
+          "satellite_ids": "Devices"
         }
       }
     },

@@ -32,24 +32,3 @@ test('voice turns keep the originating device in the job payload', async () => {
     await f.close();
   }
 });
-
-test('several owner satellites may submit voice turns; others are refused', async () => {
-  const f = await fixture();
-  const voice = new VoiceBridge(
-    f.store,
-    ['assist_satellite.voice', 'assist_satellite.panel'],
-    async () => 'telegram:1',
-  );
-  try {
-    const turn = (satellite_id: string) =>
-      voice.submit({ request_id: crypto.randomUUID(), satellite_id, text: 'show the lamp' });
-    const panel = await turn('assist_satellite.panel');
-    assert.ok(panel);
-    assert.equal((await f.store.job(panel.id))?.payload.satellite, 'assist_satellite.panel');
-    assert.equal((await voice.result(panel.id))?.id, panel.id);
-    assert.ok(await turn('assist_satellite.voice'));
-    assert.equal(await turn('assist_satellite.kitchen'), undefined);
-  } finally {
-    await f.close();
-  }
-});
