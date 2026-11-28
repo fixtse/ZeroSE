@@ -31,6 +31,15 @@ class VoiceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.call_args_list[0].args[2]["ha_user_id"], user_id)
         self.assertEqual(request.call_args_list[1].args[1], "/v1/voice/turns/" + JOB + "?ha_user_id=" + user_id)
 
+    async def test_origin_is_sent_only_when_known(self):
+        origin = {"device": "Bedroom panel", "area": "Bedroom", "entities": ["select.bedroom_panel_show_entity"]}
+        request = AsyncMock(side_effect=[{"jobId": JOB}, {"status": "done", "output": "Shown"}])
+        await client.converse(request, "Show the lamp", "assist_satellite.test", origin=origin)
+        self.assertEqual(request.call_args_list[0].args[2]["origin"], origin)
+        request = AsyncMock(side_effect=[{"jobId": JOB}, {"status": "done", "output": "Hi"}])
+        await client.converse(request, "Hi", "assist_satellite.test")
+        self.assertNotIn("origin", request.call_args_list[0].args[2])
+
     async def test_uncertain_submission_is_not_retried(self):
         request = AsyncMock(side_effect=TimeoutError())
         with self.assertRaises(TimeoutError):

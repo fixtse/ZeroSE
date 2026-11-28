@@ -5,7 +5,9 @@ import uuid
 
 import aiohttp
 from homeassistant.components import conversation
-from homeassistant.helpers import entity_registry as er, intent
+from homeassistant.auth.permissions.const import POLICY_CONTROL
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er, intent
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -42,6 +44,42 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     entry.async_on_unload(coordinator.async_add_listener(discover))
     discover()
+
+
+ORIGIN_ENTITIES = 30
+
+
+def request_origin(hass, device_id, user):
+    """The device that heard the request, its area, and the Assist-exposed
+    entities Zero may act on there: the device's own, then the area's selects
+    (such as a Room Companion panel's Page, Show entity and Preset)."""
+    device = dr.async_get(hass).async_get(device_id) if device_id else None
+    if device is None:
+        return None
+    entities_reg = er.async_get(hass)
+    area = ar.async_get(hass).async_get_area(device.area_id) if device.area_id else None
+
+    def usable(entity_id):
+        return (hass.states.get(entity_id) is not None
+                and async_should_expose(hass, "conversation", entity_id)
+                and (user is None or user.permissions.check_entity(entity_id, POLICY_CONTROL)))
+
+    own = [entry.entity_id for entry in er.async_entries_for_device(entities_reg, device.id)]
+    nearby = []
+    if area is not None:
+        devices = dr.async_get(hass)
+        for entry in entities_reg.entities.values():
+            if entry.domain != "select" or entry.device_id == device.id:
+                continue
+            owner = devices.async_get(entry.device_id) if entry.device_id else None
+            entry_area = entry.area_id or (owner.area_id if owner else None)
+            if entry_area == area.id:
+                nearby.append(entry.entity_id)
+    entities = [entity_id for entity_id in dict.fromkeys(own + sorted(nearby)) if usable(entity_id)][:ORIGIN_ENTITIES]
+    origin = {"device": (device.name_by_user or device.name or "")[:100], "entities": entities}
+    if area is not None:
+        origin["area"] = area.name[:100]
+    return origin
 
 
 class ZeroConversation(conversation.ConversationEntity):
@@ -115,7 +153,8 @@ class ZeroConversation(conversation.ConversationEntity):
             return await bridge_request(self.hass, settings, method, path, data)
 
         try:
-            output = await converse(request, user_input.text, satellite_id, ha_user_id=user_id, assistant_id=None if self._coordinator and self._coordinator.data.get(self.assistant_id, {}).get("legacy") else self.assistant_id)
+            origin = request_origin(self.hass, user_input.device_id, user)
+            output = await converse(request, user_input.text, satellite_id, ha_user_id=user_id, origin=origin, assistant_id=None if self._coordinator and self._coordinator.data.get(self.assistant_id, {}).get("legacy") else self.assistant_id)
             response.async_set_speech(output)
         except AccessDenied:
             response.async_set_error(

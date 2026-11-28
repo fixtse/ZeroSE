@@ -263,6 +263,17 @@ export function createHttpServer(
                 .regex(/^[a-f0-9]{32}$/)
                 .optional(),
               text: z.string().trim().min(1).max(16000),
+              origin: z
+                .object({
+                  device: z.string().max(100),
+                  area: z.string().max(100).optional(),
+                  entities: z
+                    .array(z.string().regex(/^[a-z_]+\.[a-z0-9_]+$/))
+                    .max(30)
+                    .default([]),
+                })
+                .strict()
+                .optional(),
             })
             .strict()
             .parse(await body(req));
