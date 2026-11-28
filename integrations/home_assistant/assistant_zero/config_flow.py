@@ -56,6 +56,9 @@ class ZeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             additions = {key: data[key] for key in ("callback_url", "callback_token") if key in data and key not in existing.data}
             if additions:
                 self.hass.config_entries.async_update_entry(existing, data={**existing.data, **additions})
+            # satellite_ids exists only in YAML, so YAML stays its source of truth.
+            if "satellite_ids" in data and existing.data.get("satellite_ids") != data["satellite_ids"]:
+                self.hass.config_entries.async_update_entry(existing, data={**existing.data, "satellite_ids": data["satellite_ids"]})
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title="ZeroSE", data=data)
 

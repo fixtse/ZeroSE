@@ -132,8 +132,14 @@ class ZeroConversation(conversation.ConversationEntity):
         response = intent.IntentResponse(language=user_input.language)
         conversation_id = user_input.conversation_id or str(uuid.uuid4())
         settings = self._entry.data
-        satellite_id = settings.get("satellite_id")
-        satellite = er.async_get(self.hass).async_get(satellite_id) if satellite_id else None
+        # The owner's Assist satellites: satellite_id plus the YAML satellite_ids.
+        registry = er.async_get(self.hass)
+        satellite_ids = list(dict.fromkeys([settings.get("satellite_id"), *settings.get("satellite_ids", [])]))
+        satellites = [entry for entry in (registry.async_get(entity) for entity in satellite_ids if entity) if entry]
+        # The satellite that heard this request (sent to Zero), else the primary one.
+        heard = next((entry for entry in satellites if user_input.satellite_id == entry.entity_id
+                      or (user_input.device_id is not None and user_input.device_id == entry.device_id)), None)
+        satellite_id = heard.entity_id if heard else settings.get("satellite_id")
         # HA authenticates the user; Zero resolves the binding and permissions.
         # A device-only satellite retains the legacy owner route.
         user_id = user_input.context.user_id
@@ -141,10 +147,7 @@ class ZeroConversation(conversation.ConversationEntity):
         if user_id:
             allowed = bool(user and user.is_active and not user.system_generated)
         else:
-            allowed = satellite is not None and (
-                user_input.satellite_id == satellite.entity_id
-                or (user_input.device_id is not None and user_input.device_id == satellite.device_id)
-            )
+            allowed = heard is not None
         if not allowed:
             response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, "Este dispositivo no tiene acceso a Zero.")
             return conversation.ConversationResult(response=response, conversation_id=conversation_id)

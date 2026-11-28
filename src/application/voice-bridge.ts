@@ -66,11 +66,20 @@ export function voiceOriginInstruction(origin: VoiceOrigin | undefined) {
 export class VoiceBridge {
   constructor(
     private store: ConversationStore,
-    private satellite: string,
+    satellites: string | string[],
     private ownerSession: () => Promise<string | undefined>,
     private userSession?: (userId: string) => Promise<string | undefined>,
     private definitions?: Pick<AssistantDefinitions, 'get' | 'list'>,
-  ) {}
+  ) {
+    this.satellites = [...new Set([satellites].flat().filter(Boolean))];
+  }
+
+  /** Assist satellites that may use the owner's session without an HA user. */
+  private satellites: string[];
+
+  private allowed(satellite: string | undefined) {
+    return satellite !== undefined && this.satellites.includes(satellite);
+  }
 
   private async session(userId?: string) {
     return userId === undefined ? this.ownerSession() : this.userSession?.(userId);
@@ -86,24 +95,21 @@ export class VoiceBridge {
   }) {
     if (value.assistant_id && !(await this.definitions?.get(value.assistant_id))) return undefined;
     const session = await this.session(value.ha_user_id);
-    if (
-      !session ||
-      (value.ha_user_id === undefined && (!this.satellite || value.satellite_id !== this.satellite))
-    )
+    if (!session || (value.ha_user_id === undefined && !this.allowed(value.satellite_id)))
       return undefined;
     return this.store.enqueue(
       session,
       {
         kind: 'chat',
         source: 'home_assistant_voice',
-        satellite: value.ha_user_id === undefined ? this.satellite : undefined,
+        satellite: value.ha_user_id === undefined ? value.satellite_id : undefined,
         haUserId: value.ha_user_id,
         ...(value.assistant_id ? { assistantId: value.assistant_id } : {}),
         text: value.text,
         ...(value.origin ? { origin: value.origin } : {}),
         name: 'usuario',
       },
-      `voice:${value.ha_user_id === undefined ? this.satellite : 'user:' + value.ha_user_id}:${value.request_id}${value.assistant_id ? ':assistant:' + value.assistant_id : ''}`,
+      `voice:${value.ha_user_id === undefined ? value.satellite_id : 'user:' + value.ha_user_id}:${value.request_id}${value.assistant_id ? ':assistant:' + value.assistant_id : ''}`,
     );
   }
 
@@ -122,12 +128,12 @@ export class VoiceBridge {
 
   async result(id: string, userId?: string) {
     const session = await this.session(userId);
-    if (!session || (userId === undefined && !this.satellite)) return undefined;
+    if (!session || (userId === undefined && !this.satellites.length)) return undefined;
     const job = await this.store.job(id);
     return job?.session === session &&
       job.payload.source === 'home_assistant_voice' &&
       job.payload.haUserId === userId &&
-      (userId !== undefined || job.payload.satellite === this.satellite)
+      (userId !== undefined || this.allowed(job.payload.satellite))
       ? job
       : undefined;
   }

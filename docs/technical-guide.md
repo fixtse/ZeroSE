@@ -1070,6 +1070,13 @@ administrator using Assist directly. Physical access to the enabled microphone
 therefore grants access to the owner's Zero tools; mute it when needed. The
 voice credential only permits bounded turn submission and reading that device's
 voice results, not the admin API, Telegram jobs or arbitrary session selection.
+
+More owner satellites (for example a Room Companion panel besides a Voice device)
+are listed on both sides: `homeAssistant.voiceSatellites` in Zero's settings and
+`satellite_ids` in the `assistant_zero` YAML (re-read on each Home Assistant
+start). Each turn reports the satellite that heard it; any other device without
+an authenticated HA user is refused. Every listed microphone grants the same
+owner access.
 Requests are deduplicated by utterance ID. After one submission, the integration
 only reads status for up to 290 seconds; failed or uncertain actions are never
 automatically repeated. Idle operation uses no model tokens or heartbeat; each

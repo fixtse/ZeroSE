@@ -9,6 +9,8 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required("url"): cv.url,
         vol.Required("token"): cv.string,
         vol.Optional("satellite_id"): cv.entity_id,
+        # More Assist satellites that may use the owner's Zero session.
+        vol.Optional("satellite_ids"): vol.All(cv.entity_ids, vol.Length(max=20)),
         vol.Optional("settings_token"): cv.string,
         vol.Optional("callback_url"): cv.url,
         vol.Optional("callback_token"): vol.All(str, vol.Length(min=24)),

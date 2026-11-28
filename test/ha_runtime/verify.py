@@ -250,6 +250,24 @@ async def main():
             origin = conversation_module.request_origin(hass, speaker.id, admin_user)
             assert origin == {"device": "Bedroom speaker", "area": "Origin bedroom", "entities": [shown.entity_id]}, origin
             assert conversation_module.request_origin(hass, "android-phone", admin_user) is None
+            # YAML satellite_ids add more owner satellites; each turn names the one that heard it.
+            voice_sat = reg.async_get_or_create("assist_satellite", "assistant_zero", "owner-voice", device_id=speaker.id, suggested_object_id="owner_voice")
+            panel_sat = reg.async_get_or_create("assist_satellite", "assistant_zero", "owner-panel", device_id=panel.id, suggested_object_id="owner_panel")
+            imported = await hass.config_entries.flow.async_init("assistant_zero", context={"source": "import"}, data={**connection, "satellite_id": voice_sat.entity_id, "satellite_ids": [panel_sat.entity_id]})
+            assert imported["type"] == "abort", imported
+            assert entry.data["satellite_ids"] == [panel_sat.entity_id], entry.data
+            owners = conversation_module.ZeroConversation(SimpleNamespace(data={**entry.data, "satellite_id": voice_sat.entity_id}))
+            owners.hass = hass
+            spoken = lambda satellite, device: SimpleNamespace(language="es", conversation_id=None, device_id=device,
+                satellite_id=satellite, text="Show the lamp", context=Context())
+            with patch.object(conversation_module, "converse", new=AsyncMock(return_value="Shown")) as converse:
+                result = await owners.async_process(spoken(panel_sat.entity_id, panel.id))
+                assert result.response.speech["plain"]["speech"] == "Shown", result
+                assert converse.call_args.args[2] == panel_sat.entity_id
+                await owners.async_process(spoken(voice_sat.entity_id, speaker.id))
+                assert converse.call_args.args[2] == voice_sat.entity_id
+                refused = await owners.async_process(spoken("assist_satellite.kitchen", "kitchen-device"))
+                assert refused.response.error_code is not None and converse.await_count == 2
             # An authenticated Android user works without a physical satellite;
             # an anonymous device never gains the owner fallback from its absence.
             without_satellite = conversation_module.ZeroConversation(SimpleNamespace(data={key: value for key, value in entry.data.items() if key != 'satellite_id'}))

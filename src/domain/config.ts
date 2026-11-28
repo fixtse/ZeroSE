@@ -46,6 +46,8 @@ export interface Config {
     connections?: { id: string; name: string; url: string }[];
     activeConnectionId?: string;
     voiceSatellite?: string;
+    /** More Assist satellites routed to the owner's session (besides voiceSatellite). */
+    voiceSatellites?: string[];
     taskProvider?: 'google' | 'home_assistant';
     taskListEntity?: string;
     url: string;
