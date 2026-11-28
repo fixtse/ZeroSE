@@ -4,13 +4,15 @@ import { VoiceBridge, voiceOriginInstruction } from '../src/application/voice-br
 import { fixture } from './helpers.js';
 
 test('voice origin instruction names the device, area and exposed entities', () => {
-  assert.equal(voiceOriginInstruction(undefined), '');
+  assert.match(voiceOriginInstruction(undefined), /calentador/);
+  assert.doesNotMatch(voiceOriginInstruction(undefined), /voice request came/);
   const line = voiceOriginInstruction({
     device: 'Bedroom panel',
     area: 'Bedroom',
     entities: ['select.bedroom_panel_show_entity', 'select.bedroom_panel_page'],
   });
   assert.match(line, /"Bedroom panel" in area "Bedroom"/);
+  assert.match(line, /sounds closest/);
   assert.match(line, /select\.bedroom_panel_show_entity, select\.bedroom_panel_page/);
   assert.doesNotMatch(voiceOriginInstruction({ device: 'Panel', entities: [] }), /in area|exposed/);
 });
