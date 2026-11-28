@@ -231,6 +231,25 @@ async def main():
                 await helper.async_process(phone_input)
                 assert converse.call_args.kwargs["assistant_id"] == "helper"
                 assert converse.call_args.kwargs["ha_user_id"] == admin_user.id
+            # The originating device, its area and the exposed selects there reach Zero.
+            from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
+            from homeassistant.helpers import area_registry as ar
+            bedroom = ar.async_get(hass).async_create("Origin bedroom")
+            devices = dr.async_get(hass)
+            speaker = devices.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("assistant_zero", "origin-speaker")}, name="Bedroom speaker")
+            panel = devices.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("assistant_zero", "origin-panel")}, name="Bedroom panel")
+            devices.async_update_device(speaker.id, area_id=bedroom.id)
+            devices.async_update_device(panel.id, area_id=bedroom.id)
+            reg = er.async_get(hass)
+            shown = reg.async_get_or_create("select", "assistant_zero", "origin-show", device_id=panel.id, suggested_object_id="bedroom_panel_show_entity")
+            hidden = reg.async_get_or_create("select", "assistant_zero", "origin-hidden", device_id=panel.id, suggested_object_id="bedroom_panel_idle_screen")
+            for item in (shown, hidden):
+                hass.states.async_set(item.entity_id, "None")
+            async_expose_entity(hass, "conversation", shown.entity_id, True)
+            async_expose_entity(hass, "conversation", hidden.entity_id, False)
+            origin = conversation_module.request_origin(hass, speaker.id, admin_user)
+            assert origin == {"device": "Bedroom speaker", "area": "Origin bedroom", "entities": [shown.entity_id]}, origin
+            assert conversation_module.request_origin(hass, "android-phone", admin_user) is None
             # An authenticated Android user works without a physical satellite;
             # an anonymous device never gains the owner fallback from its absence.
             without_satellite = conversation_module.ZeroConversation(SimpleNamespace(data={key: value for key, value in entry.data.items() if key != 'satellite_id'}))
